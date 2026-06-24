@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class HeadEffects : MonoBehaviour
+public class HeadEffect : MonoBehaviour
 {
     [Header("Idle")]
     public float breathingAmount = 0.15f;
