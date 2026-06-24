@@ -1,9 +1,21 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 public class HourglassController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private Timer timer;
+
+    [Header("Events")]
+    [SerializeField] private UnityEvent onStarted = new UnityEvent();
+    [SerializeField] private UnityEvent onWarning = new UnityEvent();
+    [SerializeField] private UnityEvent onFinished = new UnityEvent();
+    [SerializeField] private UnityEvent onStopped = new UnityEvent();
+
+    public UnityEvent OnStarted => onStarted;
+    public UnityEvent OnWarning => onWarning;
+    public UnityEvent OnFinished => onFinished;
+    public UnityEvent OnStopped => onStopped;
 
     private void OnEnable()
     {
@@ -67,20 +79,24 @@ public class HourglassController : MonoBehaviour
     private void HandleTimerStarted()
     {
         Debug.Log("Hourglass Started");
+        onStarted.Invoke();
     }
 
     private void HandleTimerWarning()
     {
         Debug.Log("Hourglass Warning");
+        onWarning.Invoke();
     }
 
     private void HandleTimerFinished()
     {
         Debug.Log("Hourglass Finished");
+        onFinished.Invoke();
     }
 
     private void HandleTimerStopped()
     {
         Debug.Log("Hourglass Stopped");
+        onStopped.Invoke();
     }
 }

@@ -219,6 +219,30 @@ Work in this order:
 
 ---
 
+## Development Workflow
+
+This project is developed using small validated tasks.
+
+Workflow:
+
+1. One Codex conversation = one task.
+2. One Git commit = one completed task.
+3. Never start a new task until the previous one is:
+   - Reviewed
+   - Compiling
+   - Tested inside Unity
+   - Committed
+   - Pushed
+4. Bug fixes remain inside the same task conversation until the task is complete.
+5. Read AGENTS.md before making any code changes.
+6. Read the relevant documentation inside Docs before implementing new systems.
+7. Prefer extending existing systems over creating new ones.
+8. Keep systems modular and event-driven.
+9. Avoid putting gameplay logic inside visual components.
+10. Explain architectural decisions after every completed task.
+
+---
+
 ## Git Rules
 
 - Keep the project working before committing.

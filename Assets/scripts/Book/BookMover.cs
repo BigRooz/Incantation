@@ -21,6 +21,10 @@ public class BookMover : MonoBehaviour
             return;
         }
 
+        Debug.Log(
+            $"BookMover.MoveToSeat | Book: {name} | Target Object: {destination.name} | Target Position: {destination.position}"
+        );
+
         if (moveRoutine != null)
             StopCoroutine(moveRoutine);
 
@@ -34,6 +38,11 @@ public class BookMover : MonoBehaviour
 
         Vector3 targetPosition = target.position;
         Quaternion targetRotation = target.rotation;
+        float distance = Vector3.Distance(startPosition, targetPosition);
+
+        Debug.Log(
+            $"BookMover.MoveTo | Book: {name} | Start Position: {startPosition} | Target Position: {targetPosition} | Target Object: {target.name} | Distance: {distance}"
+        );
 
         float elapsed = 0f;
 

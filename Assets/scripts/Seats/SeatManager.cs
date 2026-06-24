@@ -68,12 +68,20 @@ public class SeatManager : MonoBehaviour
 
         seat.Occupy(player);
 
+        Debug.Log($"Le joueur est maintenant assis sur {seat.name}");
+    }
+
+    public void MoveBookToSeat(Seat seat)
+    {
+        if (seat == null)
+            return;
+
         currentBookSeat = seat;
+
+        Debug.Log("SeatManager.MoveBookToSeat used for: " + seat.name);
 
         if (bookMover != null)
             bookMover.MoveToSeat(seat);
-
-        Debug.Log($"Le joueur est maintenant assis sur {seat.name}");
     }
 
     public void MoveBookToNextOccupiedSeat()
@@ -86,10 +94,7 @@ public class SeatManager : MonoBehaviour
             return;
         }
 
-        currentBookSeat = nextSeat;
-
-        if (bookMover != null)
-            bookMover.MoveToSeat(nextSeat);
+        MoveBookToSeat(nextSeat);
 
         Debug.Log("Livre envoyé vers : " + nextSeat.name);
     }
