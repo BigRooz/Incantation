@@ -7,7 +7,7 @@ public class IncantationTextDisplay : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private IncantationManager incantationManager;
-    [SerializeField] private TextMeshProUGUI targetText;
+    [SerializeField] private TMP_Text targetText;
 
     [Header("Display")]
     [SerializeField] private string emptyText = "Awaiting incantation...";
@@ -25,7 +25,7 @@ public class IncantationTextDisplay : MonoBehaviour
 
     private void Reset()
     {
-        targetText = GetComponent<TextMeshProUGUI>();
+        targetText = GetComponent<TMP_Text>();
     }
 
     private void OnEnable()
@@ -43,7 +43,7 @@ public class IncantationTextDisplay : MonoBehaviour
     private void OnValidate()
     {
         if (targetText == null)
-            targetText = GetComponent<TextMeshProUGUI>();
+            targetText = GetComponent<TMP_Text>();
 
         UpdateDisplay();
     }
