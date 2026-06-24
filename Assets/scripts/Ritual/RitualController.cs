@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 public class RitualController : MonoBehaviour
@@ -10,23 +11,32 @@ public class RitualController : MonoBehaviour
     [SerializeField] private SeatManager seatManager;
     [SerializeField] private BookMover bookMover;
     [SerializeField] private HourglassController hourglassController;
+    [SerializeField] private IncantationManager incantationManager;
+    [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
 
     [Header("Prototype")]
     [SerializeField] private bool autoStart = true;
 
     private Coroutine ritualRoutine;
+    private IVoiceRecognizer voiceRecognizer;
     private bool hourglassFinished;
     private bool isWaitingForOccupiedSeat;
+    private bool isTurnActive;
+    private bool playerTurnComplete;
+    private Seat lastCompletedSeat;
 
     public Seat CurrentActiveSeat { get; private set; }
 
     private void OnEnable()
     {
         SubscribeToHourglass();
+        SubscribeToVoiceRecognizer();
     }
 
     private void OnDisable()
     {
+        StopListening();
+        UnsubscribeFromVoiceRecognizer();
         UnsubscribeFromHourglass();
     }
 
@@ -58,6 +68,13 @@ public class RitualController : MonoBehaviour
 
         hourglassFinished = false;
         isWaitingForOccupiedSeat = false;
+        isTurnActive = false;
+        playerTurnComplete = false;
+        lastCompletedSeat = null;
+        StopListening();
+
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
     }
 
     private IEnumerator RitualLoop()
@@ -66,23 +83,17 @@ public class RitualController : MonoBehaviour
 
         while (true)
         {
-            if (CurrentActiveSeat == null || CurrentActiveSeat.IsFree())
-                CurrentActiveSeat = GetFirstOccupiedSeat();
-
-            if (CurrentActiveSeat == null)
+            if (isTurnActive)
             {
-                if (!isWaitingForOccupiedSeat)
-                {
-                    Debug.Log("Waiting for occupied seat");
-                    isWaitingForOccupiedSeat = true;
-                }
-
                 yield return null;
                 continue;
             }
 
-            if (isWaitingForOccupiedSeat)
-                isWaitingForOccupiedSeat = false;
+            if (!TrySelectNextTurnSeat())
+            {
+                yield return null;
+                continue;
+            }
 
             Debug.Log($"Occupied seat found: {CurrentActiveSeat.name}");
 
@@ -96,10 +107,50 @@ public class RitualController : MonoBehaviour
 
             Debug.Log($"Book arrived at: {CurrentActiveSeat.name}");
 
-            yield return RunHourglass();
+            if (!IsSeatOccupied(CurrentActiveSeat))
+            {
+                CurrentActiveSeat = null;
+                LogWaitingForOccupiedSeat();
+                yield return null;
+                continue;
+            }
 
-            Debug.Log("Hourglass finished");
-            MoveToNextSeat();
+            BeginPlayerTurn();
+
+            if (!GenerateIncantation())
+            {
+                CompletePlayerTurn();
+                yield return null;
+                continue;
+            }
+
+            StartListening();
+
+            if (hourglassController == null)
+            {
+                Debug.LogWarning("RitualController requires an HourglassController reference.");
+                StopListening();
+                CompletePlayerTurn();
+                yield return null;
+                continue;
+            }
+
+            if (playerTurnComplete)
+            {
+                yield return null;
+                continue;
+            }
+
+            yield return RunPlayerTurn();
+
+            if (hourglassFinished && isTurnActive)
+            {
+                StopListening();
+                Debug.Log("Incantation failed.");
+                CompletePlayerTurn();
+            }
+
+            yield return null;
         }
     }
 
@@ -121,44 +172,121 @@ public class RitualController : MonoBehaviour
         yield return new WaitForSeconds(bookMover.moveDuration);
     }
 
-    private IEnumerator RunHourglass()
+    private bool GenerateIncantation()
     {
-        if (hourglassController == null)
-            yield break;
+        if (incantationManager == null)
+        {
+            Debug.LogWarning("RitualController requires an IncantationManager reference.");
+            return false;
+        }
 
-        hourglassFinished = false;
+        incantationManager.GenerateIncantation();
+        Debug.Log($"Generated incantation: {GetCurrentIncantationText()}");
+        return true;
+    }
+
+    private IEnumerator RunPlayerTurn()
+    {
         Debug.Log("Starting hourglass");
         hourglassController.StartHourglass(HourglassDuration);
 
-        while (!hourglassFinished)
+        while (!hourglassFinished && !playerTurnComplete)
             yield return null;
     }
 
-    private Seat GetFirstOccupiedSeat()
+    private bool TrySelectNextTurnSeat()
     {
         if (seatManager == null)
-            return null;
+            return false;
 
         List<Seat> occupiedSeats = seatManager.GetOccupiedSeats();
 
         if (occupiedSeats.Count == 0)
-            return null;
+        {
+            CurrentActiveSeat = null;
+            LogWaitingForOccupiedSeat();
+            return false;
+        }
 
-        return occupiedSeats[0];
+        CurrentActiveSeat = lastCompletedSeat == null
+            ? occupiedSeats[0]
+            : seatManager.GetNextOccupiedSeat(lastCompletedSeat);
+
+        if (CurrentActiveSeat == null)
+        {
+            LogWaitingForOccupiedSeat();
+            return false;
+        }
+
+        if (!IsSeatOccupied(CurrentActiveSeat))
+        {
+            CurrentActiveSeat = null;
+            LogWaitingForOccupiedSeat();
+            return false;
+        }
+
+        if (isWaitingForOccupiedSeat)
+            isWaitingForOccupiedSeat = false;
+
+        return true;
     }
 
-    private Seat GetNextOccupiedSeat(Seat currentSeat)
+    private bool IsSeatOccupied(Seat seat)
     {
-        if (seatManager == null)
-            return null;
-
-        return seatManager.GetNextOccupiedSeat(currentSeat);
+        return seat != null && !seat.IsFree();
     }
 
-    private void MoveToNextSeat()
+    private void LogWaitingForOccupiedSeat()
     {
-        Debug.Log("Moving to next seat");
-        CurrentActiveSeat = GetNextOccupiedSeat(CurrentActiveSeat);
+        if (isWaitingForOccupiedSeat)
+            return;
+
+        Debug.Log("Waiting for occupied seat");
+        isWaitingForOccupiedSeat = true;
+    }
+
+    private void BeginPlayerTurn()
+    {
+        hourglassFinished = false;
+        playerTurnComplete = false;
+        isTurnActive = true;
+    }
+
+    private void CompletePlayerTurn()
+    {
+        if (!isTurnActive)
+            return;
+
+        StopListening();
+        isTurnActive = false;
+        playerTurnComplete = true;
+        lastCompletedSeat = CurrentActiveSeat;
+        CurrentActiveSeat = null;
+        Debug.Log("Player turn complete");
+    }
+
+    private void StartListening()
+    {
+        if (!ResolveVoiceRecognizer())
+            return;
+
+        if (voiceRecognizer.IsListening)
+            return;
+
+        voiceRecognizer.StartListening();
+        Debug.Log("Listening started");
+    }
+
+    private void StopListening()
+    {
+        if (!ResolveVoiceRecognizer())
+            return;
+
+        if (!voiceRecognizer.IsListening)
+            return;
+
+        voiceRecognizer.StopListening();
+        Debug.Log("Listening stopped");
     }
 
     private void SubscribeToHourglass()
@@ -177,8 +305,84 @@ public class RitualController : MonoBehaviour
         hourglassController.OnFinished.RemoveListener(HandleHourglassFinished);
     }
 
+    private void SubscribeToVoiceRecognizer()
+    {
+        if (!ResolveVoiceRecognizer())
+            return;
+
+        voiceRecognizer.OnPhraseRecognized += HandlePhraseRecognized;
+    }
+
+    private void UnsubscribeFromVoiceRecognizer()
+    {
+        if (!ResolveVoiceRecognizer())
+            return;
+
+        voiceRecognizer.OnPhraseRecognized -= HandlePhraseRecognized;
+    }
+
+    private bool ResolveVoiceRecognizer()
+    {
+        if (voiceRecognizerBehaviour == null)
+        {
+            voiceRecognizer = null;
+            return false;
+        }
+
+        voiceRecognizer = voiceRecognizerBehaviour as IVoiceRecognizer;
+
+        if (voiceRecognizer == null)
+            Debug.LogWarning("RitualController voice recognizer reference must implement IVoiceRecognizer.");
+
+        return voiceRecognizer != null;
+    }
+
     private void HandleHourglassFinished()
     {
         hourglassFinished = true;
+    }
+
+    private void HandlePhraseRecognized(string phrase)
+    {
+        if (!ResolveVoiceRecognizer() || incantationManager == null || !isTurnActive || playerTurnComplete)
+            return;
+
+        bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(phrase);
+
+        if (!completedCurrentWord)
+        {
+            Debug.Log($"Incorrect word: {phrase}");
+            return;
+        }
+
+        Debug.Log($"Correct word: {phrase}");
+
+        if (!incantationManager.IsCompleted)
+            return;
+
+        Debug.Log("Incantation complete");
+
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
+
+        CompletePlayerTurn();
+    }
+
+    private string GetCurrentIncantationText()
+    {
+        if (incantationManager == null || incantationManager.CurrentIncantation.Count == 0)
+            return string.Empty;
+
+        StringBuilder builder = new StringBuilder();
+
+        for (int i = 0; i < incantationManager.CurrentIncantation.Count; i++)
+        {
+            if (i > 0)
+                builder.Append(' ');
+
+            builder.Append(incantationManager.CurrentIncantation[i].Text);
+        }
+
+        return builder.ToString();
     }
 }

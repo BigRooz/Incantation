@@ -1098,7 +1098,9 @@ Transform:
   m_LocalPosition: {x: -0.93456453, y: 8.335028, z: 0.0011667508}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1179521724}
+  - {fileID: 1511664080}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &231271042
@@ -1116,6 +1118,8 @@ MonoBehaviour:
   seatManager: {fileID: 1463970286}
   bookMover: {fileID: 2895304713497403604}
   hourglassController: {fileID: 1449798695}
+  incantationManager: {fileID: 1179521723}
+  voiceRecognizerBehaviour: {fileID: 1511664079}
   autoStart: 1
 --- !u!1001 &233275028
 PrefabInstance:
@@ -4035,6 +4039,69 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.54101557, y: 0.6152343, z: 0.9980468}
   m_Center: {x: 0, y: 0, z: 0.4990234}
+--- !u!1 &1179521722
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1179521724}
+  - component: {fileID: 1179521723}
+  m_Layer: 0
+  m_Name: IncantationManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1179521723
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1179521722}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c6877f8f9104c0e9c414a66b16e9b3c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  incantationLength: 5
+  possibleWords:
+  - ordo
+  - tenebris
+  - maledictum
+  - umbra
+  - vinculum
+  onIncantationGenerated:
+    m_PersistentCalls:
+      m_Calls: []
+  onCorrectWord:
+    m_PersistentCalls:
+      m_Calls: []
+  onIncorrectWord:
+    m_PersistentCalls:
+      m_Calls: []
+  onIncantationCompleted:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!4 &1179521724
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1179521722}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1182246455
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5185,6 +5252,51 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 432808340}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1511664078
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1511664080}
+  - component: {fileID: 1511664079}
+  m_Layer: 0
+  m_Name: MockVoiceRecognizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1511664079
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1511664078}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a6df133a573438f87c0e5c8d6a14b21, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  testPhrase: ordo tenebris
+--- !u!4 &1511664080
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1511664078}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1534312721
 GameObject:

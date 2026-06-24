@@ -38,6 +38,8 @@ public class IncantationManager : MonoBehaviour
 
     public int CurrentWordIndex { get; private set; }
 
+    public IReadOnlyList<IncantationWord> CurrentIncantation => currentIncantation;
+
     public IReadOnlyList<IncantationWord> CompletedWords
     {
         get
