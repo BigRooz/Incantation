@@ -10,8 +10,9 @@ public class IncantationTextDisplay : MonoBehaviour
 
     [Header("Display")]
     [SerializeField] private string emptyText = "Awaiting incantation...";
-    [SerializeField] private bool tintCompletedWords = true;
     [SerializeField] private Color completedWordColor = new Color(0.45f, 0.45f, 0.45f);
+    [SerializeField] private Color currentWordColor = Color.yellow;
+    [SerializeField] private Color remainingWordColor = Color.white;
 
     private void Reset()
     {
@@ -76,7 +77,6 @@ public class IncantationTextDisplay : MonoBehaviour
     private string BuildIncantationText()
     {
         StringBuilder builder = new StringBuilder();
-        string completedColor = ColorUtility.ToHtmlStringRGB(completedWordColor);
 
         for (int i = 0; i < incantationManager.CurrentIncantation.Count; i++)
         {
@@ -85,19 +85,29 @@ public class IncantationTextDisplay : MonoBehaviour
             if (i > 0)
                 builder.Append(' ');
 
-            if (tintCompletedWords && word.IsCompleted)
-            {
-                builder.Append("<color=#");
-                builder.Append(completedColor);
-                builder.Append('>');
-                builder.Append(word.Text);
-                builder.Append("</color>");
-                continue;
-            }
-
-            builder.Append(word.Text);
+            AppendColoredWord(builder, word.Text, GetWordColor(word, i));
         }
 
         return builder.ToString();
+    }
+
+    private Color GetWordColor(IncantationWord word, int wordIndex)
+    {
+        if (word.IsCompleted)
+            return completedWordColor;
+
+        if (!incantationManager.IsCompleted && wordIndex == incantationManager.CurrentWordIndex)
+            return currentWordColor;
+
+        return remainingWordColor;
+    }
+
+    private void AppendColoredWord(StringBuilder builder, string wordText, Color color)
+    {
+        builder.Append("<color=#");
+        builder.Append(ColorUtility.ToHtmlStringRGB(color));
+        builder.Append('>');
+        builder.Append(wordText);
+        builder.Append("</color>");
     }
 }
