@@ -6,6 +6,7 @@ using UnityEngine;
 public class RitualController : MonoBehaviour
 {
     private const float HourglassDuration = 10f;
+    private static RitualController activeRitualController;
 
     [Header("References")]
     [SerializeField] private SeatManager seatManager;
@@ -18,11 +19,14 @@ public class RitualController : MonoBehaviour
     [SerializeField] private bool autoStart = true;
 
     private Coroutine ritualRoutine;
+    private Coroutine turnRoutine;
     private IVoiceRecognizer voiceRecognizer;
     private bool hourglassFinished;
     private bool isWaitingForOccupiedSeat;
     private bool isTurnActive;
     private bool playerTurnComplete;
+    private bool hasLoggedMissingHourglass;
+    private bool hasLoggedMissingIncantationManager;
     private Seat lastCompletedSeat;
 
     public Seat CurrentActiveSeat { get; private set; }
@@ -35,7 +39,7 @@ public class RitualController : MonoBehaviour
 
     private void OnDisable()
     {
-        StopListening();
+        StopRitual();
         UnsubscribeFromVoiceRecognizer();
         UnsubscribeFromHourglass();
     }
@@ -48,6 +52,12 @@ public class RitualController : MonoBehaviour
 
     public void StartRitual()
     {
+        if (activeRitualController != null && activeRitualController != this)
+        {
+            Debug.LogWarning("StartRitual ignored because another RitualController is already running");
+            return;
+        }
+
         if (ritualRoutine != null)
         {
             Debug.Log("StartRitual ignored because ritual is already running");
@@ -55,21 +65,33 @@ public class RitualController : MonoBehaviour
         }
 
         Debug.Log("Ritual started");
+        activeRitualController = this;
         ritualRoutine = StartCoroutine(RitualLoop());
     }
 
     public void StopRitual()
     {
+        if (turnRoutine != null)
+        {
+            StopCoroutine(turnRoutine);
+            turnRoutine = null;
+        }
+
         if (ritualRoutine != null)
         {
             StopCoroutine(ritualRoutine);
             ritualRoutine = null;
         }
 
+        if (activeRitualController == this)
+            activeRitualController = null;
+
         hourglassFinished = false;
         isWaitingForOccupiedSeat = false;
         isTurnActive = false;
         playerTurnComplete = false;
+        hasLoggedMissingHourglass = false;
+        hasLoggedMissingIncantationManager = false;
         lastCompletedSeat = null;
         StopListening();
 
@@ -83,7 +105,7 @@ public class RitualController : MonoBehaviour
 
         while (true)
         {
-            if (isTurnActive)
+            if (turnRoutine != null)
             {
                 yield return null;
                 continue;
@@ -95,62 +117,71 @@ public class RitualController : MonoBehaviour
                 continue;
             }
 
-            Debug.Log($"Occupied seat found: {CurrentActiveSeat.name}");
-
-            if (!MoveBookToCurrentSeat())
-            {
-                yield return null;
-                continue;
-            }
-
-            yield return WaitForBookMoveDuration();
-
-            Debug.Log($"Book arrived at: {CurrentActiveSeat.name}");
-
-            if (!IsSeatOccupied(CurrentActiveSeat))
-            {
-                CurrentActiveSeat = null;
-                LogWaitingForOccupiedSeat();
-                yield return null;
-                continue;
-            }
-
-            BeginPlayerTurn();
-
-            if (!GenerateIncantation())
-            {
-                CompletePlayerTurn();
-                yield return null;
-                continue;
-            }
-
-            StartListening();
-
-            if (hourglassController == null)
-            {
-                Debug.LogWarning("RitualController requires an HourglassController reference.");
-                StopListening();
-                CompletePlayerTurn();
-                yield return null;
-                continue;
-            }
-
-            if (playerTurnComplete)
-            {
-                yield return null;
-                continue;
-            }
-
-            yield return RunPlayerTurn();
-
-            if (hourglassFinished && isTurnActive)
-            {
-                StopListening();
-                Debug.Log("Incantation failed.");
-                CompletePlayerTurn();
-            }
-
+            turnRoutine = StartCoroutine(RunTurn(CurrentActiveSeat));
+            yield return turnRoutine;
+            turnRoutine = null;
             yield return null;
+        }
+    }
+
+    private IEnumerator RunTurn(Seat turnSeat)
+    {
+        CurrentActiveSeat = turnSeat;
+
+        if (!IsSeatOccupied(CurrentActiveSeat))
+        {
+            CurrentActiveSeat = null;
+            LogWaitingForOccupiedSeat();
+            yield break;
+        }
+
+        if (!HasRequiredTurnReferences())
+            yield break;
+
+        Debug.Log($"Occupied seat found: {CurrentActiveSeat.name}");
+
+        if (!MoveBookToCurrentSeat())
+            yield break;
+
+        yield return WaitForBookMoveDuration();
+
+        Debug.Log($"Book arrived at: {CurrentActiveSeat.name}");
+
+        if (!IsSeatOccupied(CurrentActiveSeat))
+        {
+            CurrentActiveSeat = null;
+            LogWaitingForOccupiedSeat();
+            yield break;
+        }
+
+        BeginPlayerTurn();
+
+        if (!GenerateIncantation())
+        {
+            CompletePlayerTurn();
+            yield break;
+        }
+
+        StartListening();
+
+        if (hourglassController == null)
+        {
+            Debug.LogWarning("RitualController requires an HourglassController reference.");
+            StopListening();
+            CompletePlayerTurn();
+            yield break;
+        }
+
+        if (playerTurnComplete)
+            yield break;
+
+        yield return RunPlayerTurn();
+
+        if (hourglassFinished && isTurnActive)
+        {
+            StopListening();
+            Debug.Log("Incantation failed.");
+            CompletePlayerTurn();
         }
     }
 
@@ -176,13 +207,50 @@ public class RitualController : MonoBehaviour
     {
         if (incantationManager == null)
         {
-            Debug.LogWarning("RitualController requires an IncantationManager reference.");
+            LogMissingIncantationManager();
             return false;
         }
 
         incantationManager.GenerateIncantation();
         Debug.Log($"Generated incantation: {GetCurrentIncantationText()}");
         return true;
+    }
+
+    private bool HasRequiredTurnReferences()
+    {
+        bool hasRequiredReferences = true;
+
+        if (hourglassController == null)
+        {
+            LogMissingHourglass();
+            hasRequiredReferences = false;
+        }
+
+        if (incantationManager == null)
+        {
+            LogMissingIncantationManager();
+            hasRequiredReferences = false;
+        }
+
+        return hasRequiredReferences;
+    }
+
+    private void LogMissingHourglass()
+    {
+        if (hasLoggedMissingHourglass)
+            return;
+
+        Debug.LogWarning("RitualController requires an HourglassController reference.");
+        hasLoggedMissingHourglass = true;
+    }
+
+    private void LogMissingIncantationManager()
+    {
+        if (hasLoggedMissingIncantationManager)
+            return;
+
+        Debug.LogWarning("RitualController requires an IncantationManager reference.");
+        hasLoggedMissingIncantationManager = true;
     }
 
     private IEnumerator RunPlayerTurn()
