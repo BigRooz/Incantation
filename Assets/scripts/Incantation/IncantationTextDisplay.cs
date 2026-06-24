@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -13,6 +14,14 @@ public class IncantationTextDisplay : MonoBehaviour
     [SerializeField] private Color completedWordColor = new Color(0.45f, 0.45f, 0.45f);
     [SerializeField] private Color currentWordColor = Color.yellow;
     [SerializeField] private Color remainingWordColor = Color.white;
+    [SerializeField] private Color correctFeedbackColor = Color.green;
+    [SerializeField] private Color incorrectFeedbackColor = Color.red;
+    [SerializeField] private float feedbackDuration = 0.25f;
+
+    private Coroutine feedbackCoroutine;
+    private int feedbackWordIndex = -1;
+    private bool hasFeedbackColor;
+    private Color feedbackColor;
 
     private void Reset()
     {
@@ -28,6 +37,7 @@ public class IncantationTextDisplay : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeFromIncantationManager();
+        StopFeedback();
     }
 
     private void OnValidate()
@@ -59,9 +69,10 @@ public class IncantationTextDisplay : MonoBehaviour
         if (incantationManager == null)
             return;
 
-        incantationManager.OnIncantationGenerated.AddListener(UpdateDisplay);
-        incantationManager.OnCorrectWord.AddListener(UpdateDisplay);
-        incantationManager.OnIncantationCompleted.AddListener(UpdateDisplay);
+        incantationManager.OnIncantationGenerated.AddListener(HandleIncantationGenerated);
+        incantationManager.OnCorrectWord.AddListener(HandleCorrectWord);
+        incantationManager.OnIncorrectWord.AddListener(HandleIncorrectWord);
+        incantationManager.OnIncantationCompleted.AddListener(HandleIncantationCompleted);
     }
 
     private void UnsubscribeFromIncantationManager()
@@ -69,9 +80,86 @@ public class IncantationTextDisplay : MonoBehaviour
         if (incantationManager == null)
             return;
 
-        incantationManager.OnIncantationGenerated.RemoveListener(UpdateDisplay);
-        incantationManager.OnCorrectWord.RemoveListener(UpdateDisplay);
-        incantationManager.OnIncantationCompleted.RemoveListener(UpdateDisplay);
+        incantationManager.OnIncantationGenerated.RemoveListener(HandleIncantationGenerated);
+        incantationManager.OnCorrectWord.RemoveListener(HandleCorrectWord);
+        incantationManager.OnIncorrectWord.RemoveListener(HandleIncorrectWord);
+        incantationManager.OnIncantationCompleted.RemoveListener(HandleIncantationCompleted);
+    }
+
+    private void HandleIncantationGenerated()
+    {
+        StopFeedback();
+        UpdateDisplay();
+    }
+
+    private void HandleCorrectWord()
+    {
+        if (incantationManager == null)
+            return;
+
+        int completedWordIndex = incantationManager.CurrentWordIndex - 1;
+        ShowFeedback(completedWordIndex, correctFeedbackColor);
+    }
+
+    private void HandleIncorrectWord()
+    {
+        if (incantationManager == null)
+            return;
+
+        ShowFeedback(incantationManager.CurrentWordIndex, incorrectFeedbackColor);
+    }
+
+    private void HandleIncantationCompleted()
+    {
+        if (feedbackCoroutine != null)
+            return;
+
+        UpdateDisplay();
+    }
+
+    private void ShowFeedback(int wordIndex, Color color)
+    {
+        if (wordIndex < 0 || incantationManager == null || wordIndex >= incantationManager.CurrentIncantation.Count)
+        {
+            UpdateDisplay();
+            return;
+        }
+
+        StopFeedback();
+
+        feedbackWordIndex = wordIndex;
+        feedbackColor = color;
+        hasFeedbackColor = true;
+        UpdateDisplay();
+
+        if (isActiveAndEnabled)
+            feedbackCoroutine = StartCoroutine(ClearFeedbackAfterDelay());
+    }
+
+    private IEnumerator ClearFeedbackAfterDelay()
+    {
+        yield return new WaitForSeconds(Mathf.Max(0f, feedbackDuration));
+
+        feedbackCoroutine = null;
+        ClearFeedbackColor();
+        UpdateDisplay();
+    }
+
+    private void StopFeedback()
+    {
+        if (feedbackCoroutine != null)
+        {
+            StopCoroutine(feedbackCoroutine);
+            feedbackCoroutine = null;
+        }
+
+        ClearFeedbackColor();
+    }
+
+    private void ClearFeedbackColor()
+    {
+        feedbackWordIndex = -1;
+        hasFeedbackColor = false;
     }
 
     private string BuildIncantationText()
@@ -93,6 +181,9 @@ public class IncantationTextDisplay : MonoBehaviour
 
     private Color GetWordColor(IncantationWord word, int wordIndex)
     {
+        if (hasFeedbackColor && wordIndex == feedbackWordIndex)
+            return feedbackColor;
+
         if (word.IsCompleted)
             return completedWordColor;
 
