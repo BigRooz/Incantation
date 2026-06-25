@@ -6,6 +6,9 @@ public class BookMover : MonoBehaviour
     [Header("Mouvement")]
     public float moveDuration = 1.2f;
 
+    [Header("Debug")]
+    [SerializeField] private bool enableDebugLogs = false;
+
     private Coroutine moveRoutine;
 
     public void MoveToSeat(Seat seat)
@@ -21,9 +24,7 @@ public class BookMover : MonoBehaviour
             return;
         }
 
-        Debug.Log(
-            $"BookMover.MoveToSeat | Book: {name} | Target Object: {destination.name} | Target Position: {destination.position}"
-        );
+        LogDebug($"BookMover.MoveToSeat | Book: {name} | Target Object: {destination.name} | Target Position: {destination.position}");
 
         if (moveRoutine != null)
             StopCoroutine(moveRoutine);
@@ -40,9 +41,7 @@ public class BookMover : MonoBehaviour
         Quaternion targetRotation = target.rotation;
         float distance = Vector3.Distance(startPosition, targetPosition);
 
-        Debug.Log(
-            $"BookMover.MoveTo | Book: {name} | Start Position: {startPosition} | Target Position: {targetPosition} | Target Object: {target.name} | Distance: {distance}"
-        );
+        LogDebug($"BookMover.MoveTo | Book: {name} | Start Position: {startPosition} | Target Position: {targetPosition} | Target Object: {target.name} | Distance: {distance}");
 
         float elapsed = 0f;
 
@@ -61,5 +60,13 @@ public class BookMover : MonoBehaviour
 
         transform.position = targetPosition;
         transform.rotation = targetRotation;
+    }
+
+    private void LogDebug(string message)
+    {
+        if (!enableDebugLogs)
+            return;
+
+        Debug.Log(message);
     }
 }

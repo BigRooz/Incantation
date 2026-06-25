@@ -18,6 +18,9 @@ public class RitualController : MonoBehaviour
     [Header("Prototype")]
     [SerializeField] private bool autoStart = true;
 
+    [Header("Debug")]
+    [SerializeField] private bool enableDebugLogs = false;
+
     private Coroutine ritualRoutine;
     private Coroutine turnRoutine;
     private IVoiceRecognizer voiceRecognizer;
@@ -60,7 +63,7 @@ public class RitualController : MonoBehaviour
 
         if (ritualRoutine != null)
         {
-            Debug.Log("StartRitual ignored because ritual is already running");
+            LogDebug("StartRitual ignored because ritual is already running");
             return;
         }
 
@@ -138,14 +141,14 @@ public class RitualController : MonoBehaviour
         if (!HasRequiredTurnReferences())
             yield break;
 
-        Debug.Log($"Occupied seat found: {CurrentActiveSeat.name}");
+        LogDebug($"Occupied seat found: {CurrentActiveSeat.name}");
 
         if (!MoveBookToCurrentSeat())
             yield break;
 
         yield return WaitForBookMoveDuration();
 
-        Debug.Log($"Book arrived at: {CurrentActiveSeat.name}");
+        LogDebug($"Book arrived at: {CurrentActiveSeat.name}");
 
         if (!IsSeatOccupied(CurrentActiveSeat))
         {
@@ -190,7 +193,7 @@ public class RitualController : MonoBehaviour
         if (bookMover == null || CurrentActiveSeat == null)
             return false;
 
-        Debug.Log($"Moving book to: {CurrentActiveSeat.name}");
+        LogDebug($"Moving book to: {CurrentActiveSeat.name}");
         bookMover.MoveToSeat(CurrentActiveSeat);
         return true;
     }
@@ -255,7 +258,7 @@ public class RitualController : MonoBehaviour
 
     private IEnumerator RunPlayerTurn()
     {
-        Debug.Log("Starting hourglass");
+        LogDebug("Starting hourglass");
         hourglassController.StartHourglass(HourglassDuration);
 
         while (!hourglassFinished && !playerTurnComplete)
@@ -309,7 +312,7 @@ public class RitualController : MonoBehaviour
         if (isWaitingForOccupiedSeat)
             return;
 
-        Debug.Log("Waiting for occupied seat");
+        LogDebug("Waiting for occupied seat");
         isWaitingForOccupiedSeat = true;
     }
 
@@ -330,7 +333,7 @@ public class RitualController : MonoBehaviour
         playerTurnComplete = true;
         lastCompletedSeat = CurrentActiveSeat;
         CurrentActiveSeat = null;
-        Debug.Log("Player turn complete");
+        LogDebug("Player turn complete");
     }
 
     private void StartListening()
@@ -342,7 +345,7 @@ public class RitualController : MonoBehaviour
             return;
 
         voiceRecognizer.StartListening();
-        Debug.Log("Listening started");
+        LogDebug("Listening started");
     }
 
     private void StopListening()
@@ -354,7 +357,7 @@ public class RitualController : MonoBehaviour
             return;
 
         voiceRecognizer.StopListening();
-        Debug.Log("Listening stopped");
+        LogDebug("Listening stopped");
     }
 
     private void SubscribeToHourglass()
@@ -428,7 +431,7 @@ public class RitualController : MonoBehaviour
         if (!incantationManager.IsCompleted)
             return;
 
-        Debug.Log("Incantation complete");
+        LogDebug("Incantation complete");
 
         if (hourglassController != null)
             hourglassController.StopHourglass();
@@ -452,5 +455,13 @@ public class RitualController : MonoBehaviour
         }
 
         return builder.ToString();
+    }
+
+    private void LogDebug(string message)
+    {
+        if (!enableDebugLogs)
+            return;
+
+        Debug.Log(message);
     }
 }

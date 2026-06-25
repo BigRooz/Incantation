@@ -10,6 +10,9 @@ public class SeatManager : MonoBehaviour
     public BookMover bookMover;
     public Seat currentBookSeat;
 
+    [Header("Debug")]
+    [SerializeField] private bool enableDebugLogs = false;
+
     private void Awake()
     {
         FindSeats();
@@ -68,7 +71,7 @@ public class SeatManager : MonoBehaviour
 
         seat.Occupy(player);
 
-        Debug.Log($"Le joueur est maintenant assis sur {seat.name}");
+        LogDebug($"Le joueur est maintenant assis sur {seat.name}");
     }
 
     public void MoveBookToSeat(Seat seat)
@@ -78,7 +81,7 @@ public class SeatManager : MonoBehaviour
 
         currentBookSeat = seat;
 
-        Debug.Log("SeatManager.MoveBookToSeat used for: " + seat.name);
+        LogDebug("SeatManager.MoveBookToSeat used for: " + seat.name);
 
         if (bookMover != null)
             bookMover.MoveToSeat(seat);
@@ -90,13 +93,13 @@ public class SeatManager : MonoBehaviour
 
         if (nextSeat == null)
         {
-            Debug.Log("Aucun autre siège occupé.");
+            LogDebug("Aucun autre siège occupé.");
             return;
         }
 
         MoveBookToSeat(nextSeat);
 
-        Debug.Log("Livre envoyé vers : " + nextSeat.name);
+        LogDebug("Livre envoyé vers : " + nextSeat.name);
     }
 
     public List<Seat> GetOccupiedSeats()
@@ -133,5 +136,13 @@ public class SeatManager : MonoBehaviour
             nextIndex = 0;
 
         return occupiedSeats[nextIndex];
+    }
+
+    private void LogDebug(string message)
+    {
+        if (!enableDebugLogs)
+            return;
+
+        Debug.Log(message);
     }
 }
