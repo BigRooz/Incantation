@@ -17,8 +17,12 @@ public class IncantationTextDisplay : MonoBehaviour
     [SerializeField] private Color correctFeedbackColor = Color.green;
     [SerializeField] private Color incorrectFeedbackColor = Color.red;
     [SerializeField] private float feedbackDuration = 0.25f;
+    [Min(0f)]
+    [SerializeField] private float writingSpeed = 18f;
 
+    private Coroutine writingCoroutine;
     private Coroutine feedbackCoroutine;
+    private int revealedCharacterCount = int.MaxValue;
     private int feedbackWordIndex = -1;
     private bool hasFeedbackColor;
     private Color feedbackColor;
@@ -37,6 +41,7 @@ public class IncantationTextDisplay : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeFromIncantationManager();
+        StopWriting();
         StopFeedback();
     }
 
@@ -61,7 +66,7 @@ public class IncantationTextDisplay : MonoBehaviour
             return;
         }
 
-        targetText.text = BuildIncantationText();
+        targetText.text = BuildIncantationText(revealedCharacterCount);
     }
 
     private void SubscribeToIncantationManager()
@@ -89,7 +94,7 @@ public class IncantationTextDisplay : MonoBehaviour
     private void HandleIncantationGenerated()
     {
         StopFeedback();
-        UpdateDisplay();
+        StartWriting();
     }
 
     private void HandleCorrectWord()
@@ -162,21 +167,119 @@ public class IncantationTextDisplay : MonoBehaviour
         hasFeedbackColor = false;
     }
 
-    private string BuildIncantationText()
+    private void StartWriting()
+    {
+        StopWriting();
+
+        if (incantationManager == null || incantationManager.CurrentIncantation.Count == 0)
+        {
+            revealedCharacterCount = int.MaxValue;
+            UpdateDisplay();
+            return;
+        }
+
+        int fullCharacterCount = GetPlainIncantationCharacterCount();
+
+        if (!isActiveAndEnabled || writingSpeed <= 0f || fullCharacterCount == 0)
+        {
+            revealedCharacterCount = int.MaxValue;
+            UpdateDisplay();
+            return;
+        }
+
+        revealedCharacterCount = 0;
+        UpdateDisplay();
+        writingCoroutine = StartCoroutine(RevealIncantation(fullCharacterCount));
+    }
+
+    private IEnumerator RevealIncantation(int fullCharacterCount)
+    {
+        float visibleCharacters = 0f;
+
+        while (revealedCharacterCount < fullCharacterCount)
+        {
+            visibleCharacters += writingSpeed * Time.deltaTime;
+            revealedCharacterCount = Mathf.Clamp(Mathf.FloorToInt(visibleCharacters), 0, fullCharacterCount);
+            UpdateDisplay();
+            yield return null;
+        }
+
+        revealedCharacterCount = int.MaxValue;
+        writingCoroutine = null;
+        UpdateDisplay();
+    }
+
+    private void StopWriting()
+    {
+        if (writingCoroutine != null)
+        {
+            StopCoroutine(writingCoroutine);
+            writingCoroutine = null;
+        }
+
+        revealedCharacterCount = int.MaxValue;
+    }
+
+    private int GetPlainIncantationCharacterCount()
+    {
+        if (incantationManager == null)
+            return 0;
+
+        int characterCount = 0;
+
+        for (int i = 0; i < incantationManager.CurrentIncantation.Count; i++)
+        {
+            if (i > 0)
+                characterCount++;
+
+            string wordText = incantationManager.CurrentIncantation[i].Text;
+
+            if (!string.IsNullOrEmpty(wordText))
+                characterCount += wordText.Length;
+        }
+
+        return characterCount;
+    }
+
+    private string BuildIncantationText(int maxVisibleCharacters)
     {
         StringBuilder builder = new StringBuilder();
+        int remainingVisibleCharacters = maxVisibleCharacters;
 
         for (int i = 0; i < incantationManager.CurrentIncantation.Count; i++)
         {
             IncantationWord word = incantationManager.CurrentIncantation[i];
 
             if (i > 0)
-                builder.Append(' ');
+            {
+                if (remainingVisibleCharacters <= 0)
+                    break;
 
-            AppendColoredWord(builder, word.Text, GetWordColor(word, i));
+                builder.Append(' ');
+                remainingVisibleCharacters--;
+            }
+
+            string visibleWordText = GetVisibleWordText(word.Text, remainingVisibleCharacters);
+
+            if (string.IsNullOrEmpty(visibleWordText))
+                break;
+
+            AppendColoredWord(builder, visibleWordText, GetWordColor(word, i));
+            remainingVisibleCharacters -= visibleWordText.Length;
         }
 
         return builder.ToString();
+    }
+
+    private string GetVisibleWordText(string wordText, int remainingVisibleCharacters)
+    {
+        if (string.IsNullOrEmpty(wordText) || remainingVisibleCharacters <= 0)
+            return string.Empty;
+
+        if (remainingVisibleCharacters >= wordText.Length)
+            return wordText;
+
+        return wordText.Substring(0, remainingVisibleCharacters);
     }
 
     private Color GetWordColor(IncantationWord word, int wordIndex)
