@@ -8,114 +8,7 @@ public class IncantationManager : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private int incantationLength = DefaultIncantationLength;
-    [SerializeField] private List<string> possibleWords = new List<string>
-    {
-        "ordo",
-        "tenebris",
-        "maledictum",
-        "umbra",
-        "vinculum",
-        "abyssus",
-        "acerbus",
-        "adumbratus",
-        "aeternum",
-        "altarium",
-        "amissus",
-        "animae",
-        "animarum",
-        "arcana",
-        "arcanum",
-        "ardens",
-        "astralis",
-        "ater",
-        "atramentum",
-        "augurium",
-        "bellator",
-        "caecitas",
-        "caligo",
-        "cantus",
-        "carceris",
-        "carnifex",
-        "cineris",
-        "circulus",
-        "clamor",
-        "clavicula",
-        "corvus",
-        "cruciatus",
-        "custos",
-        "daemonium",
-        "damnatio",
-        "decretum",
-        "delirium",
-        "devorator",
-        "diabolus",
-        "dirum",
-        "dolorum",
-        "draconis",
-        "effigies",
-        "exanimis",
-        "excidium",
-        "exsanguis",
-        "fatum",
-        "feralis",
-        "ferox",
-        "funestus",
-        "furor",
-        "gelidus",
-        "geminus",
-        "gladius",
-        "gravis",
-        "horrendum",
-        "hostilis",
-        "immortalis",
-        "imperium",
-        "infernus",
-        "invidia",
-        "invocatio",
-        "iudicium",
-        "lacrimae",
-        "lamentum",
-        "larvae",
-        "lemures",
-        "letalis",
-        "ligatura",
-        "luctuosus",
-        "lunaris",
-        "macula",
-        "manium",
-        "mors",
-        "mortifer",
-        "mortuus",
-        "mysterium",
-        "necromantia",
-        "nex",
-        "nocturnus",
-        "nomen",
-        "obscurus",
-        "occultum",
-        "omen",
-        "opprobrium",
-        "oraculum",
-        "pallidus",
-        "penumbra",
-        "perditus",
-        "periculum",
-        "phantasma",
-        "portentum",
-        "praesagium",
-        "profanum",
-        "purgatorium",
-        "quietus",
-        "raptus",
-        "reliquiae",
-        "ruina",
-        "sacrilegium",
-        "sanguinis",
-        "sepulcrum",
-        "serpentis",
-        "silentium",
-        "simulacrum"
-    };
+    [SerializeField] private IncantationWordLibrary wordLibrary;
 
     [Header("Events")]
     [SerializeField] private UnityEvent onIncantationGenerated = new UnityEvent();
@@ -167,18 +60,18 @@ public class IncantationManager : MonoBehaviour
     {
         ResetIncantation();
 
-        List<string> availableWords = GetUniquePossibleWords();
+        List<IncantationWord> availableWords = GetUniquePossibleWords();
         int targetLength = Mathf.Min(Mathf.Max(0, incantationLength), availableWords.Count);
 
         if (targetLength < incantationLength)
-            Debug.LogWarning("IncantationManager has fewer unique possible words than the requested incantation length.");
+            Debug.LogWarning("IncantationManager word library has fewer unique possible words than the requested incantation length.");
 
         for (int i = 0; i < targetLength; i++)
         {
             int randomIndex = Random.Range(0, availableWords.Count);
-            string selectedWord = availableWords[randomIndex];
+            IncantationWord selectedWord = availableWords[randomIndex];
 
-            currentIncantation.Add(new IncantationWord(selectedWord));
+            currentIncantation.Add(new IncantationWord(selectedWord.Word, selectedWord.SpeechAliases));
             availableWords.RemoveAt(randomIndex);
         }
 
@@ -218,13 +111,16 @@ public class IncantationManager : MonoBehaviour
         CurrentWordIndex = 0;
     }
 
-    private List<string> GetUniquePossibleWords()
+    private List<IncantationWord> GetUniquePossibleWords()
     {
-        List<string> uniqueWords = new List<string>();
+        List<IncantationWord> uniqueWords = new List<IncantationWord>();
 
-        foreach (string possibleWord in possibleWords)
+        foreach (IncantationWord possibleWord in GetLibraryWords())
         {
-            string normalizedWord = NormalizeWord(possibleWord);
+            if (possibleWord == null)
+                continue;
+
+            string normalizedWord = NormalizeWord(possibleWord.Word);
 
             if (string.IsNullOrEmpty(normalizedWord))
                 continue;
@@ -232,17 +128,34 @@ public class IncantationManager : MonoBehaviour
             if (ContainsNormalizedWord(uniqueWords, normalizedWord))
                 continue;
 
-            uniqueWords.Add(possibleWord.Trim());
+            uniqueWords.Add(possibleWord);
         }
 
         return uniqueWords;
     }
 
-    private bool ContainsNormalizedWord(List<string> words, string normalizedWord)
+    private IReadOnlyList<IncantationWord> GetLibraryWords()
     {
-        foreach (string word in words)
+        if (wordLibrary == null)
+            wordLibrary = GetComponent<IncantationWordLibrary>();
+
+        if (wordLibrary == null)
+            wordLibrary = FindFirstObjectByType<IncantationWordLibrary>();
+
+        if (wordLibrary == null)
         {
-            if (NormalizeWord(word) == normalizedWord)
+            Debug.LogWarning("IncantationManager requires an IncantationWordLibrary reference.");
+            return new List<IncantationWord>();
+        }
+
+        return wordLibrary.Words;
+    }
+
+    private bool ContainsNormalizedWord(List<IncantationWord> words, string normalizedWord)
+    {
+        foreach (IncantationWord word in words)
+        {
+            if (NormalizeWord(word.Word) == normalizedWord)
                 return true;
         }
 

@@ -1,50 +1,66 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-[Serializable]
-public class VoicePhraseAlias
-{
-    [Tooltip("The phrase returned by speech recognition.")]
-    public string recognizedPhrase;
-
-    [Tooltip("The incantation word this recognized phrase should count as.")]
-    public string incantationWord;
-}
-
 public class VoicePhraseNormalizer : MonoBehaviour
 {
-    [Header("Speech Recognition Aliases")]
-    [Tooltip("Phrases returned by speech recognition and the incantation words they should become.")]
-    [SerializeField] private List<VoicePhraseAlias> aliases = new List<VoicePhraseAlias>
-    {
-        new VoicePhraseAlias { recognizedPhrase = "deliveries", incantationWord = "tenebris" },
-        new VoicePhraseAlias { recognizedPhrase = "malediction", incantationWord = "maledictum" },
-        new VoicePhraseAlias { recognizedPhrase = "or do", incantationWord = "ordo" },
-        new VoicePhraseAlias { recognizedPhrase = "vehicle um", incantationWord = "vinculum" },
-        new VoicePhraseAlias { recognizedPhrase = "umbrella", incantationWord = "umbra" },
-        new VoicePhraseAlias { recognizedPhrase = "abyss us", incantationWord = "abyssus" },
-        new VoicePhraseAlias { recognizedPhrase = "cali go", incantationWord = "caligo" },
-        new VoicePhraseAlias { recognizedPhrase = "necromancy", incantationWord = "necromantia" },
-        new VoicePhraseAlias { recognizedPhrase = "obscure us", incantationWord = "obscurus" },
-        new VoicePhraseAlias { recognizedPhrase = "phantom", incantationWord = "phantasma" },
-        new VoicePhraseAlias { recognizedPhrase = "sanguineous", incantationWord = "sanguinis" },
-        new VoicePhraseAlias { recognizedPhrase = "sepulcher", incantationWord = "sepulcrum" }
-    };
+    [Header("References")]
+    [SerializeField] private IncantationWordLibrary wordLibrary;
+
+    private readonly Dictionary<string, string> aliasLookup = new Dictionary<string, string>();
 
     public string NormalizePhrase(string phrase)
     {
         string normalizedPhrase = Normalize(phrase);
 
-        foreach (VoicePhraseAlias alias in aliases)
-        {
-            if (alias == null || Normalize(alias.recognizedPhrase) != normalizedPhrase)
-                continue;
+        RebuildAliasLookup();
 
-            return Normalize(alias.incantationWord);
-        }
+        if (aliasLookup.TryGetValue(normalizedPhrase, out string incantationWord))
+            return incantationWord;
 
         return normalizedPhrase;
+    }
+
+    private void RebuildAliasLookup()
+    {
+        aliasLookup.Clear();
+
+        foreach (IncantationWord word in GetLibraryWords())
+        {
+            if (word == null)
+                continue;
+
+            string normalizedWord = Normalize(word.Word);
+
+            if (string.IsNullOrEmpty(normalizedWord))
+                continue;
+
+            foreach (string speechAlias in word.SpeechAliases)
+            {
+                string normalizedAlias = Normalize(speechAlias);
+
+                if (string.IsNullOrEmpty(normalizedAlias))
+                    continue;
+
+                aliasLookup[normalizedAlias] = normalizedWord;
+            }
+        }
+    }
+
+    private IReadOnlyList<IncantationWord> GetLibraryWords()
+    {
+        if (wordLibrary == null)
+            wordLibrary = GetComponent<IncantationWordLibrary>();
+
+        if (wordLibrary == null)
+            wordLibrary = FindFirstObjectByType<IncantationWordLibrary>();
+
+        if (wordLibrary == null)
+        {
+            Debug.LogWarning("VoicePhraseNormalizer requires an IncantationWordLibrary reference.");
+            return new List<IncantationWord>();
+        }
+
+        return wordLibrary.Words;
     }
 
     private string Normalize(string phrase)
