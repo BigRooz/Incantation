@@ -4,6 +4,7 @@ using UnityEngine.Events;
 public class Timer : MonoBehaviour
 {
     [Header("Settings")]
+    [SerializeField, Min(1f)] private float duration = 10f;
     [SerializeField] private float warningThreshold = 3f;
 
     [Header("Events")]
@@ -16,7 +17,7 @@ public class Timer : MonoBehaviour
 
     public bool IsRunning { get; private set; }
     public float RemainingTime { get; private set; }
-    public float Duration { get; private set; }
+    public float Duration => duration;
 
     public UnityEvent OnStarted => onStarted;
     public UnityEvent OnWarning => onWarning;
@@ -44,16 +45,15 @@ public class Timer : MonoBehaviour
         onFinished.Invoke();
     }
 
-    public void StartTimer(float duration)
+    public void StartTimer(float requestedDuration)
     {
-        Duration = Mathf.Max(0f, duration);
-        RemainingTime = Duration;
+        RemainingTime = duration;
         IsRunning = true;
         hasWarned = false;
 
         onStarted.Invoke();
 
-        if (Duration <= 0f)
+        if (duration <= 0f)
         {
             IsRunning = false;
             onFinished.Invoke();
@@ -72,7 +72,7 @@ public class Timer : MonoBehaviour
     public void ResetTimer()
     {
         IsRunning = false;
-        RemainingTime = Duration;
+        RemainingTime = duration;
         hasWarned = false;
     }
 }
