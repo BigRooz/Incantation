@@ -14,6 +14,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private HourglassController hourglassController;
     [SerializeField] private IncantationManager incantationManager;
     [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
+    [SerializeField] private VoicePhraseNormalizer voicePhraseNormalizer;
 
     [Header("Prototype")]
     [SerializeField] private bool autoStart = true;
@@ -418,7 +419,10 @@ public class RitualController : MonoBehaviour
         if (!ResolveVoiceRecognizer() || incantationManager == null || !isTurnActive || playerTurnComplete)
             return;
 
-        bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(phrase);
+        string normalizedPhrase = voicePhraseNormalizer == null
+            ? phrase
+            : voicePhraseNormalizer.NormalizePhrase(phrase);
+        bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(normalizedPhrase);
 
         if (!completedCurrentWord)
         {
