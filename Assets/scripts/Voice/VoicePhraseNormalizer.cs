@@ -22,7 +22,14 @@ public class VoicePhraseNormalizer : MonoBehaviour
         new VoicePhraseAlias { recognizedPhrase = "malediction", incantationWord = "maledictum" },
         new VoicePhraseAlias { recognizedPhrase = "or do", incantationWord = "ordo" },
         new VoicePhraseAlias { recognizedPhrase = "vehicle um", incantationWord = "vinculum" },
-        new VoicePhraseAlias { recognizedPhrase = "umbrella", incantationWord = "umbra" }
+        new VoicePhraseAlias { recognizedPhrase = "umbrella", incantationWord = "umbra" },
+        new VoicePhraseAlias { recognizedPhrase = "abyss us", incantationWord = "abyssus" },
+        new VoicePhraseAlias { recognizedPhrase = "cali go", incantationWord = "caligo" },
+        new VoicePhraseAlias { recognizedPhrase = "necromancy", incantationWord = "necromantia" },
+        new VoicePhraseAlias { recognizedPhrase = "obscure us", incantationWord = "obscurus" },
+        new VoicePhraseAlias { recognizedPhrase = "phantom", incantationWord = "phantasma" },
+        new VoicePhraseAlias { recognizedPhrase = "sanguineous", incantationWord = "sanguinis" },
+        new VoicePhraseAlias { recognizedPhrase = "sepulcher", incantationWord = "sepulcrum" }
     };
 
     public string NormalizePhrase(string phrase)
