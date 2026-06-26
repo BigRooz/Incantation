@@ -693,6 +693,11 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1889259925}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!108 &141416149 stripped
+Light:
+  m_CorrespondingSourceObject: {fileID: 563463110908781257, guid: 6c2e5f6c79a6e19459f6d659e28db6ee, type: 3}
+  m_PrefabInstance: {fileID: 1444899762}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &164555812
 GameObject:
   m_ObjectHideFlags: 0
@@ -1175,6 +1180,8 @@ Transform:
   m_Children:
   - {fileID: 1179521724}
   - {fileID: 1511664080}
+  - {fileID: 822167236}
+  - {fileID: 672817949}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &231271042
@@ -1193,7 +1200,7 @@ MonoBehaviour:
   bookMover: {fileID: 2895304713497403604}
   hourglassController: {fileID: 1449798695}
   incantationManager: {fileID: 1179521723}
-  voiceRecognizerBehaviour: {fileID: 1511664079}
+  voiceRecognizerBehaviour: {fileID: 672817950}
   autoStart: 1
   enableDebugLogs: 0
 --- !u!1001 &233275028
@@ -2418,6 +2425,51 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.54101586, y: 0.6152346, z: 0.9980473}
   m_Center: {x: -0.000000042064528, y: -0.000000101552764, z: 0.49902356}
+--- !u!1 &672817948
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 672817949}
+  - component: {fileID: 672817950}
+  m_Layer: 0
+  m_Name: UnityDictationVoiceRecognizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &672817949
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 672817948}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &672817950
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 672817948}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e3dcd27c5e34153a66f60b8669ab6bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  logRecognizedPhrases: 1
 --- !u!1 &699189438
 GameObject:
   m_ObjectHideFlags: 0
@@ -3053,6 +3105,95 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.5410156, y: 0.61523455, z: 0.9980472}
   m_Center: {x: -0.00000004206455, y: -0.000000017423721, z: 0.49902356}
+--- !u!1 &822167235
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 822167236}
+  - component: {fileID: 822167237}
+  m_Layer: 0
+  m_Name: RitualLightController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &822167236
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822167235}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &822167237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822167235}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f16bece8656a8141b66b82a6f87d7dc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  timer: {fileID: 1449798696}
+  generalLights:
+  - {fileID: 410087040}
+  - {fileID: 1647401354}
+  - {fileID: 1888264345}
+  - {fileID: 141416149}
+  - {fileID: 2105491063}
+  - {fileID: 764906934}
+  - {fileID: 2021074484}
+  - {fileID: 711469861}
+  - {fileID: 135079313}
+  - {fileID: 1206528257}
+  - {fileID: 1218162417}
+  - {fileID: 2093266421}
+  - {fileID: 699189441}
+  - {fileID: 1430776333}
+  - {fileID: 1944653702}
+  candleLights: []
+  minimumIntensityMultiplier: 0.15
+  candleMinimumIntensityMultiplier: 0.45
+  recoverySpeed: 3
+  intensityCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 1
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -5161,7 +5302,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0f3dc81084c2f6d48a78fffdfd007dbc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  duration: 10
+  duration: 20
   warningThreshold: 3
   onStarted:
     m_PersistentCalls:
@@ -6861,6 +7002,11 @@ Transform:
   - {fileID: 1139787901}
   m_Father: {fileID: 1717768490}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!108 &1888264345 stripped
+Light:
+  m_CorrespondingSourceObject: {fileID: 563463110908781257, guid: 6c2e5f6c79a6e19459f6d659e28db6ee, type: 3}
+  m_PrefabInstance: {fileID: 108695844}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1889259924
 GameObject:
   m_ObjectHideFlags: 0
@@ -7710,6 +7856,11 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!108 &2105491063 stripped
+Light:
+  m_CorrespondingSourceObject: {fileID: 563463110908781257, guid: 6c2e5f6c79a6e19459f6d659e28db6ee, type: 3}
+  m_PrefabInstance: {fileID: 542165767}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2112363159
 PrefabInstance:
   m_ObjectHideFlags: 0
