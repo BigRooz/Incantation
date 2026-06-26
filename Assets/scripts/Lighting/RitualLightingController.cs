@@ -1,18 +1,30 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class RitualLightingController : MonoBehaviour
 {
-    [Header("References")]
+    [Header("Timer")]
     [SerializeField] private Timer timer;
-    [SerializeField] private List<Light> lights = new List<Light>();
 
-    [Header("Settings")]
+    [Header("General Lights")]
+    [FormerlySerializedAs("lights")]
+    [SerializeField] private List<Light> generalLights = new List<Light>();
+
+    [Header("Candle Lights")]
+    [SerializeField] private List<Light> candleLights = new List<Light>();
+
+    [InspectorName("Minimum Intensity")]
     [SerializeField] private float minimumIntensityMultiplier = 0.15f;
+
+    [InspectorName("Candle Minimum Intensity")]
+    [SerializeField] private float candleMinimumIntensityMultiplier = 0.45f;
+
     [SerializeField] private float recoverySpeed = 3f;
     [SerializeField] private AnimationCurve intensityCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-    private readonly List<float> originalIntensities = new List<float>();
+    private readonly List<float> originalGeneralIntensities = new List<float>();
+    private readonly List<float> originalCandleIntensities = new List<float>();
 
     private void Awake()
     {
@@ -21,8 +33,11 @@ public class RitualLightingController : MonoBehaviour
 
     private void Update()
     {
-        if (lights.Count != originalIntensities.Count)
+        if (generalLights.Count != originalGeneralIntensities.Count ||
+            candleLights.Count != originalCandleIntensities.Count)
+        {
             StoreOriginalIntensities();
+        }
 
         if (timer != null && timer.IsRunning)
         {
@@ -35,11 +50,17 @@ public class RitualLightingController : MonoBehaviour
 
     private void StoreOriginalIntensities()
     {
+        StoreOriginalIntensities(generalLights, originalGeneralIntensities);
+        StoreOriginalIntensities(candleLights, originalCandleIntensities);
+    }
+
+    private void StoreOriginalIntensities(List<Light> lightGroup, List<float> originalIntensities)
+    {
         originalIntensities.Clear();
 
-        for (int i = 0; i < lights.Count; i++)
+        for (int i = 0; i < lightGroup.Count; i++)
         {
-            Light ritualLight = lights[i];
+            Light ritualLight = lightGroup[i];
             originalIntensities.Add(ritualLight != null ? ritualLight.intensity : 0f);
         }
     }
@@ -48,12 +69,23 @@ public class RitualLightingController : MonoBehaviour
     {
         float timeRatio = GetTimerTimeRatio();
         float curvedRatio = Mathf.Clamp01(intensityCurve.Evaluate(timeRatio));
-        float minimumMultiplier = Mathf.Clamp01(minimumIntensityMultiplier);
-        float intensityMultiplier = Mathf.Lerp(minimumMultiplier, 1f, curvedRatio);
 
-        for (int i = 0; i < lights.Count; i++)
+        ApplyTimerLighting(generalLights, originalGeneralIntensities, minimumIntensityMultiplier, curvedRatio);
+        ApplyTimerLighting(candleLights, originalCandleIntensities, candleMinimumIntensityMultiplier, curvedRatio);
+    }
+
+    private void ApplyTimerLighting(
+        List<Light> lightGroup,
+        List<float> originalIntensities,
+        float minimumMultiplier,
+        float curvedRatio)
+    {
+        float clampedMinimumMultiplier = Mathf.Clamp01(minimumMultiplier);
+        float intensityMultiplier = Mathf.Lerp(clampedMinimumMultiplier, 1f, curvedRatio);
+
+        for (int i = 0; i < lightGroup.Count; i++)
         {
-            Light ritualLight = lights[i];
+            Light ritualLight = lightGroup[i];
 
             if (ritualLight == null)
                 continue;
@@ -72,9 +104,15 @@ public class RitualLightingController : MonoBehaviour
 
     private void RestoreOriginalLighting()
     {
-        for (int i = 0; i < lights.Count; i++)
+        RestoreOriginalLighting(generalLights, originalGeneralIntensities);
+        RestoreOriginalLighting(candleLights, originalCandleIntensities);
+    }
+
+    private void RestoreOriginalLighting(List<Light> lightGroup, List<float> originalIntensities)
+    {
+        for (int i = 0; i < lightGroup.Count; i++)
         {
-            Light ritualLight = lights[i];
+            Light ritualLight = lightGroup[i];
 
             if (ritualLight == null)
                 continue;
