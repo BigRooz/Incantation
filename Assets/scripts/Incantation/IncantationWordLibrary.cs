@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class IncantationWordLibrary : MonoBehaviour
 {
+    private static readonly List<IncantationWordLibrary> activeLibraries = new List<IncantationWordLibrary>();
+
     private static readonly DefaultIncantationWord[] DefaultVocabulary =
     {
         new DefaultIncantationWord("mor", new[] { "more" }),
@@ -51,25 +53,75 @@ public class IncantationWordLibrary : MonoBehaviour
 
     public IEnumerable<SpeechAliasMapping> GetSpeechAliasMappings()
     {
-        foreach (IncantationWord word in Words)
+        Dictionary<string, HashSet<string>> aliasesByWord = new Dictionary<string, HashSet<string>>();
+
+        AddSerializedAliasMappings(this, aliasesByWord);
+
+        foreach (IncantationWordLibrary activeLibrary in activeLibraries)
         {
-            if (word == null)
+            if (activeLibrary == null || activeLibrary == this)
                 continue;
 
-            string normalizedWord = NormalizeSpeechText(word.Word);
+            AddSerializedAliasMappings(activeLibrary, aliasesByWord);
+        }
 
-            if (string.IsNullOrEmpty(normalizedWord))
+        foreach (KeyValuePair<string, HashSet<string>> wordAliases in aliasesByWord)
+        {
+            Debug.Log($"Library word aliases exposed: {wordAliases.Key} -> {wordAliases.Value.Count}");
+
+            foreach (string normalizedAlias in wordAliases.Value)
+                yield return new SpeechAliasMapping(normalizedAlias, wordAliases.Key);
+        }
+    }
+
+    private void OnEnable()
+    {
+        if (!activeLibraries.Contains(this))
+            activeLibraries.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        activeLibraries.Remove(this);
+    }
+
+    private void AddSerializedAliasMappings(IncantationWordLibrary library, Dictionary<string, HashSet<string>> aliasesByWord)
+    {
+        if (library == null)
+            return;
+
+        foreach (IncantationWord word in library.Words)
+        {
+            AddSerializedAliasMappings(word, aliasesByWord);
+        }
+    }
+
+    private void AddSerializedAliasMappings(IncantationWord word, Dictionary<string, HashSet<string>> aliasesByWord)
+    {
+        if (word == null)
+            return;
+
+        string normalizedWord = NormalizeSpeechText(word.Word);
+
+        if (string.IsNullOrEmpty(normalizedWord))
+            return;
+
+        if (!aliasesByWord.TryGetValue(normalizedWord, out HashSet<string> aliases))
+        {
+            aliases = new HashSet<string>();
+            aliasesByWord[normalizedWord] = aliases;
+        }
+
+        Debug.Log($"Serialized aliases visible: {normalizedWord} -> {word.SpeechAliasCount}");
+
+        foreach (string speechAlias in word.SpeechAliases)
+        {
+            string normalizedAlias = NormalizeSpeechText(speechAlias);
+
+            if (string.IsNullOrEmpty(normalizedAlias))
                 continue;
 
-            foreach (string speechAlias in word.SpeechAliases)
-            {
-                string normalizedAlias = NormalizeSpeechText(speechAlias);
-
-                if (string.IsNullOrEmpty(normalizedAlias))
-                    continue;
-
-                yield return new SpeechAliasMapping(normalizedAlias, normalizedWord);
-            }
+            aliases.Add(normalizedAlias);
         }
     }
 

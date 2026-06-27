@@ -22,6 +22,8 @@ public class IncantationWord
         }
     }
 
+    public int SpeechAliasCount => SpeechAliases.Count;
+
     public bool IsCompleted => isCompleted;
 
     public IncantationWord()
