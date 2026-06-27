@@ -53,4 +53,42 @@ public class IncantationWord
     {
         isCompleted = true;
     }
+
+    public bool HasSpeechAlias(string speechAlias)
+    {
+        string normalizedSpeechAlias = NormalizeSpeechText(speechAlias);
+
+        if (string.IsNullOrEmpty(normalizedSpeechAlias))
+            return false;
+
+        foreach (string existingAlias in SpeechAliases)
+        {
+            if (NormalizeSpeechText(existingAlias) == normalizedSpeechAlias)
+                return true;
+        }
+
+        return false;
+    }
+
+    public bool TryAddSpeechAlias(string speechAlias)
+    {
+        string normalizedSpeechAlias = NormalizeSpeechText(speechAlias);
+
+        if (string.IsNullOrEmpty(normalizedSpeechAlias) || HasSpeechAlias(speechAlias))
+            return false;
+
+        if (speechAliases == null)
+            speechAliases = new List<string>();
+
+        speechAliases.Add(speechAlias.Trim());
+        return true;
+    }
+
+    private string NormalizeSpeechText(string speechText)
+    {
+        if (string.IsNullOrWhiteSpace(speechText))
+            return string.Empty;
+
+        return speechText.Trim().ToLowerInvariant();
+    }
 }

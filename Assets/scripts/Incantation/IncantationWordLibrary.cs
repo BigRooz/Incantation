@@ -7,113 +7,16 @@ public class IncantationWordLibrary : MonoBehaviour
     [Tooltip("Single source of truth for generated incantation words and their speech recognition aliases.")]
     [SerializeField] private List<IncantationWord> words = new List<IncantationWord>
     {
-        new IncantationWord("ordo", new[] { "or do" }),
-        new IncantationWord("tenebris", new[] { "deliveries" }),
-        new IncantationWord("maledictum", new[] { "malediction" }),
-        new IncantationWord("umbra", new[] { "umbrella" }),
-        new IncantationWord("vinculum", new[] { "vehicle um" }),
-        new IncantationWord("abyssus", new[] { "abyss us" }),
-        new IncantationWord("acerbus"),
-        new IncantationWord("adumbratus"),
-        new IncantationWord("aeternum"),
-        new IncantationWord("altarium"),
-        new IncantationWord("amissus"),
-        new IncantationWord("animae"),
-        new IncantationWord("animarum"),
-        new IncantationWord("arcana"),
-        new IncantationWord("arcanum"),
-        new IncantationWord("ardens"),
-        new IncantationWord("astralis"),
-        new IncantationWord("ater"),
-        new IncantationWord("atramentum"),
-        new IncantationWord("augurium"),
-        new IncantationWord("bellator"),
-        new IncantationWord("caecitas"),
-        new IncantationWord("caligo", new[] { "cali go" }),
-        new IncantationWord("cantus"),
-        new IncantationWord("carceris"),
-        new IncantationWord("carnifex"),
-        new IncantationWord("cineris"),
-        new IncantationWord("circulus"),
-        new IncantationWord("clamor"),
-        new IncantationWord("clavicula"),
-        new IncantationWord("corvus"),
-        new IncantationWord("cruciatus"),
-        new IncantationWord("custos"),
-        new IncantationWord("daemonium"),
-        new IncantationWord("damnatio"),
-        new IncantationWord("decretum"),
-        new IncantationWord("delirium"),
-        new IncantationWord("devorator"),
-        new IncantationWord("diabolus"),
-        new IncantationWord("dirum"),
-        new IncantationWord("dolorum"),
-        new IncantationWord("draconis"),
-        new IncantationWord("effigies"),
-        new IncantationWord("exanimis"),
-        new IncantationWord("excidium"),
-        new IncantationWord("exsanguis"),
-        new IncantationWord("fatum"),
-        new IncantationWord("feralis"),
-        new IncantationWord("ferox"),
-        new IncantationWord("funestus"),
-        new IncantationWord("furor"),
-        new IncantationWord("gelidus"),
-        new IncantationWord("geminus"),
-        new IncantationWord("gladius"),
-        new IncantationWord("gravis"),
-        new IncantationWord("horrendum"),
-        new IncantationWord("hostilis"),
-        new IncantationWord("immortalis"),
-        new IncantationWord("imperium"),
-        new IncantationWord("infernum"),
-        new IncantationWord("infernus"),
-        new IncantationWord("invidia"),
-        new IncantationWord("invocatio"),
-        new IncantationWord("iudicium"),
-        new IncantationWord("lacrimae"),
-        new IncantationWord("lamentum"),
-        new IncantationWord("larvae"),
-        new IncantationWord("lemures"),
-        new IncantationWord("letalis"),
-        new IncantationWord("ligatura"),
-        new IncantationWord("luctuosus"),
-        new IncantationWord("lunaris"),
-        new IncantationWord("macula"),
-        new IncantationWord("manium"),
-        new IncantationWord("mors"),
-        new IncantationWord("mortifer"),
-        new IncantationWord("mortuus"),
-        new IncantationWord("mysterium"),
-        new IncantationWord("necromantia", new[] { "necromancy" }),
-        new IncantationWord("nex"),
-        new IncantationWord("nocturnus"),
-        new IncantationWord("nomen"),
-        new IncantationWord("obscurum", new[] { "obscure room" }),
-        new IncantationWord("obscurus", new[] { "obscure us" }),
-        new IncantationWord("occultum"),
-        new IncantationWord("omen"),
-        new IncantationWord("opprobrium"),
-        new IncantationWord("oraculum"),
-        new IncantationWord("pallidus"),
-        new IncantationWord("penumbra"),
-        new IncantationWord("perditus"),
-        new IncantationWord("periculum"),
-        new IncantationWord("phantasma", new[] { "phantom" }),
-        new IncantationWord("portentum"),
-        new IncantationWord("praesagium"),
-        new IncantationWord("profanum"),
-        new IncantationWord("purgatorium"),
-        new IncantationWord("quietus"),
-        new IncantationWord("raptus"),
-        new IncantationWord("reliquiae"),
-        new IncantationWord("ruina"),
-        new IncantationWord("sacrilegium"),
-        new IncantationWord("sanguinis", new[] { "sanguineous" }),
-        new IncantationWord("sepulcrum", new[] { "sepulcher" }),
-        new IncantationWord("serpentis"),
-        new IncantationWord("silentium"),
-        new IncantationWord("simulacrum")
+        new IncantationWord("mor", new[] { "more" }),
+        new IncantationWord("tor", new[] { "tore" }),
+        new IncantationWord("lum", new[] { "loom" }),
+        new IncantationWord("nok", new[] { "knock" }),
+        new IncantationWord("vek", new[] { "veck" }),
+        new IncantationWord("rak", new[] { "rack" }),
+        new IncantationWord("dor", new[] { "door" }),
+        new IncantationWord("zul", new[] { "zool" }),
+        new IncantationWord("vak", new[] { "vac" }),
+        new IncantationWord("kor", new[] { "core" })
     };
 
     public IReadOnlyList<IncantationWord> Words
@@ -125,5 +28,85 @@ public class IncantationWordLibrary : MonoBehaviour
 
             return words;
         }
+    }
+
+    public bool IsSpeechAliasForWord(string speechAlias, string expectedWord)
+    {
+        IncantationWord word = FindWord(expectedWord);
+        return word != null && word.HasSpeechAlias(speechAlias);
+    }
+
+    public bool TryAddSpeechAlias(string expectedWord, string speechAlias)
+    {
+        IncantationWord word = FindWord(expectedWord);
+
+        if (word == null)
+            return false;
+
+        return word.TryAddSpeechAlias(speechAlias);
+    }
+
+    [ContextMenu("Reset To Phonetic Vocabulary")]
+    private void ResetToPhoneticVocabulary()
+    {
+        if (words == null)
+            words = new List<IncantationWord>();
+
+        words.Clear();
+        AddPhoneticWord("mor", "more");
+        AddPhoneticWord("tor", "tore");
+        AddPhoneticWord("lum", "loom");
+        AddPhoneticWord("nok", "knock");
+        AddPhoneticWord("vek", "veck");
+        AddPhoneticWord("rak", "rack");
+        AddPhoneticWord("dor", "door");
+        AddPhoneticWord("zul", "zool");
+        AddPhoneticWord("vak", "vac");
+        AddPhoneticWord("kor", "core");
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.EditorUtility.SetDirty(this);
+
+            if (gameObject.scene.IsValid())
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+#endif
+    }
+
+    private void AddPhoneticWord(string wordText, string speechAlias)
+    {
+        if (string.IsNullOrWhiteSpace(wordText) || FindWord(wordText) != null)
+            return;
+
+        words.Add(new IncantationWord(wordText, new[] { speechAlias }));
+    }
+
+    private IncantationWord FindWord(string expectedWord)
+    {
+        string normalizedExpectedWord = NormalizeSpeechText(expectedWord);
+
+        if (string.IsNullOrEmpty(normalizedExpectedWord))
+            return null;
+
+        foreach (IncantationWord word in Words)
+        {
+            if (word == null)
+                continue;
+
+            if (NormalizeSpeechText(word.Word) == normalizedExpectedWord)
+                return word;
+        }
+
+        return null;
+    }
+
+    private string NormalizeSpeechText(string speechText)
+    {
+        if (string.IsNullOrWhiteSpace(speechText))
+            return string.Empty;
+
+        return speechText.Trim().ToLowerInvariant();
     }
 }
