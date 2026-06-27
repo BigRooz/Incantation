@@ -39,6 +39,7 @@ public class RitualController : MonoBehaviour
     private bool playerTurnComplete;
     private bool hasLoggedMissingHourglass;
     private bool hasLoggedMissingIncantationManager;
+    private bool hasLoggedMissingVoicePhraseNormalizer;
     private Seat lastCompletedSeat;
 
     public Seat CurrentActiveSeat { get; private set; }
@@ -115,6 +116,7 @@ public class RitualController : MonoBehaviour
         playerTurnComplete = false;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
+        hasLoggedMissingVoicePhraseNormalizer = false;
         lastCompletedSeat = null;
         StopListening();
 
@@ -433,25 +435,30 @@ public class RitualController : MonoBehaviour
         hourglassFinished = true;
     }
 
-    private void HandlePhraseRecognized(string phrase)
+    private void HandlePhraseRecognized(string recognizedPhrase)
     {
         if (!ResolveVoiceRecognizer() || incantationManager == null || !isTurnActive || playerTurnComplete)
             return;
 
+        ResolveVoicePhraseNormalizer();
+        string normalizedPhrase = voicePhraseNormalizer != null
+            ? voicePhraseNormalizer.Normalize(recognizedPhrase)
+            : recognizedPhrase;
+
+        Debug.Log($"Voice phrase before normalization: {recognizedPhrase}");
+        Debug.Log($"Voice phrase after normalization: {normalizedPhrase}");
+
         string expectedWord = incantationManager.CurrentWord;
-        string normalizedPhrase = voicePhraseNormalizer == null
-            ? phrase
-            : voicePhraseNormalizer.NormalizePhrase(phrase);
         bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(normalizedPhrase);
 
         if (!completedCurrentWord)
         {
-            Debug.Log($"Incorrect word: {phrase}");
-            HandleSpeechAliasSuggestion(phrase, expectedWord);
+            Debug.Log($"Incorrect word: {normalizedPhrase}");
+            HandleSpeechAliasSuggestion(recognizedPhrase, expectedWord);
             return;
         }
 
-        Debug.Log($"Correct word: {phrase}");
+        Debug.Log($"Correct word: {normalizedPhrase}");
 
         if (!incantationManager.IsCompleted)
             return;
@@ -481,6 +488,23 @@ public class RitualController : MonoBehaviour
         pendingRecognizedPhrase = recognizedPhrase.Trim();
         pendingExpectedWord = expectedWord.Trim();
         LogSpeechLearningBlock(pendingRecognizedPhrase, pendingExpectedWord);
+    }
+
+    private VoicePhraseNormalizer ResolveVoicePhraseNormalizer()
+    {
+        if (voicePhraseNormalizer == null)
+            voicePhraseNormalizer = GetComponent<VoicePhraseNormalizer>();
+
+        if (voicePhraseNormalizer == null)
+            voicePhraseNormalizer = FindFirstObjectByType<VoicePhraseNormalizer>();
+
+        if (voicePhraseNormalizer == null && !hasLoggedMissingVoicePhraseNormalizer)
+        {
+            Debug.LogWarning("RitualController requires a VoicePhraseNormalizer reference for speech alias normalization.");
+            hasLoggedMissingVoicePhraseNormalizer = true;
+        }
+
+        return voicePhraseNormalizer;
     }
 
     private bool IsSpeechAliasForExpectedWord(string recognizedPhrase, string expectedWord)

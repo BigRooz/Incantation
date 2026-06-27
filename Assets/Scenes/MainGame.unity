@@ -1183,6 +1183,8 @@ Transform:
   - {fileID: 822167236}
   - {fileID: 672817949}
   - {fileID: 1855418876}
+  - {fileID: 651073268}
+  - {fileID: 753472356}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &231271042
@@ -1201,9 +1203,14 @@ MonoBehaviour:
   bookMover: {fileID: 2895304713497403604}
   hourglassController: {fileID: 1449798695}
   incantationManager: {fileID: 1179521723}
-  voiceRecognizerBehaviour: {fileID: 672817950}
+  voiceRecognizerBehaviour: {fileID: 753472357}
   voicePhraseNormalizer: {fileID: 1855418877}
+  speechAliasWordLibrary: {fileID: 651073269}
   autoStart: 1
+  enableLearningMode: 0
+  pendingRecognizedPhrase: 
+  pendingExpectedWord: 
+  learnedAliases: []
   enableDebugLogs: 0
 --- !u!1001 &233275028
 PrefabInstance:
@@ -2350,6 +2357,105 @@ Transform:
   m_Children: []
   m_Father: {fileID: 793543957}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &651073266
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 651073268}
+  - component: {fileID: 651073269}
+  m_Layer: 0
+  m_Name: IncantationWordLibrary
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &651073268
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 651073266}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &651073269
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 651073266}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73dfad2c9b5a4d36855f4658dbce6516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  words:
+  - word: mor
+    speechAliases:
+    - more
+    - mort
+    isCompleted: 0
+  - word: tor
+    speechAliases:
+    - tore
+    - thor
+    - tour
+    - door
+    isCompleted: 0
+  - word: lum
+    speechAliases:
+    - loom
+    - loume
+    - plume
+    isCompleted: 0
+  - word: nok
+    speechAliases:
+    - knock
+    isCompleted: 0
+  - word: vek
+    speechAliases:
+    - veck
+    - vick
+    isCompleted: 0
+  - word: rak
+    speechAliases:
+    - rack
+    - raque
+    - vaque
+    - rak
+    isCompleted: 0
+  - word: dor
+    speechAliases:
+    - door
+    - dort
+    isCompleted: 0
+  - word: zul
+    speechAliases:
+    - zool
+    - zoul
+    isCompleted: 0
+  - word: vak
+    speechAliases:
+    - vac
+    - vaque
+    isCompleted: 0
+  - word: kor
+    speechAliases:
+    - core
+    - corp
+    isCompleted: 0
 --- !u!1 &663801568 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 947664418748905057, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
@@ -2820,6 +2926,52 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1186245248}
   m_SourcePrefab: {fileID: 100100000, guid: 79e8244d21f3f5f4abd7a4ccd1cb265a, type: 3}
+--- !u!1 &753472355
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 753472356}
+  - component: {fileID: 753472357}
+  m_Layer: 0
+  m_Name: WindowsKeywordVoiceRecognizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &753472356
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 753472355}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 231271041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &753472357
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 753472355}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be51fd9fa3d44090810b90c1d0c736d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wordLibrary: {fileID: 651073269}
+  logRecognizedPhrases: 1
 --- !u!1 &754719550
 GameObject:
   m_ObjectHideFlags: 0
@@ -4296,7 +4448,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   incantationLength: 5
-  wordLibrary: {fileID: 1179521725}
+  wordLibrary: {fileID: 0}
   onIncantationGenerated:
     m_PersistentCalls:
       m_Calls: []
@@ -4334,8 +4486,50 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73dfad2c9b5a4d36855f4658dbce6516, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
+  words:
+  - word: mor
+    speechAliases:
+    - more
+    isCompleted: 0
+  - word: tor
+    speechAliases:
+    - tore
+    isCompleted: 0
+  - word: lum
+    speechAliases:
+    - loom
+    isCompleted: 0
+  - word: nok
+    speechAliases:
+    - knock
+    isCompleted: 0
+  - word: vek
+    speechAliases:
+    - veck
+    isCompleted: 0
+  - word: rak
+    speechAliases:
+    - rack
+    isCompleted: 0
+  - word: dor
+    speechAliases:
+    - door
+    isCompleted: 0
+  - word: zul
+    speechAliases:
+    - zool
+    - zoul
+    isCompleted: 0
+  - word: vak
+    speechAliases:
+    - vac
+    isCompleted: 0
+  - word: kor
+    speechAliases:
+    - core
+    isCompleted: 0
 --- !u!1001 &1182246455
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6988,7 +7182,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 389b2e20e2554bc7b52108c2f797cc3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wordLibrary: {fileID: 1179521725}
+  wordLibrary: {fileID: 0}
 --- !u!1 &1857470280
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,11 +7,11 @@ public class VoicePhraseNormalizer : MonoBehaviour
     [Header("References")]
     [SerializeField] private IncantationWordLibrary wordLibrary;
 
-    private readonly Dictionary<string, string> aliasLookup = new Dictionary<string, string>();
+    private readonly Dictionary<string, string> aliasLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-    public string NormalizePhrase(string phrase)
+    public string Normalize(string phrase)
     {
-        string normalizedPhrase = Normalize(phrase);
+        string normalizedPhrase = CleanPhrase(phrase);
 
         RebuildAliasLookup();
 
@@ -20,33 +21,49 @@ public class VoicePhraseNormalizer : MonoBehaviour
         return normalizedPhrase;
     }
 
+    public string NormalizePhrase(string phrase)
+    {
+        return Normalize(phrase);
+    }
+
     private void RebuildAliasLookup()
     {
         aliasLookup.Clear();
+        IncantationWordLibrary resolvedWordLibrary = ResolveWordLibrary();
 
-        foreach (IncantationWord word in GetLibraryWords())
+        if (resolvedWordLibrary == null)
+            return;
+
+        foreach (IncantationWord word in resolvedWordLibrary.GetWords())
         {
             if (word == null)
                 continue;
 
-            string normalizedWord = Normalize(word.Word);
+            string normalizedWord = CleanPhrase(word.Word);
 
             if (string.IsNullOrEmpty(normalizedWord))
                 continue;
 
-            foreach (string speechAlias in word.SpeechAliases)
-            {
-                string normalizedAlias = Normalize(speechAlias);
+            aliasLookup[normalizedWord] = normalizedWord;
+        }
 
-                if (string.IsNullOrEmpty(normalizedAlias))
-                    continue;
+        foreach (IncantationWordLibrary.SpeechAliasMapping speechAliasMapping in resolvedWordLibrary.GetSpeechAliasMappings())
+        {
+            if (speechAliasMapping == null)
+                continue;
 
-                aliasLookup[normalizedAlias] = normalizedWord;
-            }
+            string normalizedAlias = CleanPhrase(speechAliasMapping.Alias);
+            string normalizedWord = CleanPhrase(speechAliasMapping.Word);
+
+            if (string.IsNullOrEmpty(normalizedAlias) || string.IsNullOrEmpty(normalizedWord))
+                continue;
+
+            aliasLookup[normalizedAlias] = normalizedWord;
+            Debug.Log($"Library alias loaded: {normalizedAlias} -> {normalizedWord}");
         }
     }
 
-    private IReadOnlyList<IncantationWord> GetLibraryWords()
+    private IncantationWordLibrary ResolveWordLibrary()
     {
         if (wordLibrary == null)
             wordLibrary = GetComponent<IncantationWordLibrary>();
@@ -57,13 +74,13 @@ public class VoicePhraseNormalizer : MonoBehaviour
         if (wordLibrary == null)
         {
             Debug.LogWarning("VoicePhraseNormalizer requires an IncantationWordLibrary reference.");
-            return new List<IncantationWord>();
+            return null;
         }
 
-        return wordLibrary.Words;
+        return wordLibrary;
     }
 
-    private string Normalize(string phrase)
+    private string CleanPhrase(string phrase)
     {
         if (string.IsNullOrWhiteSpace(phrase))
             return string.Empty;
