@@ -6,7 +6,7 @@ using Whisper;
 using Whisper.Utils;
 using Debug = UnityEngine.Debug;
 
-public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
+public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRecognizerProcessingStatus
 {
     [Header("Whisper")]
     [SerializeField] private WhisperManager whisper;
@@ -23,10 +23,12 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
     private bool isListening;
     private bool isStarting;
     private bool isTranscribing;
+    private bool isProcessingRecognition;
     private int listeningSessionId;
     private long lastRecognitionLatencyMs;
 
     public bool IsListening => isListening;
+    public bool IsProcessingRecognition => isProcessingRecognition || isTranscribing;
 
     public event Action<string> OnPhraseRecognized;
 
@@ -133,6 +135,7 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
             return;
         }
 
+        isProcessingRecognition = true;
         Log($"Whisper voice recognition stopping. Session {listeningSessionId} will be transcribed.");
         microphoneRecord.StopRecord();
     }
@@ -164,8 +167,16 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
     {
         int sessionId = listeningSessionId;
         isListening = false;
+        isProcessingRecognition = true;
 
-        await TranscribeRecording(recordedAudio, sessionId);
+        try
+        {
+            await TranscribeRecording(recordedAudio, sessionId);
+        }
+        finally
+        {
+            isProcessingRecognition = false;
+        }
     }
 
     private async Task TranscribeRecording(AudioChunk recordedAudio, int sessionId)
