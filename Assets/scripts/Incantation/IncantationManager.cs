@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -105,6 +106,32 @@ public class IncantationManager : MonoBehaviour
         return true;
     }
 
+    public bool TryCompleteCurrentPhrase(string spokenPhrase, VoicePhraseNormalizer phraseNormalizer)
+    {
+        if (IsCompleted || currentIncantation.Count == 0)
+        {
+            onIncorrectWord.Invoke();
+            return false;
+        }
+
+        string normalizedSpokenPhrase = NormalizePhrase(spokenPhrase, phraseNormalizer);
+        string normalizedExpectedPhrase = NormalizePhrase(GetCurrentIncantationText(), phraseNormalizer);
+
+        if (normalizedSpokenPhrase != normalizedExpectedPhrase)
+        {
+            onIncorrectWord.Invoke();
+            return false;
+        }
+
+        for (int i = 0; i < currentIncantation.Count; i++)
+            currentIncantation[i].MarkCompleted();
+
+        CurrentWordIndex = currentIncantation.Count;
+        onCorrectWord.Invoke();
+        onIncantationCompleted.Invoke();
+        return true;
+    }
+
     public void ResetIncantation()
     {
         currentIncantation.Clear();
@@ -162,11 +189,60 @@ public class IncantationManager : MonoBehaviour
         return false;
     }
 
+    private string GetCurrentIncantationText()
+    {
+        if (currentIncantation.Count == 0)
+            return string.Empty;
+
+        StringBuilder builder = new StringBuilder();
+
+        for (int i = 0; i < currentIncantation.Count; i++)
+        {
+            if (i > 0)
+                builder.Append(' ');
+
+            builder.Append(currentIncantation[i].Text);
+        }
+
+        return builder.ToString();
+    }
+
+    private string NormalizePhrase(string phrase, VoicePhraseNormalizer phraseNormalizer)
+    {
+        if (phraseNormalizer != null)
+            return phraseNormalizer.NormalizePhrase(phrase);
+
+        return NormalizeWord(phrase);
+    }
+
     private string NormalizeWord(string word)
     {
         if (string.IsNullOrWhiteSpace(word))
             return string.Empty;
 
-        return word.Trim().ToLowerInvariant();
+        StringBuilder builder = new StringBuilder();
+        bool previousWasWhitespace = true;
+
+        foreach (char character in word)
+        {
+            if (char.IsPunctuation(character))
+                continue;
+
+            if (char.IsWhiteSpace(character))
+            {
+                if (!previousWasWhitespace)
+                {
+                    builder.Append(' ');
+                    previousWasWhitespace = true;
+                }
+
+                continue;
+            }
+
+            builder.Append(char.ToLowerInvariant(character));
+            previousWasWhitespace = false;
+        }
+
+        return builder.ToString().Trim();
     }
 }

@@ -21,9 +21,15 @@ It does not own UI, voice recognition, networking, timers, ritual progression, d
 
 `IncantationWordLibrary` is the vocabulary source for generated incantations and speech recognition aliases.
 
-`IncantationManager` is a focused MonoBehaviour that reads from `IncantationWordLibrary`, generates a unique random incantation and validates spoken input against the current word. This keeps the rule for spoken-word progress in one place while allowing other systems to subscribe through UnityEvents.
+`IncantationManager` is a focused MonoBehaviour that reads from `IncantationWordLibrary`, generates a unique random incantation and validates spoken input against the current word or the full current phrase. This keeps the rule for spoken-word progress in one place while allowing other systems to subscribe through UnityEvents.
 
 `VoicePhraseNormalizer` builds its alias lookup from `IncantationWordLibrary`, so adding or changing a word affects both generated incantations and speech normalization from the same data.
+
+Whisper validation uses the full phrase path because ritual success requires the complete visible phrase. `com.whisper.unity` exposes `WhisperStream`, which performs sliding-window microphone chunk transcription and raises stream result updates while recording is still active. This is not token-level partial decoding, but it is enough for the turn prototype to process phrase candidates before the hourglass ends.
+
+During a Whisper turn, `WhisperVoiceRecognizer` listens to the local microphone through `MicrophoneRecord` and emits chunked phrase candidates from `WhisperStream.OnResultUpdated`. `RitualController` ignores partial candidates until the normalized word count can represent the full incantation, then submits the raw recognized phrase to `IncantationManager.TryCompleteCurrentPhrase`. A matching full phrase succeeds immediately. A full-length non-matching phrase fails immediately. If no valid full phrase is recognized before the hourglass finishes, the timeout fails the turn.
+
+Windows keyword validation intentionally remains sequential. `WindowsKeywordVoiceRecognizer` emits recognized keywords, and `RitualController` continues to submit normalized keyword results to `IncantationManager.TryCompleteCurrentWord`.
 
 This architecture was chosen because the incantation will be touched by many future systems, but none of those systems should duplicate the rules for word order, correctness or completion. The book can display the current state, voice recognition can submit phrases, the ritual can respond to completion, and demon reactions can listen for correct or incorrect attempts without owning the incantation rules.
 

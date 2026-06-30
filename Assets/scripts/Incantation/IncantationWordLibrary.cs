@@ -41,8 +41,6 @@ public class IncantationWordLibrary : MonoBehaviour
 
         foreach (KeyValuePair<string, HashSet<string>> wordAliases in aliasesByWord)
         {
-            Debug.Log($"Library word aliases exposed: {wordAliases.Key} -> {wordAliases.Value.Count}");
-
             foreach (string normalizedAlias in wordAliases.Value)
                 yield return new SpeechAliasMapping(normalizedAlias, wordAliases.Key);
         }
@@ -85,8 +83,6 @@ public class IncantationWordLibrary : MonoBehaviour
             aliases = new HashSet<string>();
             aliasesByWord[normalizedWord] = aliases;
         }
-
-        Debug.Log($"Serialized aliases visible: {normalizedWord} -> {word.SpeechAliasCount}");
 
         foreach (string speechAlias in word.SpeechAliases)
         {

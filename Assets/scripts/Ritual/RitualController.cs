@@ -215,7 +215,7 @@ public class RitualController : MonoBehaviour
             if (!isTurnActive || playerTurnComplete)
                 yield break;
 
-            Debug.Log("Incantation failed.");
+            Debug.Log("Timeout fail: no valid full phrase recognized before the hourglass finished.");
             CompletePlayerTurn();
         }
     }
@@ -379,7 +379,7 @@ public class RitualController : MonoBehaviour
             return;
 
         voiceRecognizer.StartListening();
-        LogDebug("Listening started");
+        Debug.Log($"Ritual listening started with {GetActiveVoiceRecognizerTypeName()}. Local active player microphone only.");
     }
 
     private void StopListening()
@@ -390,7 +390,7 @@ public class RitualController : MonoBehaviour
         if (!voiceRecognizer.IsListening)
             return;
 
-        Debug.Log($"RitualController StopListening started for {GetActiveVoiceRecognizerTypeName()}.");
+        LogDebug($"RitualController StopListening started for {GetActiveVoiceRecognizerTypeName()}.");
         voiceRecognizer.StopListening();
         LogDebug("Listening stopped");
     }
@@ -404,7 +404,7 @@ public class RitualController : MonoBehaviour
             yield break;
 
         float elapsedSeconds = 0f;
-        Debug.Log($"RitualController transcription pending for {GetActiveVoiceRecognizerTypeName()}; waiting for recognition result.");
+        LogDebug($"RitualController transcription pending for {GetActiveVoiceRecognizerTypeName()}; waiting for recognition result.");
 
         while (isTurnActive &&
             !playerTurnComplete &&
@@ -416,9 +416,9 @@ public class RitualController : MonoBehaviour
         }
 
         if (voiceRecognizerProcessingStatus.IsProcessingRecognition)
-            Debug.Log($"RitualController voice recognition wait timed out after {VoiceRecognitionProcessingTimeoutSeconds:0.0}s.");
+            LogDebug($"RitualController voice recognition wait timed out after {VoiceRecognitionProcessingTimeoutSeconds:0.0}s.");
         else
-            Debug.Log($"RitualController voice recognition processing finished after {elapsedSeconds:0.00}s.");
+            LogDebug($"RitualController voice recognition processing finished after {elapsedSeconds:0.00}s.");
     }
 
     private void SubscribeToHourglass()
@@ -492,10 +492,9 @@ public class RitualController : MonoBehaviour
 
         if (voiceRecognizer == null)
         {
-            Debug.Log(
+            LogDebug(
                 $"RitualController voice recognizer reference: referencedType={referencedBehaviour.GetType().Name}, " +
-                $"implementsIVoiceRecognizer={referencedImplementsVoiceRecognizer}, finalResolvedType=None.",
-                referencedBehaviour);
+                $"implementsIVoiceRecognizer={referencedImplementsVoiceRecognizer}, finalResolvedType=None.");
             Debug.LogWarning("RitualController voice recognizer reference must implement IVoiceRecognizer.");
             voiceRecognizerProcessingStatus = null;
             loggedVoiceRecognizer = null;
@@ -507,10 +506,9 @@ public class RitualController : MonoBehaviour
                 ? resolvedVoiceRecognizerBehaviour.GetType().Name
                 : voiceRecognizer.GetType().Name;
 
-            Debug.Log(
+            LogDebug(
                 $"RitualController voice recognizer reference: referencedType={referencedBehaviour.GetType().Name}, " +
-                $"implementsIVoiceRecognizer={referencedImplementsVoiceRecognizer}, finalResolvedType={resolvedTypeName}.",
-                resolvedVoiceRecognizerBehaviour != null ? resolvedVoiceRecognizerBehaviour : referencedBehaviour);
+                $"implementsIVoiceRecognizer={referencedImplementsVoiceRecognizer}, finalResolvedType={resolvedTypeName}.");
             Debug.Log($"RitualController active voice recognizer: {resolvedTypeName} on {referencedBehaviour.gameObject.name}.", resolvedVoiceRecognizerBehaviour != null ? resolvedVoiceRecognizerBehaviour : referencedBehaviour);
             loggedVoiceRecognizer = voiceRecognizer;
         }
@@ -555,15 +553,50 @@ public class RitualController : MonoBehaviour
         if (!ResolveVoiceRecognizer() || incantationManager == null || !isTurnActive || playerTurnComplete)
             return;
 
-        Debug.Log($"RitualController processing recognition result: {recognizedPhrase}");
-
         ResolveVoicePhraseNormalizer();
         string normalizedPhrase = voicePhraseNormalizer != null
             ? voicePhraseNormalizer.Normalize(recognizedPhrase)
             : recognizedPhrase;
 
-        Debug.Log($"Voice phrase before normalization: {recognizedPhrase}");
-        Debug.Log($"Voice phrase after normalization: {normalizedPhrase}");
+        if (IsUsingWhisperRecognizer())
+        {
+            ProcessWhisperPhraseRecognition(recognizedPhrase, normalizedPhrase);
+            return;
+        }
+
+        ProcessSequentialWordRecognition(recognizedPhrase, normalizedPhrase);
+    }
+
+    private void ProcessWhisperPhraseRecognition(string recognizedPhrase, string normalizedPhrase)
+    {
+        Debug.Log($"Phrase candidate: {recognizedPhrase}");
+        Debug.Log($"Normalized phrase candidate: {normalizedPhrase}");
+
+        if (!IsFullPhraseCandidate(normalizedPhrase))
+            return;
+
+        bool completedIncantation = incantationManager.TryCompleteCurrentPhrase(recognizedPhrase, voicePhraseNormalizer);
+
+        if (!completedIncantation)
+        {
+            Debug.Log($"Full phrase fail: {normalizedPhrase}");
+            FailPlayerTurn();
+            return;
+        }
+
+        Debug.Log($"Full phrase success: {normalizedPhrase}");
+        LogDebug("Incantation complete");
+
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
+
+        CompletePlayerTurn();
+    }
+
+    private void ProcessSequentialWordRecognition(string recognizedPhrase, string normalizedPhrase)
+    {
+        Debug.Log($"Recognized phrase: {recognizedPhrase}");
+        Debug.Log($"Normalized phrase: {normalizedPhrase}");
 
         string expectedWord = incantationManager.CurrentWord;
         bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(normalizedPhrase);
@@ -582,6 +615,66 @@ public class RitualController : MonoBehaviour
 
         LogDebug("Incantation complete");
 
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
+
+        CompletePlayerTurn();
+    }
+
+    private bool IsUsingWhisperRecognizer()
+    {
+        return voiceRecognizer is WhisperVoiceRecognizer ||
+            resolvedVoiceRecognizerBehaviour is WhisperVoiceRecognizer;
+    }
+
+    private bool IsFullPhraseCandidate(string normalizedPhrase)
+    {
+        string expectedPhrase = GetNormalizedCurrentIncantationText();
+
+        if (string.IsNullOrWhiteSpace(normalizedPhrase) || string.IsNullOrWhiteSpace(expectedPhrase))
+            return false;
+
+        return CountWords(normalizedPhrase) >= CountWords(expectedPhrase);
+    }
+
+    private string GetNormalizedCurrentIncantationText()
+    {
+        string currentIncantationText = GetCurrentIncantationText();
+
+        if (voicePhraseNormalizer != null)
+            return voicePhraseNormalizer.NormalizePhrase(currentIncantationText);
+
+        return NormalizeSpeechText(currentIncantationText);
+    }
+
+    private int CountWords(string normalizedPhrase)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedPhrase))
+            return 0;
+
+        int wordCount = 0;
+        bool isInsideWord = false;
+
+        foreach (char character in normalizedPhrase)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                isInsideWord = false;
+                continue;
+            }
+
+            if (isInsideWord)
+                continue;
+
+            wordCount++;
+            isInsideWord = true;
+        }
+
+        return wordCount;
+    }
+
+    private void FailPlayerTurn()
+    {
         if (hourglassController != null)
             hourglassController.StopHourglass();
 
