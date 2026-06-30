@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e023bd402ab4fb9a413d53ce3bce2ed, type: 3}
+  m_Name: SpellPhraseLibrary
+  m_EditorClassIdentifier: 
+  spellPhrases:
+  - spellName: Vade Retro
+    spokenPhrase: vade retro
+    speechAliases:
+    - vade retro
+    - vade retro satana
+    description: Forces a cursed influence away from its current target.
+    gameplayEffectId: spell.vade_retro
+    rarity: 1
+    enabled: 1
+  - spellName: Pactum Sanguis
+    spokenPhrase: pactum sanguis
+    speechAliases:
+    - pactum sanguis
+    - pactum sanguine
+    description: Marks a blood-bound bargain for a future betrayal effect.
+    gameplayEffectId: spell.pactum_sanguis
+    rarity: 3
+    enabled: 1
+  - spellName: Lux in Umbra
+    spokenPhrase: lux in umbra
+    speechAliases:
+    - lux in umbra
+    - lux umbra
+    description: Reveals a truth hidden beneath the table's darkness.
+    gameplayEffectId: spell.lux_in_umbra
+    rarity: 2
+    enabled: 1
+  - spellName: Memento Mori
+    spokenPhrase: memento mori
+    speechAliases:
+    - memento mori
+    - remember death
+    description: Reminds a doomed priest that the ritual always collects.
+    gameplayEffectId: spell.memento_mori
+    rarity: 2
+    enabled: 1
+  - spellName: Umbra Vakorum
+    spokenPhrase: umbra vakorum
+    speechAliases:
+    - umbra vakorum
+    - umbra vacorum
+    description: Calls on a false shadow word known only to forbidden notes.
+    gameplayEffectId: spell.umbra_vakorum
+    rarity: 3
+    enabled: 1
+  - spellName: Silens Vox
+    spokenPhrase: silens vox
+    speechAliases:
+    - silens vox
+    - silent vox
+    description: Suppresses a voice at the worst possible ritual moment.
+    gameplayEffectId: spell.silens_vox
+    rarity: 2
+    enabled: 1
+  - spellName: Ignis Corvus
+    spokenPhrase: ignis corvus
+    speechAliases:
+    - ignis corvus
+    - ignis corpus
+    description: Sparks a raven-black omen from a hidden spell card.
+    gameplayEffectId: spell.ignis_corvus
+    rarity: 1
+    enabled: 1
+  - spellName: Vinculum Mentis
+    spokenPhrase: vinculum mentis
+    speechAliases:
+    - vinculum mentis
+    - vinculum mentus
+    description: Binds one player's intent to another's future choice.
+    gameplayEffectId: spell.vinculum_mentis
+    rarity: 3
+    enabled: 1
