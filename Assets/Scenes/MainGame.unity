@@ -2402,59 +2402,106 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   words:
-  - word: mor
+  - word: umbra
     speechAliases:
-    - more
-    - mort
+    - umbra
+    - umbrella
+    - umbrah
     isCompleted: 0
-  - word: tor
+  - word: vakor
     speechAliases:
-    - tore
-    - thor
-    - tour
-    - door
+    - vakor
+    - vacker
+    - vakkor
     isCompleted: 0
-  - word: lum
+  - word: mortis
     speechAliases:
-    - loom
-    - loume
-    - plume
+    - mortis
+    - mortice
     isCompleted: 0
-  - word: nok
+  - word: noctis
     speechAliases:
-    - knock
+    - noctis
+    - knocktis
     isCompleted: 0
-  - word: vek
+  - word: korva
     speechAliases:
-    - veck
-    - vick
+    - korva
+    - corva
     isCompleted: 0
-  - word: rak
+  - word: velum
     speechAliases:
-    - rack
-    - raque
-    - vaque
-    - rak
+    - velum
+    - vellum
     isCompleted: 0
-  - word: dor
+  - word: zulak
     speechAliases:
-    - door
-    - dort
+    - zulak
+    - zoo lack
     isCompleted: 0
-  - word: zul
+  - word: dorim
     speechAliases:
-    - zool
-    - zoul
+    - dorim
+    - door him
     isCompleted: 0
-  - word: vak
+  - word: rakan
     speechAliases:
-    - vac
-    - vaque
+    - rakan
+    - rackon
     isCompleted: 0
-  - word: kor
+  - word: nethor
     speechAliases:
-    - core
-    - corp
+    - nethor
+    - nether
+    isCompleted: 0
+  - word: ignis
+    speechAliases:
+    - ignis
+    - igneous
+    isCompleted: 0
+  - word: vexor
+    speechAliases:
+    - vexor
+    - vector
+    isCompleted: 0
+  - word: malum
+    speechAliases:
+    - malum
+    - malem
+    isCompleted: 0
+  - word: luxor
+    speechAliases:
+    - luxor
+    - lucksor
+    isCompleted: 0
+  - word: tenebris
+    speechAliases:
+    - tenebris
+    - tenebrous
+    isCompleted: 0
+  - word: pactum sanguis
+    speechAliases:
+    - pactum sanguis
+    - packed um sanguis
+    - pact of sanguis
+    isCompleted: 0
+  - word: lux in umbra
+    speechAliases:
+    - lux in umbra
+    - lucks in umbra
+    - lux and umbra
+    isCompleted: 0
+  - word: vade retro
+    speechAliases:
+    - vade retro
+    - vah day retro
+    - vader retro
+    isCompleted: 0
+  - word: memento mori
+    speechAliases:
+    - memento mori
+    - momento mori
+    - memento morey
     isCompleted: 0
 --- !u!1 &663801568 stripped
 GameObject:
@@ -2985,7 +3032,7 @@ MonoBehaviour:
   noContext: 1
   singleSegment: 0
   enableTokens: 0
-  initialPrompt: "mor tor nok vak\ndor vak lum kor\nIncantation test words: mor tor nok vak dor lum kor."
+  initialPrompt: "umbra vakor mortis noctis korva velum zulak dorim rakan nethor ignis vexor malum luxor tenebris\nSpecial phrases: pactum sanguis, lux in umbra, vade retro, memento mori."
   stepSec: 3
   keepSec: 0.2
   lengthSec: 10
@@ -4558,46 +4605,106 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   words:
-  - word: mor
+  - word: umbra
     speechAliases:
-    - more
+    - umbra
+    - umbrella
+    - umbrah
     isCompleted: 0
-  - word: tor
+  - word: vakor
     speechAliases:
-    - tore
+    - vakor
+    - vacker
+    - vakkor
     isCompleted: 0
-  - word: lum
+  - word: mortis
     speechAliases:
-    - loom
+    - mortis
+    - mortice
     isCompleted: 0
-  - word: nok
+  - word: noctis
     speechAliases:
-    - knock
+    - noctis
+    - knocktis
     isCompleted: 0
-  - word: vek
+  - word: korva
     speechAliases:
-    - veck
+    - korva
+    - corva
     isCompleted: 0
-  - word: rak
+  - word: velum
     speechAliases:
-    - rack
+    - velum
+    - vellum
     isCompleted: 0
-  - word: dor
+  - word: zulak
     speechAliases:
-    - door
+    - zulak
+    - zoo lack
     isCompleted: 0
-  - word: zul
+  - word: dorim
     speechAliases:
-    - zool
-    - zoul
+    - dorim
+    - door him
     isCompleted: 0
-  - word: vak
+  - word: rakan
     speechAliases:
-    - vac
+    - rakan
+    - rackon
     isCompleted: 0
-  - word: kor
+  - word: nethor
     speechAliases:
-    - core
+    - nethor
+    - nether
+    isCompleted: 0
+  - word: ignis
+    speechAliases:
+    - ignis
+    - igneous
+    isCompleted: 0
+  - word: vexor
+    speechAliases:
+    - vexor
+    - vector
+    isCompleted: 0
+  - word: malum
+    speechAliases:
+    - malum
+    - malem
+    isCompleted: 0
+  - word: luxor
+    speechAliases:
+    - luxor
+    - lucksor
+    isCompleted: 0
+  - word: tenebris
+    speechAliases:
+    - tenebris
+    - tenebrous
+    isCompleted: 0
+  - word: pactum sanguis
+    speechAliases:
+    - pactum sanguis
+    - packed um sanguis
+    - pact of sanguis
+    isCompleted: 0
+  - word: lux in umbra
+    speechAliases:
+    - lux in umbra
+    - lucks in umbra
+    - lux and umbra
+    isCompleted: 0
+  - word: vade retro
+    speechAliases:
+    - vade retro
+    - vah day retro
+    - vader retro
+    isCompleted: 0
+  - word: memento mori
+    speechAliases:
+    - memento mori
+    - momento mori
+    - memento morey
     isCompleted: 0
 --- !u!1001 &1182246455
 PrefabInstance:

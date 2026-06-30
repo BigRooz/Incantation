@@ -5,35 +5,9 @@ public class IncantationWordLibrary : MonoBehaviour
 {
     private static readonly List<IncantationWordLibrary> activeLibraries = new List<IncantationWordLibrary>();
 
-    private static readonly DefaultIncantationWord[] DefaultVocabulary =
-    {
-        new DefaultIncantationWord("mor", new[] { "more" }),
-        new DefaultIncantationWord("tor", new[] { "tore" }),
-        new DefaultIncantationWord("lum", new[] { "loom" }),
-        new DefaultIncantationWord("nok", new[] { "knock" }),
-        new DefaultIncantationWord("vek", new[] { "veck" }),
-        new DefaultIncantationWord("rak", new[] { "rack" }),
-        new DefaultIncantationWord("dor", new[] { "door" }),
-        new DefaultIncantationWord("zul", new[] { "zool" }),
-        new DefaultIncantationWord("vak", new[] { "vac" }),
-        new DefaultIncantationWord("kor", new[] { "core" })
-    };
-
     [Header("Incantation Vocabulary")]
     [Tooltip("Single source of truth for generated incantation words and their speech recognition aliases.")]
-    [SerializeField] private List<IncantationWord> words = new List<IncantationWord>
-    {
-        new IncantationWord("mor", new[] { "more" }),
-        new IncantationWord("tor", new[] { "tore" }),
-        new IncantationWord("lum", new[] { "loom" }),
-        new IncantationWord("nok", new[] { "knock" }),
-        new IncantationWord("vek", new[] { "veck" }),
-        new IncantationWord("rak", new[] { "rack" }),
-        new IncantationWord("dor", new[] { "door" }),
-        new IncantationWord("zul", new[] { "zool" }),
-        new IncantationWord("vak", new[] { "vac" }),
-        new IncantationWord("kor", new[] { "core" })
-    };
+    [SerializeField] private List<IncantationWord> words = new List<IncantationWord>();
 
     public IReadOnlyList<IncantationWord> Words
     {
@@ -141,32 +115,6 @@ public class IncantationWordLibrary : MonoBehaviour
         return word.TryAddSpeechAlias(speechAlias);
     }
 
-    [ContextMenu("Reset To Default Vocabulary")]
-    private void ResetToDefaultVocabulary()
-    {
-        words = BuildDefaultVocabulary();
-        MarkDirty();
-    }
-
-    [ContextMenu("Add Missing Default Words")]
-    private void AddMissingDefaultWords()
-    {
-        EnsureWordsList();
-        bool changed = false;
-
-        foreach (DefaultIncantationWord defaultWord in DefaultVocabulary)
-        {
-            if (FindWord(defaultWord.Word) != null)
-                continue;
-
-            words.Add(defaultWord.ToIncantationWord());
-            changed = true;
-        }
-
-        if (changed)
-            MarkDirty();
-    }
-
     [ContextMenu("Remove Duplicate Words")]
     private void RemoveDuplicateWords()
     {
@@ -271,16 +219,6 @@ public class IncantationWordLibrary : MonoBehaviour
             return string.Empty;
 
         return speechText.Trim().ToLowerInvariant();
-    }
-
-    private List<IncantationWord> BuildDefaultVocabulary()
-    {
-        List<IncantationWord> defaultWords = new List<IncantationWord>();
-
-        foreach (DefaultIncantationWord defaultWord in DefaultVocabulary)
-            defaultWords.Add(defaultWord.ToIncantationWord());
-
-        return defaultWords;
     }
 
     private void EnsureWordsList()
@@ -395,20 +333,4 @@ public class IncantationWordLibrary : MonoBehaviour
         }
     }
 
-    private class DefaultIncantationWord
-    {
-        public string Word { get; }
-        public IReadOnlyList<string> SpeechAliases { get; }
-
-        public DefaultIncantationWord(string word, IReadOnlyList<string> speechAliases)
-        {
-            Word = word;
-            SpeechAliases = speechAliases;
-        }
-
-        public IncantationWord ToIncantationWord()
-        {
-            return new IncantationWord(Word, SpeechAliases);
-        }
-    }
 }
