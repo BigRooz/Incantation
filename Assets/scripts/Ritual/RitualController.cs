@@ -714,11 +714,8 @@ public class RitualController : MonoBehaviour
 
     private void ProcessWhisperPhraseRecognition(string recognizedPhrase, string normalizedPhrase)
     {
-        Debug.Log($"Phrase candidate: {recognizedPhrase}");
-        Debug.Log($"Normalized phrase candidate: {normalizedPhrase}");
-
-        if (!IsFullPhraseCandidate(normalizedPhrase))
-            return;
+        Debug.Log($"Final phrase recognized: {recognizedPhrase}");
+        Debug.Log($"Normalized final phrase: {normalizedPhrase}");
 
         bool isValidPhrase = IsRecognizedPhraseValid(normalizedPhrase);
 
@@ -812,16 +809,6 @@ public class RitualController : MonoBehaviour
         return false;
     }
 
-    private bool IsFullPhraseCandidate(string normalizedPhrase)
-    {
-        string expectedPhrase = GetNormalizedCurrentIncantationText();
-
-        if (string.IsNullOrWhiteSpace(normalizedPhrase) || string.IsNullOrWhiteSpace(expectedPhrase))
-            return false;
-
-        return CountWords(normalizedPhrase) >= CountWords(expectedPhrase);
-    }
-
     private bool IsRecognizedPhraseValid(string normalizedPhrase)
     {
         return CoreRitualLoop.ValidatePhraseCandidate(GetNormalizedCurrentIncantationText(), normalizedPhrase);
@@ -835,32 +822,6 @@ public class RitualController : MonoBehaviour
             return voicePhraseNormalizer.NormalizePhrase(currentIncantationText);
 
         return NormalizeSpeechText(currentIncantationText);
-    }
-
-    private int CountWords(string normalizedPhrase)
-    {
-        if (string.IsNullOrWhiteSpace(normalizedPhrase))
-            return 0;
-
-        int wordCount = 0;
-        bool isInsideWord = false;
-
-        foreach (char character in normalizedPhrase)
-        {
-            if (char.IsWhiteSpace(character))
-            {
-                isInsideWord = false;
-                continue;
-            }
-
-            if (isInsideWord)
-                continue;
-
-            wordCount++;
-            isInsideWord = true;
-        }
-
-        return wordCount;
     }
 
     private void FailRitual(string reason)
