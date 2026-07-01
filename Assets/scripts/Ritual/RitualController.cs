@@ -16,6 +16,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private BookMover bookMover;
     [SerializeField] private HourglassController hourglassController;
     [SerializeField] private IncantationManager incantationManager;
+    [SerializeField] private CoreRitualLoopBridge coreRitualLoopBridge;
 
     [Header("Voice Recognizer Selection")]
     [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
@@ -56,6 +57,10 @@ public class RitualController : MonoBehaviour
     private bool hasLoggedMissingBookMover;
     private bool hasLoggedMissingVoiceRecognizerBehaviour;
     private bool hasLoggedMissingSpeechAliasWordLibrary;
+    private bool hasLoggedLegacyPhraseFallback;
+    private bool hasInitializedCoreRitualLoop;
+    private bool isUsingCoreRitualLoopPhraseAuthority;
+    private int configuredCoreRitualPlayerCount;
     private Seat lastCompletedSeat;
     private string lastProcessedWhisperPhrase = string.Empty;
 
@@ -143,6 +148,10 @@ public class RitualController : MonoBehaviour
         hasLoggedMissingBookMover = false;
         hasLoggedMissingVoiceRecognizerBehaviour = false;
         hasLoggedMissingSpeechAliasWordLibrary = false;
+        hasLoggedLegacyPhraseFallback = false;
+        hasInitializedCoreRitualLoop = false;
+        isUsingCoreRitualLoopPhraseAuthority = false;
+        configuredCoreRitualPlayerCount = 0;
         lastCompletedSeat = null;
         lastProcessedWhisperPhrase = string.Empty;
         StopListening();
@@ -288,6 +297,14 @@ public class RitualController : MonoBehaviour
             return false;
         }
 
+        if (TryGenerateCoreRitualLoopIncantation())
+        {
+            Debug.Log($"Generated incantation: {GetCurrentIncantationText()}");
+            return true;
+        }
+
+        LogLegacyPhraseFallback();
+        isUsingCoreRitualLoopPhraseAuthority = false;
         incantationManager.GenerateIncantation();
         Debug.Log($"Generated incantation: {GetCurrentIncantationText()}");
         return true;
@@ -742,7 +759,7 @@ public class RitualController : MonoBehaviour
         if (hourglassController != null)
             hourglassController.StopHourglass();
 
-        CompletePlayerTurn();
+        CompleteSuccessfulPlayerTurn();
     }
 
     private void ProcessSequentialWordRecognition(string recognizedPhrase, string normalizedPhrase)
@@ -770,6 +787,12 @@ public class RitualController : MonoBehaviour
         if (hourglassController != null)
             hourglassController.StopHourglass();
 
+        CompleteSuccessfulPlayerTurn();
+    }
+
+    private void CompleteSuccessfulPlayerTurn()
+    {
+        AdvanceCoreRitualLoopAfterSuccessfulTurn();
         CompletePlayerTurn();
     }
 
@@ -811,17 +834,10 @@ public class RitualController : MonoBehaviour
 
     private bool IsRecognizedPhraseValid(string normalizedPhrase)
     {
+        if (isUsingCoreRitualLoopPhraseAuthority && TryResolveReadyCoreRitualLoopBridge())
+            return coreRitualLoopBridge.ValidatePhrase(normalizedPhrase);
+
         return CoreRitualLoop.ValidatePhraseCandidate(GetNormalizedCurrentIncantationText(), normalizedPhrase);
-    }
-
-    private string GetNormalizedCurrentIncantationText()
-    {
-        string currentIncantationText = GetCurrentIncantationText();
-
-        if (voicePhraseNormalizer != null)
-            return voicePhraseNormalizer.NormalizePhrase(currentIncantationText);
-
-        return NormalizeSpeechText(currentIncantationText);
     }
 
     private void FailRitual(string reason)
@@ -1022,6 +1038,96 @@ public class RitualController : MonoBehaviour
         }
 
         return builder.ToString();
+    }
+
+    private string GetNormalizedCurrentIncantationText()
+    {
+        string currentIncantationText = GetCurrentIncantationText();
+
+        if (voicePhraseNormalizer != null)
+            return voicePhraseNormalizer.NormalizePhrase(currentIncantationText);
+
+        return NormalizeSpeechText(currentIncantationText);
+    }
+
+    private bool TryGenerateCoreRitualLoopIncantation()
+    {
+        if (!EnsureCoreRitualLoopInitialized())
+            return false;
+
+        if (!coreRitualLoopBridge.TryPrepareLegacyIncantation(incantationManager))
+        {
+            isUsingCoreRitualLoopPhraseAuthority = false;
+            return false;
+        }
+
+        isUsingCoreRitualLoopPhraseAuthority = true;
+        return true;
+    }
+
+    private bool EnsureCoreRitualLoopInitialized()
+    {
+        if (!TryResolveReadyCoreRitualLoopBridge())
+            return false;
+
+        int occupiedSeatCount = GetOccupiedSeatCount();
+
+        if (occupiedSeatCount <= 0)
+        {
+            LogWaitingForOccupiedSeat();
+            return false;
+        }
+
+        if (hasInitializedCoreRitualLoop && configuredCoreRitualPlayerCount == occupiedSeatCount)
+            return true;
+
+        coreRitualLoopBridge.ConfigurePlayerCount(occupiedSeatCount);
+        coreRitualLoopBridge.ResetGame();
+        configuredCoreRitualPlayerCount = occupiedSeatCount;
+        hasInitializedCoreRitualLoop = true;
+        return true;
+    }
+
+    private void AdvanceCoreRitualLoopAfterSuccessfulTurn()
+    {
+        if (!isUsingCoreRitualLoopPhraseAuthority || !TryResolveReadyCoreRitualLoopBridge())
+            return;
+
+        coreRitualLoopBridge.AdvanceSuccessfulTurn();
+    }
+
+    private int GetOccupiedSeatCount()
+    {
+        if (seatManager == null)
+        {
+            LogMissingSeatManager();
+            return 0;
+        }
+
+        return seatManager.GetOccupiedSeats().Count;
+    }
+
+    private bool TryResolveReadyCoreRitualLoopBridge()
+    {
+        if (coreRitualLoopBridge == null)
+            coreRitualLoopBridge = GetComponent<CoreRitualLoopBridge>();
+
+        if (coreRitualLoopBridge == null)
+            coreRitualLoopBridge = FindFirstObjectByType<CoreRitualLoopBridge>();
+
+        if (coreRitualLoopBridge == null)
+            return false;
+
+        return coreRitualLoopBridge.IsReady();
+    }
+
+    private void LogLegacyPhraseFallback()
+    {
+        if (hasLoggedLegacyPhraseFallback)
+            return;
+
+        Debug.Log($"{nameof(RitualController)} is using legacy {nameof(IncantationManager)} phrase generation because {nameof(CoreRitualLoopBridge)} is not assigned and ready.");
+        hasLoggedLegacyPhraseFallback = true;
     }
 
     private void LogDebug(string message)
