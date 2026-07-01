@@ -238,6 +238,7 @@ MonoBehaviour:
   recognitionMode: 1
   ignoreEmptyTranscripts: 1
   minimumRecordingLengthSeconds: 0.1
+  silenceRmsThreshold: 0.01
   enableDebugLogs: 1
   logRecognizedPhrases: 1
 --- !u!1001 &19753975
@@ -1462,7 +1463,7 @@ MonoBehaviour:
   bookMover: {fileID: 2895304713497403604}
   hourglassController: {fileID: 1449798695}
   incantationManager: {fileID: 1179521723}
-  voiceRecognizerBehaviour: {fileID: 753472357}
+  voiceRecognizerBehaviour: {fileID: 13003002}
   voicePhraseNormalizer: {fileID: 1855418877}
   speechAliasWordLibrary: {fileID: 651073269}
   autoStart: 1

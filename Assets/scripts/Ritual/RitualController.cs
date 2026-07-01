@@ -720,9 +720,16 @@ public class RitualController : MonoBehaviour
         if (!IsFullPhraseCandidate(normalizedPhrase))
             return;
 
-        bool completedIncantation = incantationManager.TryCompleteCurrentPhrase(recognizedPhrase, voicePhraseNormalizer);
+        bool isValidPhrase = IsRecognizedPhraseValid(normalizedPhrase);
 
-        if (!completedIncantation)
+        if (!isValidPhrase)
+        {
+            Debug.Log($"Full phrase fail: {normalizedPhrase}");
+            FailRitual($"Wrong full phrase: {normalizedPhrase}");
+            return;
+        }
+
+        if (!incantationManager.TryCompleteCurrentPhrase(recognizedPhrase, voicePhraseNormalizer))
         {
             Debug.Log($"Full phrase fail: {normalizedPhrase}");
             FailRitual($"Wrong full phrase: {normalizedPhrase}");
@@ -813,6 +820,11 @@ public class RitualController : MonoBehaviour
             return false;
 
         return CountWords(normalizedPhrase) >= CountWords(expectedPhrase);
+    }
+
+    private bool IsRecognizedPhraseValid(string normalizedPhrase)
+    {
+        return CoreRitualLoop.ValidatePhraseCandidate(GetNormalizedCurrentIncantationText(), normalizedPhrase);
     }
 
     private string GetNormalizedCurrentIncantationText()

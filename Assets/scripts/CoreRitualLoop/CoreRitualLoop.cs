@@ -96,6 +96,35 @@ public class CoreRitualLoop : MonoBehaviour
     }
 
     /// <summary>
+    /// Validates spoken text against a supplied visible ritual phrase.
+    /// This supports migration from RitualController while keeping PhraseValidator as the validation authority.
+    /// </summary>
+    /// <param name="expectedPhrase">The full visible ritual phrase the active player must speak.</param>
+    /// <param name="recognizedPhrase">The phrase candidate recognized by the voice system.</param>
+    /// <returns>True when the recognized phrase satisfies the expected phrase.</returns>
+    public bool ValidatePhrase(string expectedPhrase, string recognizedPhrase)
+    {
+        if (phraseValidator != null)
+        {
+            return phraseValidator.ValidatePhrase(expectedPhrase, recognizedPhrase);
+        }
+
+        return ValidatePhraseCandidate(expectedPhrase, recognizedPhrase);
+    }
+
+    /// <summary>
+    /// Validates a supplied phrase candidate through PhraseValidator without requiring scene wiring.
+    /// This is the migration bridge for prototype systems that do not yet run through CoreRitualLoop state.
+    /// </summary>
+    /// <param name="expectedPhrase">The full visible ritual phrase the active player must speak.</param>
+    /// <param name="recognizedPhrase">The phrase candidate recognized by the voice system.</param>
+    /// <returns>True when the recognized phrase satisfies the expected phrase.</returns>
+    public static bool ValidatePhraseCandidate(string expectedPhrase, string recognizedPhrase)
+    {
+        return PhraseValidator.Validate(expectedPhrase, recognizedPhrase);
+    }
+
+    /// <summary>
     /// Advances a successful ritual turn and unlocks exactly one word after a completed table rotation.
     /// Turn progression ownership remains inside TurnManager.
     /// Phrase growth ownership remains inside GrowingIncantationManager.
