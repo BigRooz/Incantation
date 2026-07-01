@@ -20,8 +20,6 @@ public class RitualController : MonoBehaviour
     [Header("Voice Recognizer Selection")]
     [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
     [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
-    [TextArea]
-    [SerializeField] private string activeRecognizerInspectorNote = "Stable default: WindowsKeywordVoiceRecognizer. Experimental: assign WhisperVoiceRecognizer for full-phrase testing only.";
 
     [Header("Speech Normalization")]
     [SerializeField] private VoicePhraseNormalizer voicePhraseNormalizer;
