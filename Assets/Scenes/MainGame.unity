@@ -189,7 +189,7 @@ MonoBehaviour:
   lengthSec: 10
   updatePrompt: 1
   dropOldBuffer: 0
-  useVad: 1
+  useVad: 0
   tokensTimestamps: 0
   audioCtx: 0
 --- !u!114 &13003003
@@ -1462,7 +1462,9 @@ MonoBehaviour:
   bookMover: {fileID: 2895304713497403604}
   hourglassController: {fileID: 1449798695}
   incantationManager: {fileID: 1179521723}
-  voiceRecognizerBehaviour: {fileID: 13003002}
+  voiceRecognizerBehaviour: {fileID: 753472357}
+  activeRecognizerInspectorNote: 'Stable default: WindowsKeywordVoiceRecognizer. Experimental:
+    assign WhisperVoiceRecognizer for full-phrase testing only.'
   voicePhraseNormalizer: {fileID: 1855418877}
   speechAliasWordLibrary: {fileID: 651073269}
   autoStart: 1
@@ -5276,7 +5278,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   incantationLength: 5
-  wordLibrary: {fileID: 0}
+  wordLibrary: {fileID: 651073269}
   onIncantationGenerated:
     m_PersistentCalls:
       m_Calls: []
@@ -8304,7 +8306,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 389b2e20e2554bc7b52108c2f797cc3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wordLibrary: {fileID: 0}
+  wordLibrary: {fileID: 651073269}
 --- !u!1 &1857470280
 GameObject:
   m_ObjectHideFlags: 0

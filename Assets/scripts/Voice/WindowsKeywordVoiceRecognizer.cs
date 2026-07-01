@@ -209,7 +209,7 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
         if (hasLoggedMissingLibraryWarning)
             return;
 
-        Debug.LogWarning("WindowsKeywordVoiceRecognizer requires an IncantationWordLibrary reference.", this);
+        Debug.LogWarning($"{nameof(WindowsKeywordVoiceRecognizer)} on '{gameObject.name}' is missing required reference '{nameof(wordLibrary)}'. Assign an IncantationWordLibrary in the Inspector.", this);
         hasLoggedMissingLibraryWarning = true;
     }
 

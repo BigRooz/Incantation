@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,14 @@ public class RitualController : MonoBehaviour
     [SerializeField] private BookMover bookMover;
     [SerializeField] private HourglassController hourglassController;
     [SerializeField] private IncantationManager incantationManager;
+
+    [Header("Voice Recognizer Selection")]
+    [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
     [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
+    [TextArea]
+    [SerializeField] private string activeRecognizerInspectorNote = "Stable default: WindowsKeywordVoiceRecognizer. Experimental: assign WhisperVoiceRecognizer for full-phrase testing only.";
+
+    [Header("Speech Normalization")]
     [SerializeField] private VoicePhraseNormalizer voicePhraseNormalizer;
     [SerializeField] private IncantationWordLibrary speechAliasWordLibrary;
 
@@ -42,12 +50,19 @@ public class RitualController : MonoBehaviour
     private bool isWaitingForOccupiedSeat;
     private bool isTurnActive;
     private bool playerTurnComplete;
+    private bool ritualFailed;
     private bool hasLoggedMissingHourglass;
     private bool hasLoggedMissingIncantationManager;
     private bool hasLoggedMissingVoicePhraseNormalizer;
+    private bool hasLoggedMissingSeatManager;
+    private bool hasLoggedMissingBookMover;
+    private bool hasLoggedMissingVoiceRecognizerBehaviour;
+    private bool hasLoggedMissingSpeechAliasWordLibrary;
     private Seat lastCompletedSeat;
+    private string lastProcessedWhisperPhrase = string.Empty;
 
     public Seat CurrentActiveSeat { get; private set; }
+    public bool RitualFailed => ritualFailed;
 
     private void OnEnable()
     {
@@ -64,6 +79,8 @@ public class RitualController : MonoBehaviour
 
     private void Start()
     {
+        ValidateRequiredReferences();
+
         if (autoStart)
             StartRitual();
     }
@@ -94,6 +111,7 @@ public class RitualController : MonoBehaviour
         }
 
         Debug.Log("Ritual started");
+        ritualFailed = false;
         activeRitualController = this;
         ritualRoutine = StartCoroutine(RitualLoop());
     }
@@ -119,10 +137,16 @@ public class RitualController : MonoBehaviour
         isWaitingForOccupiedSeat = false;
         isTurnActive = false;
         playerTurnComplete = false;
+        ritualFailed = false;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
         hasLoggedMissingVoicePhraseNormalizer = false;
+        hasLoggedMissingSeatManager = false;
+        hasLoggedMissingBookMover = false;
+        hasLoggedMissingVoiceRecognizerBehaviour = false;
+        hasLoggedMissingSpeechAliasWordLibrary = false;
         lastCompletedSeat = null;
+        lastProcessedWhisperPhrase = string.Empty;
         StopListening();
 
         if (hourglassController != null)
@@ -135,6 +159,12 @@ public class RitualController : MonoBehaviour
 
         while (true)
         {
+            if (ritualFailed)
+            {
+                LogDebug("RitualLoop stopped because the ritual is in a failed state.");
+                yield break;
+            }
+
             if (turnRoutine != null)
             {
                 yield return null;
@@ -209,20 +239,34 @@ public class RitualController : MonoBehaviour
 
         if (hourglassFinished && isTurnActive)
         {
+            bool isUsingWhisperRecognizer = IsUsingWhisperRecognizer();
+
             StopListening();
-            yield return WaitForVoiceRecognitionProcessing();
+
+            if (isUsingWhisperRecognizer)
+                yield return WaitForVoiceRecognitionProcessing();
 
             if (!isTurnActive || playerTurnComplete)
                 yield break;
 
-            Debug.Log("Timeout fail: no valid full phrase recognized before the hourglass finished.");
-            CompletePlayerTurn();
+            string timeoutReason = isUsingWhisperRecognizer
+                ? "Timeout: no valid full phrase recognized before the hourglass finished."
+                : "Timeout: no valid keyword recognized before the hourglass finished.";
+
+            Debug.Log(timeoutReason);
+            FailRitual(timeoutReason);
         }
     }
 
     private bool MoveBookToCurrentSeat()
     {
-        if (bookMover == null || CurrentActiveSeat == null)
+        if (bookMover == null)
+        {
+            LogMissingBookMover();
+            return false;
+        }
+
+        if (CurrentActiveSeat == null)
             return false;
 
         LogDebug($"Moving book to: {CurrentActiveSeat.name}");
@@ -267,6 +311,18 @@ public class RitualController : MonoBehaviour
             hasRequiredReferences = false;
         }
 
+        if (voiceRecognizerBehaviour == null)
+        {
+            LogMissingVoiceRecognizerBehaviour();
+            hasRequiredReferences = false;
+        }
+
+        if (voicePhraseNormalizer == null)
+            LogMissingVoicePhraseNormalizer();
+
+        if (speechAliasWordLibrary == null)
+            LogMissingSpeechAliasWordLibrary();
+
         return hasRequiredReferences;
     }
 
@@ -275,7 +331,7 @@ public class RitualController : MonoBehaviour
         if (hasLoggedMissingHourglass)
             return;
 
-        Debug.LogWarning("RitualController requires an HourglassController reference.");
+        LogMissingRequiredReference(nameof(hourglassController));
         hasLoggedMissingHourglass = true;
     }
 
@@ -284,8 +340,58 @@ public class RitualController : MonoBehaviour
         if (hasLoggedMissingIncantationManager)
             return;
 
-        Debug.LogWarning("RitualController requires an IncantationManager reference.");
+        LogMissingRequiredReference(nameof(incantationManager));
         hasLoggedMissingIncantationManager = true;
+    }
+
+    private void LogMissingSeatManager()
+    {
+        if (hasLoggedMissingSeatManager)
+            return;
+
+        LogMissingRequiredReference(nameof(seatManager));
+        hasLoggedMissingSeatManager = true;
+    }
+
+    private void LogMissingBookMover()
+    {
+        if (hasLoggedMissingBookMover)
+            return;
+
+        LogMissingRequiredReference(nameof(bookMover));
+        hasLoggedMissingBookMover = true;
+    }
+
+    private void LogMissingVoiceRecognizerBehaviour()
+    {
+        if (hasLoggedMissingVoiceRecognizerBehaviour)
+            return;
+
+        LogMissingRequiredReference(nameof(voiceRecognizerBehaviour));
+        hasLoggedMissingVoiceRecognizerBehaviour = true;
+    }
+
+    private void LogMissingVoicePhraseNormalizer()
+    {
+        if (hasLoggedMissingVoicePhraseNormalizer)
+            return;
+
+        LogMissingRequiredReference(nameof(voicePhraseNormalizer));
+        hasLoggedMissingVoicePhraseNormalizer = true;
+    }
+
+    private void LogMissingSpeechAliasWordLibrary()
+    {
+        if (hasLoggedMissingSpeechAliasWordLibrary)
+            return;
+
+        LogMissingRequiredReference(nameof(speechAliasWordLibrary));
+        hasLoggedMissingSpeechAliasWordLibrary = true;
+    }
+
+    private void LogMissingRequiredReference(string fieldName)
+    {
+        Debug.LogWarning($"{nameof(RitualController)} on '{gameObject.name}' is missing required reference '{fieldName}'. Assign it in the Inspector.", this);
     }
 
     private IEnumerator RunPlayerTurn()
@@ -300,7 +406,10 @@ public class RitualController : MonoBehaviour
     private bool TrySelectNextTurnSeat()
     {
         if (seatManager == null)
+        {
+            LogMissingSeatManager();
             return false;
+        }
 
         List<Seat> occupiedSeats = seatManager.GetOccupiedSeats();
 
@@ -353,11 +462,12 @@ public class RitualController : MonoBehaviour
         hourglassFinished = false;
         playerTurnComplete = false;
         isTurnActive = true;
+        lastProcessedWhisperPhrase = string.Empty;
     }
 
     private void CompletePlayerTurn()
     {
-        if (!isTurnActive)
+        if (!isTurnActive || ritualFailed)
             return;
 
         StopListening();
@@ -408,6 +518,7 @@ public class RitualController : MonoBehaviour
 
         while (isTurnActive &&
             !playerTurnComplete &&
+            !ritualFailed &&
             voiceRecognizerProcessingStatus.IsProcessingRecognition &&
             elapsedSeconds < VoiceRecognitionProcessingTimeoutSeconds)
         {
@@ -478,6 +589,7 @@ public class RitualController : MonoBehaviour
             loggedVoiceRecognizer = null;
             resolvedVoiceRecognizerBehaviour = null;
             ClearVoiceRecognizerSubscription();
+            LogMissingVoiceRecognizerBehaviour();
             return false;
         }
 
@@ -495,7 +607,7 @@ public class RitualController : MonoBehaviour
             LogDebug(
                 $"RitualController voice recognizer reference: referencedType={referencedBehaviour.GetType().Name}, " +
                 $"implementsIVoiceRecognizer={referencedImplementsVoiceRecognizer}, finalResolvedType=None.");
-            Debug.LogWarning("RitualController voice recognizer reference must implement IVoiceRecognizer.");
+            Debug.LogWarning($"{nameof(RitualController)} on '{gameObject.name}' has voiceRecognizerBehaviour assigned to '{referencedBehaviour.gameObject.name}', but no component on that GameObject implements IVoiceRecognizer.", this);
             voiceRecognizerProcessingStatus = null;
             loggedVoiceRecognizer = null;
             ClearVoiceRecognizerSubscription();
@@ -548,9 +660,44 @@ public class RitualController : MonoBehaviour
         hourglassFinished = true;
     }
 
+    private void ValidateRequiredReferences()
+    {
+        if (seatManager == null)
+            LogMissingSeatManager();
+
+        if (bookMover == null)
+            LogMissingBookMover();
+
+        if (hourglassController == null)
+            LogMissingHourglass();
+
+        if (incantationManager == null)
+            LogMissingIncantationManager();
+
+        if (voiceRecognizerBehaviour == null)
+            LogMissingVoiceRecognizerBehaviour();
+
+        if (voicePhraseNormalizer == null)
+            LogMissingVoicePhraseNormalizer();
+
+        if (speechAliasWordLibrary == null)
+            LogMissingSpeechAliasWordLibrary();
+    }
+
     private void HandlePhraseRecognized(string recognizedPhrase)
     {
-        if (!ResolveVoiceRecognizer() || incantationManager == null || !isTurnActive || playerTurnComplete)
+        if (ritualFailed || playerTurnComplete || !isTurnActive)
+            return;
+
+        if (IsEmptySpeechUpdate(recognizedPhrase))
+            return;
+
+        if (!ResolveVoiceRecognizer() || incantationManager == null)
+            return;
+
+        bool isUsingWhisperRecognizer = IsUsingWhisperRecognizer();
+
+        if (isUsingWhisperRecognizer && IsDuplicateWhisperUpdate(recognizedPhrase))
             return;
 
         ResolveVoicePhraseNormalizer();
@@ -558,7 +705,7 @@ public class RitualController : MonoBehaviour
             ? voicePhraseNormalizer.Normalize(recognizedPhrase)
             : recognizedPhrase;
 
-        if (IsUsingWhisperRecognizer())
+        if (isUsingWhisperRecognizer)
         {
             ProcessWhisperPhraseRecognition(recognizedPhrase, normalizedPhrase);
             return;
@@ -580,12 +727,15 @@ public class RitualController : MonoBehaviour
         if (!completedIncantation)
         {
             Debug.Log($"Full phrase fail: {normalizedPhrase}");
-            FailPlayerTurn();
+            FailRitual($"Wrong full phrase: {normalizedPhrase}");
             return;
         }
 
         Debug.Log($"Full phrase success: {normalizedPhrase}");
         LogDebug("Incantation complete");
+
+        UnsubscribeFromVoiceRecognizer();
+        StopListening();
 
         if (hourglassController != null)
             hourglassController.StopHourglass();
@@ -625,6 +775,36 @@ public class RitualController : MonoBehaviour
     {
         return voiceRecognizer is WhisperVoiceRecognizer ||
             resolvedVoiceRecognizerBehaviour is WhisperVoiceRecognizer;
+    }
+
+    private bool IsEmptySpeechUpdate(string recognizedPhrase)
+    {
+        if (string.IsNullOrWhiteSpace(recognizedPhrase))
+            return true;
+
+        return !ContainsSpeechCharacter(recognizedPhrase);
+    }
+
+    private bool IsDuplicateWhisperUpdate(string recognizedPhrase)
+    {
+        if (!string.Equals(recognizedPhrase, lastProcessedWhisperPhrase, StringComparison.Ordinal))
+        {
+            lastProcessedWhisperPhrase = recognizedPhrase;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool ContainsSpeechCharacter(string phrase)
+    {
+        foreach (char character in phrase)
+        {
+            if (char.IsLetterOrDigit(character))
+                return true;
+        }
+
+        return false;
     }
 
     private bool IsFullPhraseCandidate(string normalizedPhrase)
@@ -673,12 +853,23 @@ public class RitualController : MonoBehaviour
         return wordCount;
     }
 
-    private void FailPlayerTurn()
+    private void FailRitual(string reason)
     {
+        if (ritualFailed)
+            return;
+
+        ritualFailed = true;
+        Debug.Log($"Ritual failed. {reason}");
+
+        UnsubscribeFromVoiceRecognizer();
+        StopListening();
+
         if (hourglassController != null)
             hourglassController.StopHourglass();
 
-        CompletePlayerTurn();
+        isTurnActive = false;
+        playerTurnComplete = true;
+        LogDebug("Ritual is now in failed state. No next seat, incantation, book move, or hourglass restart will start automatically.");
     }
 
     private void HandleSpeechAliasSuggestion(string recognizedPhrase, string expectedWord)
@@ -709,10 +900,7 @@ public class RitualController : MonoBehaviour
             voicePhraseNormalizer = FindFirstObjectByType<VoicePhraseNormalizer>();
 
         if (voicePhraseNormalizer == null && !hasLoggedMissingVoicePhraseNormalizer)
-        {
-            Debug.LogWarning("RitualController requires a VoicePhraseNormalizer reference for speech alias normalization.");
-            hasLoggedMissingVoicePhraseNormalizer = true;
-        }
+            LogMissingVoicePhraseNormalizer();
 
         return voicePhraseNormalizer;
     }
@@ -751,7 +939,7 @@ public class RitualController : MonoBehaviour
             speechAliasWordLibrary = FindFirstObjectByType<IncantationWordLibrary>();
 
         if (speechAliasWordLibrary == null && logMissingWarning)
-            Debug.LogWarning("RitualController requires an IncantationWordLibrary reference for speech alias learning.");
+            LogMissingSpeechAliasWordLibrary();
 
         return speechAliasWordLibrary;
     }

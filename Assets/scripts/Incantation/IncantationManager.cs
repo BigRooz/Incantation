@@ -171,7 +171,7 @@ public class IncantationManager : MonoBehaviour
 
         if (wordLibrary == null)
         {
-            Debug.LogWarning("IncantationManager requires an IncantationWordLibrary reference.");
+            Debug.LogWarning($"{nameof(IncantationManager)} on '{gameObject.name}' is missing required reference '{nameof(wordLibrary)}'. Assign an IncantationWordLibrary in the Inspector.", this);
             return new List<IncantationWord>();
         }
 

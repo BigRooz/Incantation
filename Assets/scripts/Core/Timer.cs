@@ -47,13 +47,13 @@ public class Timer : MonoBehaviour
 
     public void StartTimer(float requestedDuration)
     {
-        RemainingTime = duration;
+        RemainingTime = requestedDuration;
         IsRunning = true;
         hasWarned = false;
 
         onStarted.Invoke();
 
-        if (duration <= 0f)
+        if (requestedDuration <= 0f)
         {
             IsRunning = false;
             onFinished.Invoke();

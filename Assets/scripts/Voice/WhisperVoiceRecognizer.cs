@@ -111,9 +111,14 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRec
             }
 
             if (recognitionMode == RecognitionMode.StreamingChunks)
+            {
                 await StartStreamingRecognition();
+            }
             else
+            {
                 StartRecordedRecognition();
+                microphoneRecord.StartRecord();
+            }
         }
         catch (Exception exception)
         {
@@ -217,7 +222,6 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRec
     private void StartRecordedRecognition()
     {
         listeningSessionId++;
-        microphoneRecord.StartRecord();
         isListening = true;
         Log($"Whisper voice recognition started. Session {listeningSessionId}.");
     }
@@ -228,6 +232,7 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRec
         int sessionId = listeningSessionId;
 
         submittedStreamingChunkCount = 0;
+        WarnIfStreamingVadCannotReceiveVoiceFlags();
         activeStream = await CreateManualChunkStream();
 
         if (activeStream == null)
@@ -298,6 +303,21 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRec
         {
             EndTemporaryWhisperVadOverride();
         }
+    }
+
+    private void WarnIfStreamingVadCannotReceiveVoiceFlags()
+    {
+        if (whisper == null || microphoneRecord == null)
+            return;
+
+        if (!whisper.useVad || microphoneRecord.useVad)
+            return;
+
+        Debug.LogWarning(
+            "WhisperVoiceRecognizer streaming is configured with WhisperManager.useVad enabled while MicrophoneRecord.useVad is disabled. " +
+            "WhisperStream can discard every microphone chunk when AudioChunk.IsVoiceDetected stays false. " +
+            "Disable WhisperManager Use Vad for manual chunk streaming, or enable MicrophoneRecord Use Vad so chunks carry voice detection flags.",
+            this);
     }
 
     private void BeginTemporaryWhisperVadOverride()

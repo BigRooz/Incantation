@@ -73,7 +73,7 @@ public class VoicePhraseNormalizer : MonoBehaviour
 
         if (wordLibrary == null)
         {
-            Debug.LogWarning("VoicePhraseNormalizer requires an IncantationWordLibrary reference.");
+            Debug.LogWarning($"{nameof(VoicePhraseNormalizer)} on '{gameObject.name}' is missing required reference '{nameof(wordLibrary)}'. Assign an IncantationWordLibrary in the Inspector.", this);
             return null;
         }
 
