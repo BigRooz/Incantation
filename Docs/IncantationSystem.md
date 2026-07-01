@@ -2,53 +2,60 @@
 
 ## Purpose
 
-The Incantation System is the single source of truth for every spoken word in the current ritual phrase.
+The Incantation System is the source of truth for the spoken ritual phrase.
 
 It owns:
 
-- The incantation vocabulary library.
-- The generated incantation.
-- The current word index.
-- Which words have been completed.
-- Validation of the currently spoken word.
+- The ritual word vocabulary.
+- The current shared ritual phrase.
+- Which words are currently visible.
+- Validation of a recognized phrase against the current phrase.
 - Events that other systems can react to.
 
-It does not own UI, voice recognition, networking, timers, ritual progression, demon behavior or player elimination.
+It does not own UI, microphone capture, networking, timers, book movement, demon behavior, player elimination, cards, notebook logic, or lore delivery.
+
+## Current Ritual Rule
+
+- The phrase starts with 1 word.
+- All players say the same visible phrase.
+- The book moves from player to player.
+- After the book completes a full table rotation, 1 word is added to the shared phrase.
+- The active player must say the full visible phrase before the hourglass runs out.
+
+This replaces older notes where every individual turn added a new word. Word growth is rotation-based, not player-turn-based.
+
+## Voice Recognition Direction
+
+Whisper is the primary voice recognition system.
+
+Windows speech recognition is fallback only.
+
+Unity Dictation and Azure are not part of the current implementation plan.
+
+Whisper validation should use full phrase matching because ritual success requires the complete visible phrase. The recognizer may emit partial or chunked candidates, but ritual success should only be accepted when the current full phrase is recognized.
+
+Windows fallback may remain more sequential or keyword-oriented internally, but it must not become the main design path.
 
 ## Architecture
 
-`IncantationWord` is a serializable data object containing the visible word text, optional speech aliases and whether that word has been completed in the current phrase.
+`IncantationWord` is a serializable data object containing visible ritual word text and optional speech aliases.
 
-`IncantationWordLibrary` is the vocabulary source for generated incantations and speech recognition aliases.
+`IncantationWordLibrary` is the vocabulary source for generated ritual phrases and ritual speech aliases.
 
-`IncantationManager` is a focused MonoBehaviour that reads from `IncantationWordLibrary`, generates a unique random incantation and validates spoken input against the current word or the full current phrase. This keeps the rule for spoken-word progress in one place while allowing other systems to subscribe through UnityEvents.
+`IncantationManager` should remain focused on ritual phrase state and validation. Other systems may subscribe to its events, but they should not duplicate the rules for phrase order, phrase growth, correctness, or completion.
 
-`VoicePhraseNormalizer` builds its alias lookup from `IncantationWordLibrary`, so adding or changing a word affects both generated incantations and speech normalization from the same data.
+`VoicePhraseNormalizer` may build alias lookup from the ritual word library so adding or changing a ritual word affects recognition normalization in one place.
 
-Whisper validation uses the full phrase path because ritual success requires the complete visible phrase. `com.whisper.unity` exposes `WhisperStream`, which performs sliding-window microphone chunk transcription and raises stream result updates while recording is still active. This is not token-level partial decoding, but it is enough for the turn prototype to process phrase candidates before the hourglass ends.
+`RitualController` decides when a ritual phase starts and ends. `IncantationManager` decides whether the spoken phrase is correct.
 
-During a Whisper turn, `WhisperVoiceRecognizer` listens to the local microphone through `MicrophoneRecord` and emits chunked phrase candidates from `WhisperStream.OnResultUpdated`. `RitualController` ignores partial candidates until the normalized word count can represent the full incantation, then submits the raw recognized phrase to `IncantationManager.TryCompleteCurrentPhrase`. A matching full phrase succeeds immediately. A full-length non-matching phrase fails immediately. If no valid full phrase is recognized before the hourglass finishes, the timeout fails the turn.
+## Spell Phrase Boundary
 
-Windows keyword validation intentionally remains sequential. `WindowsKeywordVoiceRecognizer` emits recognized keywords, and `RitualController` continues to submit normalized keyword results to `IncantationManager.TryCompleteCurrentWord`.
+`SpellPhraseLibrary` is separate from ritual words.
 
-This architecture was chosen because the incantation will be touched by many future systems, but none of those systems should duplicate the rules for word order, correctness or completion. The book can display the current state, voice recognition can submit phrases, the ritual can respond to completion, and demon reactions can listen for correct or incorrect attempts without owning the incantation rules.
+Do not merge spell/card phrases into the ritual phrase vocabulary unless explicitly requested. Spell phrases belong to future spell, card, or interference systems. Ritual words belong to the core book-and-hourglass loop.
 
-## Future RitualController Integration
+## Paused Integrations
 
-`RitualController` should later hold a serialized reference to `IncantationManager`.
+Notebook, card, lore, and demon reaction integrations are paused until the core ritual loop and voice recognition work reliably.
 
-When a player's turn begins, `RitualController` can call `GenerateIncantation()` or another future method that adds/progresses ritual words depending on the final turn design. During the turn, it can wait for `OnIncantationCompleted` before advancing the ritual or moving the book.
-
-The important boundary is that `RitualController` decides when a ritual phase starts and ends, while `IncantationManager` decides whether the spoken words are correct.
-
-## Future MockVoiceRecognizer Integration
-
-`MockVoiceRecognizer` already raises `OnPhraseRecognized` with recognized text.
-
-A later connector can subscribe to that event and call:
-
-```csharp
-incantationManager.TryCompleteCurrentWord(recognizedPhrase);
-```
-
-For the current prototype this means pressing Return can simulate a recognized word or phrase. Real voice recognition can use the same integration path later, keeping recognition separate from validation.
+`WhisperSandbox` is a sandbox/reference area and should not be modified during core ritual work unless explicitly requested.

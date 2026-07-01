@@ -1,28 +1,38 @@
 # Roadmap
 
-## Sprint 1
+## Current Priority
 
-- ✅ TASK-001 Project Stabilization
-- ✅ TASK-002 Timer
-- ✅ TASK-003 Hourglass Controller
-- 🟡 TASK-004 Ritual Loop (In Progress)
+Priority 1 is the clean core ritual loop and reliable voice recognition.
 
-## Remaining Tasks
+Do not expand secondary systems until the table ritual works end to end.
 
-- ⬜ TASK-005 Voice Recognition
-- ⬜ TASK-006 Incantation Validation
-- ⬜ TASK-007 Elimination
-- ⬜ TASK-008 Demon Reactions
-- ⬜ TASK-009 Cards
-- ⬜ TASK-010 Multiplayer Prototype
+## Vertical Slice Order
 
-## Milestone 1
+1. Lobby.
+2. Ready check.
+3. Automatic seating.
+4. Single cursed book moves player to player.
+5. Hourglass starts for the active book holder.
+6. Shared ritual phrase starts with 1 word.
+7. Every player says the same current phrase.
+8. After a full table rotation, add 1 word.
+9. Whisper validates the spoken phrase.
+10. Windows speech recognition remains available as fallback only.
+11. Player can fail, retry, time out, and be eliminated.
+12. Book moves again.
 
-"One Complete Playable Turn"
+## Paused
 
-Requirements:
+- Notebook.
+- Cards.
+- Lore delivery.
+- Demon reactions.
+- Advanced assets or visuals.
+- Networking polish.
+- `SpellPhraseLibrary` changes beyond preserving separation from ritual words.
+- `WhisperSandbox` changes.
 
-- Book moves
-- Timer starts
-- Timer ends
-- Book moves to next player
+## Not In Current Voice Plan
+
+- Unity Dictation.
+- Azure voice services.

@@ -8,7 +8,8 @@ Tagline:
 
 > Speak forbidden words. Betray your friends. Be the last mage standing.
 
-Incantation is not primarily a horror game.  
+Incantation is not primarily a horror game.
+
 It is a competitive social party game set in a dark fantasy horror atmosphere.
 
 The goal is to create memorable moments between players.
@@ -29,39 +30,99 @@ The players believe they can inherit its power, but the demon is manipulating th
 
 In Last Priest Standing mode, the last surviving player wins, but the twist is that the winner is also absorbed by the book.
 
+Current core flow:
+
+1. Players enter through a lobby.
+2. Players ready up.
+3. When the ritual begins, players sit automatically around the table.
+4. One real cursed book moves from player to player.
+5. The ritual phrase starts with 1 word.
+6. Every player says the same visible phrase when the book reaches them.
+7. After the book completes a full table rotation, 1 word is added to the shared phrase.
+8. The phrase grows over rotations until players fail, time out, or are eliminated.
+
 ---
 
 ## Golden Gameplay Loop
 
 1. The cursed book moves to a player.
 2. The hourglass flips.
-3. The demon speaks.
-4. A new word is added to the incantation.
-5. The player must read the full visible incantation aloud.
-6. Other players may interfere at any time.
+3. The current shared ritual phrase is shown.
+4. The active player must read the full visible phrase aloud.
+5. Whisper checks the spoken phrase.
+6. Other players may interfere at any time once interference systems are re-enabled.
 7. If the player succeeds, the ritual continues.
 8. If the player fails before time runs out, they may retry.
-9. If the hourglass runs out, the demon absorbs the player.
+9. If the hourglass runs out, the player can be eliminated.
 10. The book moves to another player.
+11. After a full table rotation, the phrase gains 1 new word.
 
 The book is the main character of the game.
 
-The demon is the master of ceremonies.
-
 The hourglass is the pressure system.
+
+The demon is the master of ceremonies, but demon reactions are paused until the core voice loop works.
+
+---
+
+## Current Priority
+
+Priority 1 is a clean core ritual loop and reliable voice recognition.
+
+Focus on:
+
+1. Lobby.
+2. Ready check.
+3. Automatic seating.
+4. Single book movement.
+5. Hourglass pressure.
+6. Shared phrase progression.
+7. Whisper-based phrase recognition.
+8. Windows speech recognition fallback.
+9. Player failure, retry, timeout, and elimination.
+
+Do not expand secondary systems until this loop works end to end.
+
+---
+
+## Voice Recognition Rules
+
+- Whisper is the primary voice system.
+- Windows speech recognition is fallback only.
+- Do not use Unity Dictation.
+- Do not use Azure voice services.
+- Ritual validation should prefer full visible phrase matching.
+- `SpellPhraseLibrary` is separate from ritual words.
+- Do not merge spell/card phrases into the core ritual word vocabulary unless explicitly requested.
+
+---
+
+## Do Not Touch Unless Asked
+
+- Notebook.
+- `SpellPhraseLibrary`.
+- `WhisperSandbox`.
+- Assets.
+- Visuals.
+- Networking.
+- Cards.
+- Lore delivery.
+- Demon reactions.
+
+These systems are paused or out of scope until the core ritual loop and reliable voice recognition are working.
 
 ---
 
 ## Absolute Design Rules
 
-- Players stay seated for the entire game.
+- Players stay seated for the entire ritual.
 - Characters do not walk around.
 - Characters only move their head, mouth, body subtly, eyes, and hands.
 - The game happens around the table.
 - There is one main cursed book.
 - The book creates tension by choosing who plays next.
 - The hourglass creates urgency.
-- Other players can interfere at any time.
+- Other players can interfere once interference systems are re-enabled.
 - Fun comes before realism.
 - Voice interaction is central to the game.
 - Do not add mechanics that distract from the table, the book, the voice, or the social chaos.
@@ -99,13 +160,13 @@ Each Seat represents a logical player position.
 
 A Seat may contain:
 
-- PlayerSpawn
-- BookTarget
-- BookGhost
-- LookTarget
-- LeftHand
-- RightHand
-- ChairClickZone
+- PlayerSpawn.
+- BookTarget.
+- BookGhost.
+- LookTarget.
+- LeftHand.
+- RightHand.
+- ChairClickZone.
 
 The chair is visual.
 
@@ -155,25 +216,6 @@ The book may hesitate, slow down, or fake choosing a player to create tension.
 
 ---
 
-## Current Technical Priorities
-
-Vertical Slice goal:
-
-1. Players sit around the table.
-2. The book moves to a player.
-3. The hourglass starts.
-4. A word appears in the book.
-5. The player reads the incantation aloud.
-6. Voice recognition checks success.
-7. Other players can interfere.
-8. The demon reacts.
-9. A player can be eliminated.
-10. The book moves again.
-
-Focus on this before adding large secondary systems.
-
----
-
 ## Game Modes
 
 ### Last Priest Standing
@@ -208,14 +250,14 @@ If the answer is weak, do not implement it yet.
 
 Work in this order:
 
-1. Core loop
-2. Book system
-3. Hourglass system
-4. Voice incantation system
-5. Player elimination
-6. Interference cards
-7. Demon reactions
-8. Multiplayer polish
+1. Core loop.
+2. Book system.
+3. Hourglass system.
+4. Voice incantation system.
+5. Player elimination.
+6. Interference cards.
+7. Demon reactions.
+8. Multiplayer polish.
 
 ---
 
@@ -227,19 +269,21 @@ Workflow:
 
 1. One Codex conversation = one task.
 2. One Git commit = one completed task.
-3. Never start a new task until the previous one is:
-   - Reviewed
-   - Compiling
-   - Tested inside Unity
-   - Committed
-   - Pushed
-4. Bug fixes remain inside the same task conversation until the task is complete.
-5. Read AGENTS.md before making any code changes.
-6. Read the relevant documentation inside Docs before implementing new systems.
-7. Prefer extending existing systems over creating new ones.
-8. Keep systems modular and event-driven.
-9. Avoid putting gameplay logic inside visual components.
-10. Explain architectural decisions after every completed task.
+3. Prefer small isolated tasks.
+4. Do not modify more than necessary.
+5. Never start a new task until the previous one is:
+   - Reviewed.
+   - Compiling.
+   - Tested inside Unity.
+   - Committed.
+   - Pushed.
+6. Bug fixes remain inside the same task conversation until the task is complete.
+7. Read AGENTS.md before making any code changes.
+8. Read the relevant documentation inside Docs before implementing new systems.
+9. Prefer extending existing systems over creating new ones.
+10. Keep systems modular and event-driven.
+11. Avoid putting gameplay logic inside visual components.
+12. Explain architectural decisions after every completed task.
 
 ---
 

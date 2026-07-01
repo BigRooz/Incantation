@@ -1,39 +1,35 @@
 # Incantation
 
-Incantation is a competitive multiplayer horror game built with Unity 6.
+Incantation is a Unity 6 multiplayer party game set in a dark fantasy horror atmosphere.
 
-Players are trapped inside a cursed library and sit around an ancient table. Each player possesses a magical book used to cast spells by speaking ancient incantations aloud.
+Tagline:
 
-The goal is simple:
-Be the last surviving mage.
+> Speak forbidden words. Betray your friends. Be the last mage standing.
 
-Players can attack, defend, sabotage, curse, deceive and manipulate one another using voice-activated magic.
+The game is built around one cursed book, one table, seated players, and voice-driven ritual pressure. Horror is the atmosphere; the real goal is memorable social chaos.
 
-The game focuses on:
+## Current Vision
 
-- Voice recognition
-- Psychological gameplay
-- Social deception
-- Dark fantasy atmosphere
-- High replayability
+- Players enter through a lobby.
+- When the ritual begins, players sit automatically around the table.
+- A ready check confirms the group before the ritual starts.
+- One real cursed book moves from player to player.
+- The ritual phrase starts with 1 word.
+- All players say the same visible phrase when the book reaches them.
+- After the book completes a full table rotation, 1 new word is added to the shared phrase.
+- Whisper is the primary voice recognition system.
+- Windows speech recognition is fallback only.
+- Unity Dictation and Azure voice services are not part of the current plan.
 
-## Main Features
+## Current Priority
 
-- Voice-casted spells
-- Physical animated spellbook
-- Multiplayer gameplay
-- Dynamic lighting
-- Stylized low-poly art
-- Modular architecture
-- AI-friendly codebase
+Priority 1 is the clean core ritual loop and reliable voice recognition.
+
+The paused systems are notebook, cards, lore delivery, demon reactions, advanced visuals, and networking polish. They should wait until the core voice loop works.
 
 ## Engine
 
 Unity 6
-
-## Networking
-
-Unity Netcode for GameObjects
 
 ## Status
 
