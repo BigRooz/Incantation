@@ -6,7 +6,7 @@ using Whisper;
 using Whisper.Utils;
 using Debug = UnityEngine.Debug;
 
-public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRecognizerProcessingStatus
+public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInput, IVoiceRecognizerProcessingStatus
 {
     private enum RecognitionMode
     {
@@ -134,6 +134,11 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceRec
     public void StopListening()
     {
         StopListeningAndTranscribeRecording();
+    }
+
+    public void CancelListening()
+    {
+        StopListeningAndDiscardRecording();
     }
 
     private void StopListeningAndTranscribeRecording()
