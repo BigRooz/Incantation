@@ -1463,8 +1463,6 @@ MonoBehaviour:
   hourglassController: {fileID: 1449798695}
   incantationManager: {fileID: 1179521723}
   voiceRecognizerBehaviour: {fileID: 753472357}
-  activeRecognizerInspectorNote: 'Stable default: WindowsKeywordVoiceRecognizer. Experimental:
-    assign WhisperVoiceRecognizer for full-phrase testing only.'
   voicePhraseNormalizer: {fileID: 1855418877}
   speechAliasWordLibrary: {fileID: 651073269}
   autoStart: 1
