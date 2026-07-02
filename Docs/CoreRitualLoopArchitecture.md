@@ -16,6 +16,7 @@ The goal is to remove ambiguity before replacing the current prototype ritual fl
 - Players remain seated for the full ritual.
 - One real cursed book moves between seated players.
 - The shared ritual phrase grows by one word after a full table rotation, not after every individual turn.
+- The book follows the configured physical seating order around the table, not seat numbering or player connection order.
 - Whisper is the primary recognition path.
 - Windows speech recognition is fallback only.
 - The ritual word vocabulary stays separate from `SpellPhraseLibrary`.
@@ -118,6 +119,23 @@ The exact method signatures may change during implementation, but the ownership 
 
 It tracks the active player index, advances between seated active players, skips eliminated players when elimination exists, and detects when every active seated player has completed one turn in the current rotation.
 
+Turn advancement is based on the Seat system's configured physical seating order around the table. It must not derive order from GameObject names, seat numbers, hierarchy order, player join order, network player index, or any assumption that numbered seats are sequential.
+
+The current prototype clockwise order is:
+
+1. Seat1
+2. Seat5
+3. Seat3
+4. Seat6
+5. Seat2
+6. Seat7
+7. Seat4
+8. Seat8
+
+Counter-clockwise order is the exact reverse.
+
+Future traversal rules may temporarily alter how the configured physical order is walked, including reverse rotation, random next player, skip occupied seat, double jump, or similar spell-card effects. These rules belong above the physical order and must not make the Core Ritual Engine assume sequential numbering.
+
 It does not move the book, start the hourglass, listen to the microphone, or validate speech.
 
 #### Public API
@@ -149,6 +167,7 @@ Future API:
 #### Dependencies
 
 - Seated player list from the lobby/seating setup.
+- Seat system physical order configuration.
 - `Seat` data.
 - Future elimination state.
 
@@ -163,6 +182,8 @@ Future API:
 - Demon reactions.
 - Cards or interference.
 - Networking implementation details.
+- Sequential seat numbering assumptions.
+- Player connection order.
 
 ### GrowingIncantationManager
 
@@ -328,6 +349,7 @@ Existing responsibilities:
 - Smoothly interpolate book position and rotation over `moveDuration`.
 - Stop an existing movement coroutine before beginning a new one.
 - Allow `SeatManager` to send the book to a specific seat or the next occupied seat.
+- Follow the Seat system's configured physical seat order when advancing between seats.
 
 The current `BookMover` does not raise an arrival event. Current prototype code waits for `bookMover.moveDuration` instead.
 
@@ -355,6 +377,7 @@ Future events:
 - `BookMover`
 - The real `BookModel` transform.
 - Seat `BookTarget` or `BookGhost` destination.
+- Current traversal rule from turn/seat-order authority.
 
 #### Does NOT know about
 
@@ -368,6 +391,7 @@ Future events:
 - Demon reactions.
 - Cards.
 - Networking transport.
+- GameObject names, hierarchy order, or network player index as ordering sources.
 
 ## Event Flow
 
@@ -494,6 +518,8 @@ This is separate from `OnTurnSucceeded`: success is a gameplay outcome, completi
 
 Raised by `TurnManager` after every active seated player has completed one turn in the current rotation.
 
+A full rotation means every active seated player has been reached once through the current traversal of the Seat system's configured physical order. It does not mean the book visited numerically adjacent seats.
+
 Required follow-up:
 
 - `GrowingIncantationManager.AddWordAfterFullRotation()`.
@@ -614,6 +640,7 @@ Recommended migration approach:
 
 3. `TurnManager`
    - Initialize from seated players.
+   - Use Seat system physical order, not sequential seat numbers.
    - Track active player.
    - Complete turns.
    - Detect full table rotations.
@@ -642,6 +669,7 @@ Recommended migration approach:
 
 8. Seating/lobby integration
    - Feed seated ready players into `TurnManager`.
+   - Preserve Seat system ownership of configured physical order.
    - Do not add walking behavior.
    - Keep seats logical and chairs visual.
 
@@ -685,6 +713,9 @@ For future implementation tasks:
 - Compile in Unity after every meaningful implementation step.
 - Validate the loop in Play Mode.
 - Confirm one real book moves between seats.
+- Confirm the book follows the configured physical seat order: Seat1, Seat5, Seat3, Seat6, Seat2, Seat7, Seat4, Seat8 clockwise.
+- Confirm counter-clockwise traversal is the exact reverse.
+- Confirm the Core Ritual Engine does not assume sequential seat numbering or player connection order.
 - Confirm phrase starts with one word.
 - Confirm all players speak the same visible phrase.
 - Confirm one word is added only after a full table rotation.

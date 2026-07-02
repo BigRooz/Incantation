@@ -31,6 +31,39 @@ The ritual is the game.
 13. Fun comes before realism.
 14. Every mechanic must support tension, laughter, betrayal, stress, surprise, or a story players will remember.
 
+## Physical Seat Rotation Truth
+
+The cursed book always travels according to the physical seating order around the table.
+
+The physical seat order is explicitly configured and owned by the Seat system.
+
+The physical seat order is not determined by:
+
+- GameObject names.
+- Seat numbers.
+- Hierarchy order.
+- Player join order.
+- Network player index.
+
+The current prototype uses this clockwise physical order:
+
+1. Seat1
+2. Seat5
+3. Seat3
+4. Seat6
+5. Seat2
+6. Seat7
+7. Seat4
+8. Seat8
+
+Counter-clockwise traversal is the exact reverse of that configured physical order.
+
+The Core Ritual Engine must never assume sequential numbering. Seat1 does not imply Seat2 is next.
+
+The book advances according to the current traversal rule, not according to player connection order.
+
+Future spell cards may temporarily change the traversal rule, such as reverse rotation, random next player, skip occupied seat, double jump, or other table-order effects. These effects change how the configured physical seat order is traversed; they do not replace Seat system ownership of physical order.
+
 ## Voice And Validation Truth
 
 Whisper only transcribes.
