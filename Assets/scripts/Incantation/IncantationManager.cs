@@ -160,6 +160,14 @@ public class IncantationManager : MonoBehaviour
         }
     }
 
+    public void ResetPhraseReplayFeedback()
+    {
+        activePhraseValidationResult = default(PhraseValidationResult);
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = false;
+        OnPhraseReplayReset?.Invoke();
+    }
+
     public bool TryAdvancePhraseJudgmentReplay(out PhraseValidationWordResult replayedWord)
     {
         replayedWord = default(PhraseValidationWordResult);

@@ -547,6 +547,7 @@ public class RitualController : MonoBehaviour
         if (voiceRecognizer.IsListening)
             return;
 
+        ConfigureWhisperListeningContext();
         lastProcessedWhisperPhrase = string.Empty;
         Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()}.");
         voiceRecognizer.StartListening();
@@ -842,6 +843,33 @@ public class RitualController : MonoBehaviour
             resolvedVoiceRecognizerBehaviour is WhisperVoiceRecognizer;
     }
 
+    private void ConfigureWhisperListeningContext()
+    {
+        WhisperVoiceRecognizer whisperVoiceRecognizer = ResolveWhisperVoiceRecognizer();
+
+        if (whisperVoiceRecognizer == null)
+            return;
+
+        whisperVoiceRecognizer.SetExpectedPhraseWordCount(GetCurrentIncantationWordCount());
+    }
+
+    private WhisperVoiceRecognizer ResolveWhisperVoiceRecognizer()
+    {
+        if (voiceRecognizer is WhisperVoiceRecognizer directWhisperVoiceRecognizer)
+            return directWhisperVoiceRecognizer;
+
+        return resolvedVoiceRecognizerBehaviour as WhisperVoiceRecognizer;
+    }
+
+    private int GetCurrentIncantationWordCount()
+    {
+        if (incantationManager == null)
+            return 1;
+
+        int wordCount = incantationManager.CurrentIncantation.Count;
+        return Mathf.Max(1, wordCount);
+    }
+
     private bool IsEmptySpeechUpdate(string recognizedPhrase)
     {
         if (string.IsNullOrWhiteSpace(recognizedPhrase))
@@ -933,6 +961,9 @@ public class RitualController : MonoBehaviour
 
         if (!isTurnActive || playerTurnComplete || ritualFailed || hourglassFinished)
             yield break;
+
+        if (incantationManager != null)
+            incantationManager.ResetPhraseReplayFeedback();
 
         StartListening();
     }

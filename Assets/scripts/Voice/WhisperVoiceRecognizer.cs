@@ -14,7 +14,9 @@ using Debug = UnityEngine.Debug;
 public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInput, IVoiceRecognizerProcessingStatus
 {
     private const float MinimumAllowedRecordingLengthSeconds = 0.35f;
-    private const float MinimumAllowedSpeechEndSilenceSeconds = 1.2f;
+    private const float DefaultSpeechEndSilenceSeconds = 0.45f;
+    private const float MinimumAllowedSpeechEndSilenceSeconds = 0.2f;
+    private const int MinimumExpectedPhraseWordCount = 1;
 
     [Header("Whisper")]
     [SerializeField] private WhisperManager whisper;
@@ -26,7 +28,13 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
     [Header("Speech End Detection")]
     [SerializeField] private bool enableSpeechEndAutoStop = true;
-    [SerializeField] private float speechEndSilenceSeconds = MinimumAllowedSpeechEndSilenceSeconds;
+    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float speechEndSilenceSeconds = DefaultSpeechEndSilenceSeconds;
+    [SerializeField] private bool useDynamicSpeechEndSilence = true;
+    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float oneWordSpeechEndSilenceSeconds = 0.45f;
+    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float twoWordSpeechEndSilenceSeconds = 0.55f;
+    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float threeWordSpeechEndSilenceSeconds = 0.7f;
+    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float fourOrMoreWordSpeechEndSilenceSeconds = 0.85f;
+    [SerializeField, Min(MinimumExpectedPhraseWordCount)] private int expectedPhraseWordCount = MinimumExpectedPhraseWordCount;
     [SerializeField] private bool autoEnableMicrophoneVad = true;
 
     [Header("Debug")]
@@ -50,6 +58,11 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     public bool IsProcessingRecognition => isProcessingRecognition || isTranscribing;
 
     public event Action<string> OnPhraseRecognized;
+
+    public void SetExpectedPhraseWordCount(int wordCount)
+    {
+        expectedPhraseWordCount = Mathf.Max(MinimumExpectedPhraseWordCount, wordCount);
+    }
 
     private void Awake()
     {
@@ -309,10 +322,12 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
         float silenceSeconds = Time.realtimeSinceStartup - lastSpeechDetectedAt;
 
-        if (silenceSeconds < speechEndSilenceSeconds)
+        float activeSpeechEndSilenceSeconds = GetActiveSpeechEndSilenceSeconds();
+
+        if (silenceSeconds < activeSpeechEndSilenceSeconds)
             return;
 
-        Log($"Whisper voice recognition detected speech end after {silenceSeconds:0.00}s of silence. Session {listeningSessionId} will be transcribed.");
+        Log($"Whisper voice recognition detected speech end after {silenceSeconds:0.00}s of silence using {activeSpeechEndSilenceSeconds:0.00}s threshold for {expectedPhraseWordCount} expected word(s). Session {listeningSessionId} will be transcribed.");
         StopListeningAndTranscribeRecording();
     }
 
@@ -389,6 +404,28 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     {
         minimumRecordingLengthSeconds = Mathf.Max(minimumRecordingLengthSeconds, MinimumAllowedRecordingLengthSeconds);
         speechEndSilenceSeconds = Mathf.Max(speechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        oneWordSpeechEndSilenceSeconds = Mathf.Max(oneWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        twoWordSpeechEndSilenceSeconds = Mathf.Max(twoWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        threeWordSpeechEndSilenceSeconds = Mathf.Max(threeWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        fourOrMoreWordSpeechEndSilenceSeconds = Mathf.Max(fourOrMoreWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        expectedPhraseWordCount = Mathf.Max(expectedPhraseWordCount, MinimumExpectedPhraseWordCount);
+    }
+
+    private float GetActiveSpeechEndSilenceSeconds()
+    {
+        if (!useDynamicSpeechEndSilence)
+            return speechEndSilenceSeconds;
+
+        if (expectedPhraseWordCount <= 1)
+            return oneWordSpeechEndSilenceSeconds;
+
+        if (expectedPhraseWordCount == 2)
+            return twoWordSpeechEndSilenceSeconds;
+
+        if (expectedPhraseWordCount == 3)
+            return threeWordSpeechEndSilenceSeconds;
+
+        return fourOrMoreWordSpeechEndSilenceSeconds;
     }
 
     private bool IsEmptyTranscript(string transcript)
