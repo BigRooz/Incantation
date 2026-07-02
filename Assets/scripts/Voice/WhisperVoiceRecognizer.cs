@@ -13,17 +13,20 @@ using Debug = UnityEngine.Debug;
 /// </summary>
 public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInput, IVoiceRecognizerProcessingStatus
 {
+    private const float MinimumAllowedRecordingLengthSeconds = 0.35f;
+    private const float MinimumAllowedSpeechEndSilenceSeconds = 1.2f;
+
     [Header("Whisper")]
     [SerializeField] private WhisperManager whisper;
     [SerializeField] private MicrophoneRecord microphoneRecord;
 
     [Header("Recognition")]
     [SerializeField] private bool ignoreEmptyTranscripts = true;
-    [SerializeField] private float minimumRecordingLengthSeconds = 0.1f;
+    [SerializeField] private float minimumRecordingLengthSeconds = MinimumAllowedRecordingLengthSeconds;
 
     [Header("Speech End Detection")]
     [SerializeField] private bool enableSpeechEndAutoStop = true;
-    [SerializeField] private float speechEndSilenceSeconds = 0.8f;
+    [SerializeField] private float speechEndSilenceSeconds = MinimumAllowedSpeechEndSilenceSeconds;
     [SerializeField] private bool autoEnableMicrophoneVad = true;
 
     [Header("Debug")]
@@ -50,11 +53,13 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
     private void Awake()
     {
+        ApplyRecognitionTimingMinimums();
         ResolveReferences();
     }
 
     private void OnEnable()
     {
+        ApplyRecognitionTimingMinimums();
         ResolveReferences();
 
         if (microphoneRecord != null)
@@ -341,11 +346,11 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
             string recognizedText = result != null ? result.Result.Trim() : string.Empty;
 
-            if (string.IsNullOrWhiteSpace(recognizedText))
+            if (IsEmptyTranscript(recognizedText))
             {
                 Log($"Whisper voice recognition found no speech in session {sessionId}. Latency: {lastRecognitionLatencyMs} ms.");
 
-                if (ignoreEmptyTranscripts)
+                if (ignoreEmptyTranscripts || IsPunctuationOnlyTranscript(recognizedText))
                     return;
             }
             else if (logRecognizedPhrases)
@@ -378,6 +383,34 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
         while (whisper.IsLoading)
             await Task.Yield();
+    }
+
+    private void ApplyRecognitionTimingMinimums()
+    {
+        minimumRecordingLengthSeconds = Mathf.Max(minimumRecordingLengthSeconds, MinimumAllowedRecordingLengthSeconds);
+        speechEndSilenceSeconds = Mathf.Max(speechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+    }
+
+    private bool IsEmptyTranscript(string transcript)
+    {
+        if (string.IsNullOrWhiteSpace(transcript))
+            return true;
+
+        return IsPunctuationOnlyTranscript(transcript);
+    }
+
+    private bool IsPunctuationOnlyTranscript(string transcript)
+    {
+        if (string.IsNullOrWhiteSpace(transcript))
+            return false;
+
+        foreach (char character in transcript)
+        {
+            if (char.IsLetterOrDigit(character))
+                return false;
+        }
+
+        return true;
     }
 
     private void ResolveReferences()
