@@ -127,11 +127,6 @@ public class IncantationManager : MonoBehaviour
 
         StartPhraseJudgmentReplay(spokenPhrase, phraseNormalizer);
 
-        PhraseValidationWordResult replayedWord;
-        while (TryAdvancePhraseJudgmentReplay(out replayedWord))
-        {
-        }
-
         return IsCompleted && LastPhraseValidationResult.IsSuccess;
     }
 
@@ -148,6 +143,8 @@ public class IncantationManager : MonoBehaviour
 
         if (!hasActivePhraseReplay)
             OnPhraseReplayFinished?.Invoke();
+        else
+            ReplayActivePhraseJudgment();
 
         return activePhraseValidationResult;
     }
@@ -208,6 +205,15 @@ public class IncantationManager : MonoBehaviour
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = false;
         OnPhraseReplayReset?.Invoke();
+    }
+
+    private void ReplayActivePhraseJudgment()
+    {
+        PhraseValidationWordResult replayedWord;
+
+        while (TryAdvancePhraseJudgmentReplay(out replayedWord))
+        {
+        }
     }
 
     private List<IncantationWord> GetUniquePossibleWords()
