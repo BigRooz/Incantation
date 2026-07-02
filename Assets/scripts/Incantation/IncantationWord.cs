@@ -56,6 +56,11 @@ public class IncantationWord
         isCompleted = true;
     }
 
+    public void MarkIncomplete()
+    {
+        isCompleted = false;
+    }
+
     public bool HasSpeechAlias(string speechAlias)
     {
         string normalizedSpeechAlias = NormalizeSpeechText(speechAlias);

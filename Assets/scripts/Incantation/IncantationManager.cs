@@ -149,6 +149,17 @@ public class IncantationManager : MonoBehaviour
         return activePhraseValidationResult;
     }
 
+    public void ResetCurrentPhraseProgress()
+    {
+        CurrentWordIndex = 0;
+
+        foreach (IncantationWord word in currentIncantation)
+        {
+            if (word != null)
+                word.MarkIncomplete();
+        }
+    }
+
     public bool TryAdvancePhraseJudgmentReplay(out PhraseValidationWordResult replayedWord)
     {
         replayedWord = default(PhraseValidationWordResult);

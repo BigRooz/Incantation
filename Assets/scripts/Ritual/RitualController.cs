@@ -7,13 +7,13 @@ using UnityEngine;
 
 public class RitualController : MonoBehaviour
 {
-    private const float HourglassDuration = 10f;
     private const float VoiceRecognitionProcessingTimeoutSeconds = 5f;
     private static RitualController activeRitualController;
 
     [Header("References")]
     [SerializeField] private SeatManager seatManager;
     [SerializeField] private BookMover bookMover;
+    [SerializeField] private BookController bookController;
     [SerializeField] private HourglassController hourglassController;
     [SerializeField] private IncantationManager incantationManager;
     [SerializeField] private CoreRitualLoopBridge coreRitualLoopBridge;
@@ -29,6 +29,10 @@ public class RitualController : MonoBehaviour
     [Header("Prototype")]
     [SerializeField] private bool autoStart = true;
 
+    [Header("Turn Timing")]
+    [Tooltip("Development turn duration in seconds. Keep this long enough for Play Mode voice recognition retries.")]
+    [SerializeField, Min(5f)] private float hourglassDuration = 30f;
+
     [Header("Speech Alias Learning")]
     [SerializeField] private bool enableLearningMode = false;
     [SerializeField] private string pendingRecognizedPhrase = string.Empty;
@@ -40,6 +44,7 @@ public class RitualController : MonoBehaviour
 
     private Coroutine ritualRoutine;
     private Coroutine turnRoutine;
+    private Coroutine retryListeningRoutine;
     private IVoiceRecognizer voiceRecognizer;
     private IVoiceRecognizerProcessingStatus voiceRecognizerProcessingStatus;
     private IVoiceRecognizer loggedVoiceRecognizer;
@@ -58,6 +63,7 @@ public class RitualController : MonoBehaviour
     private bool hasLoggedMissingVoiceRecognizerBehaviour;
     private bool hasLoggedMissingSpeechAliasWordLibrary;
     private bool hasLoggedLegacyPhraseFallback;
+    private bool hasLoggedRuntimeCoreRitualLoopBridgeSetup;
     private bool hasInitializedCoreRitualLoop;
     private bool isUsingCoreRitualLoopPhraseAuthority;
     private int configuredCoreRitualPlayerCount;
@@ -127,6 +133,8 @@ public class RitualController : MonoBehaviour
             turnRoutine = null;
         }
 
+        StopRetryListeningRoutine();
+
         if (ritualRoutine != null)
         {
             StopCoroutine(ritualRoutine);
@@ -149,6 +157,7 @@ public class RitualController : MonoBehaviour
         hasLoggedMissingVoiceRecognizerBehaviour = false;
         hasLoggedMissingSpeechAliasWordLibrary = false;
         hasLoggedLegacyPhraseFallback = false;
+        hasLoggedRuntimeCoreRitualLoopBridgeSetup = false;
         hasInitializedCoreRitualLoop = false;
         isUsingCoreRitualLoopPhraseAuthority = false;
         configuredCoreRitualPlayerCount = 0;
@@ -260,6 +269,7 @@ public class RitualController : MonoBehaviour
                 ? "Timeout: no valid full phrase recognized before the hourglass finished."
                 : "Timeout: no valid keyword recognized before the hourglass finished.";
 
+            Debug.Log("Ritual phrase timeout ended turn.");
             Debug.Log(timeoutReason);
             FailRitual(timeoutReason);
         }
@@ -277,12 +287,29 @@ public class RitualController : MonoBehaviour
             return false;
 
         LogDebug($"Moving book to: {CurrentActiveSeat.name}");
-        bookMover.MoveToSeat(CurrentActiveSeat);
+
+        BookController resolvedBookController = ResolveBookController();
+
+        if (resolvedBookController != null)
+            resolvedBookController.MoveToSeat(CurrentActiveSeat);
+        else
+            bookMover.MoveToSeat(CurrentActiveSeat);
 
         if (seatManager != null)
             seatManager.SetCurrentBookSeat(CurrentActiveSeat);
 
         return true;
+    }
+
+    private BookController ResolveBookController()
+    {
+        if (bookController != null)
+            return bookController;
+
+        if (bookMover != null)
+            bookController = bookMover.GetComponent<BookController>();
+
+        return bookController;
     }
 
     private IEnumerator WaitForBookMoveDuration()
@@ -416,7 +443,7 @@ public class RitualController : MonoBehaviour
     private IEnumerator RunPlayerTurn()
     {
         LogDebug("Starting hourglass");
-        hourglassController.StartHourglass(HourglassDuration);
+        hourglassController.StartHourglass(hourglassDuration);
 
         while (!hourglassFinished && !playerTurnComplete)
             yield return null;
@@ -440,7 +467,7 @@ public class RitualController : MonoBehaviour
         }
 
         CurrentActiveSeat = lastCompletedSeat == null
-            ? occupiedSeats[0]
+            ? GetFirstOccupiedSeatInPhysicalOrder()
             : seatManager.GetNextOccupiedSeat(lastCompletedSeat);
 
         if (CurrentActiveSeat == null)
@@ -467,6 +494,18 @@ public class RitualController : MonoBehaviour
         return seat != null && !seat.IsFree();
     }
 
+    private Seat GetFirstOccupiedSeatInPhysicalOrder()
+    {
+        if (seatManager == null)
+            return null;
+
+        if (seatManager.HasConfiguredPhysicalSeatOrder())
+            return seatManager.GetFirstActiveSeat(SeatTraversalDirection.Clockwise, IsSeatOccupied);
+
+        List<Seat> occupiedSeats = seatManager.GetOccupiedSeats();
+        return occupiedSeats.Count > 0 ? occupiedSeats[0] : null;
+    }
+
     private void LogWaitingForOccupiedSeat()
     {
         if (isWaitingForOccupiedSeat)
@@ -489,6 +528,7 @@ public class RitualController : MonoBehaviour
         if (!isTurnActive || ritualFailed)
             return;
 
+        StopRetryListeningRoutine();
         StopListening();
         isTurnActive = false;
         playerTurnComplete = true;
@@ -507,6 +547,8 @@ public class RitualController : MonoBehaviour
         if (voiceRecognizer.IsListening)
             return;
 
+        lastProcessedWhisperPhrase = string.Empty;
+        Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()}.");
         voiceRecognizer.StartListening();
         Debug.Log($"Ritual listening started with {GetActiveVoiceRecognizerTypeName()}. Local active player microphone only.");
     }
@@ -735,26 +777,20 @@ public class RitualController : MonoBehaviour
 
     private void ProcessWhisperPhraseRecognition(string recognizedPhrase, string normalizedPhrase)
     {
+        Debug.Log($"Ritual phrase transcript received: {recognizedPhrase}");
         Debug.Log($"Final phrase recognized: {recognizedPhrase}");
         Debug.Log($"Normalized final phrase: {normalizedPhrase}");
 
-        bool isValidPhrase = IsRecognizedPhraseValid(normalizedPhrase);
-
-        if (!isValidPhrase)
-        {
-            Debug.Log($"Full phrase fail: {normalizedPhrase}");
-            FailRitual($"Wrong full phrase: {normalizedPhrase}");
-            return;
-        }
-
         if (!incantationManager.TryCompleteCurrentPhrase(recognizedPhrase, voicePhraseNormalizer))
         {
-            Debug.Log($"Full phrase fail: {normalizedPhrase}");
-            FailRitual($"Wrong full phrase: {normalizedPhrase}");
+            incantationManager.ResetCurrentPhraseProgress();
+            Debug.Log($"Phrase incomplete after transcript: {normalizedPhrase}");
+            RestartListeningAfterFailedAttempt();
             return;
         }
 
-        Debug.Log($"Full phrase success: {normalizedPhrase}");
+        Debug.Log($"Ritual phrase attempt succeeded: {normalizedPhrase}");
+        Debug.Log($"Sequential phrase success: {normalizedPhrase}");
         LogDebug("Incantation complete");
 
         UnsubscribeFromVoiceRecognizer();
@@ -852,6 +888,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = true;
         Debug.Log($"Ritual failed. {reason}");
 
+        StopRetryListeningRoutine();
         UnsubscribeFromVoiceRecognizer();
         StopListening();
 
@@ -861,6 +898,63 @@ public class RitualController : MonoBehaviour
         isTurnActive = false;
         playerTurnComplete = true;
         LogDebug("Ritual is now in failed state. No next seat, incantation, book move, or hourglass restart will start automatically.");
+    }
+
+    private void RestartListeningAfterFailedAttempt()
+    {
+        if (!isTurnActive || playerTurnComplete || ritualFailed)
+            return;
+
+        if (hourglassFinished)
+        {
+            Debug.Log("Ritual phrase attempt failed after timeout; no retry will start.");
+            return;
+        }
+
+        if (retryListeningRoutine != null)
+            StopCoroutine(retryListeningRoutine);
+
+        Debug.Log("Ritual phrase attempt failed, retrying while hourglass is still running.");
+        retryListeningRoutine = StartCoroutine(RestartListeningWhenRecognizerReady());
+    }
+
+    private IEnumerator RestartListeningWhenRecognizerReady()
+    {
+        while (isTurnActive &&
+            !playerTurnComplete &&
+            !ritualFailed &&
+            !hourglassFinished &&
+            IsVoiceRecognizerBusy())
+        {
+            yield return null;
+        }
+
+        retryListeningRoutine = null;
+
+        if (!isTurnActive || playerTurnComplete || ritualFailed || hourglassFinished)
+            yield break;
+
+        StartListening();
+    }
+
+    private bool IsVoiceRecognizerBusy()
+    {
+        if (!ResolveVoiceRecognizer())
+            return false;
+
+        if (voiceRecognizer.IsListening)
+            return true;
+
+        return voiceRecognizerProcessingStatus != null && voiceRecognizerProcessingStatus.IsProcessingRecognition;
+    }
+
+    private void StopRetryListeningRoutine()
+    {
+        if (retryListeningRoutine == null)
+            return;
+
+        StopCoroutine(retryListeningRoutine);
+        retryListeningRoutine = null;
     }
 
     private void HandleSpeechAliasSuggestion(string recognizedPhrase, string expectedWord)
@@ -1120,9 +1214,45 @@ public class RitualController : MonoBehaviour
             coreRitualLoopBridge = FindFirstObjectByType<CoreRitualLoopBridge>();
 
         if (coreRitualLoopBridge == null)
+            coreRitualLoopBridge = CreateRuntimeBridgeOnCoreRitualLoop();
+
+        if (coreRitualLoopBridge == null)
             return false;
 
         return coreRitualLoopBridge.IsReady();
+    }
+
+    private CoreRitualLoopBridge CreateRuntimeBridgeOnCoreRitualLoop()
+    {
+        CoreRitualLoop coreRitualLoop = FindFirstObjectByType<CoreRitualLoop>();
+
+        if (coreRitualLoop == null)
+            return null;
+
+        CoreRitualLoopBridge resolvedBridge = coreRitualLoop.GetComponent<CoreRitualLoopBridge>();
+
+        if (resolvedBridge != null)
+            return resolvedBridge;
+
+        resolvedBridge = coreRitualLoop.gameObject.AddComponent<CoreRitualLoopBridge>();
+        LogRuntimeCoreRitualLoopBridgeSetup(coreRitualLoop);
+        return resolvedBridge;
+    }
+
+    private void LogRuntimeCoreRitualLoopBridgeSetup(CoreRitualLoop coreRitualLoop)
+    {
+        if (hasLoggedRuntimeCoreRitualLoopBridgeSetup)
+            return;
+
+        string coreRitualLoopName = coreRitualLoop != null ? coreRitualLoop.gameObject.name : "CoreRitualLoop";
+
+        Debug.LogWarning(
+            $"{nameof(RitualController)} found {nameof(CoreRitualLoop)} on '{coreRitualLoopName}' but no {nameof(CoreRitualLoopBridge)} component was present. " +
+            $"A runtime bridge was added so this Play Mode session can use the growing incantation system. " +
+            $"For persistent scene setup, add {nameof(CoreRitualLoopBridge)} to the '{coreRitualLoopName}' GameObject and assign that component to {nameof(RitualController)}.{nameof(coreRitualLoopBridge)}.",
+            this);
+
+        hasLoggedRuntimeCoreRitualLoopBridgeSetup = true;
     }
 
     private void LogLegacyPhraseFallback()

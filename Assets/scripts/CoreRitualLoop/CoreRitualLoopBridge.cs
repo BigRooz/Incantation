@@ -9,6 +9,7 @@ using UnityEngine;
 /// Does not own gameplay, validation, phrase growth, timer, networking, or voice-recognition rules.
 /// TODO: Remove the legacy IncantationManager mirror after UI reads directly from CoreRitualLoop.
 /// </summary>
+[DisallowMultipleComponent]
 public class CoreRitualLoopBridge : MonoBehaviour
 {
     private static readonly FieldInfo CurrentIncantationField = typeof(IncantationManager).GetField(
@@ -26,6 +27,7 @@ public class CoreRitualLoopBridge : MonoBehaviour
     /// <returns>True when the bridge can forward calls to CoreRitualLoop.</returns>
     public bool IsReady()
     {
+        ResolveCoreRitualLoop();
         return coreRitualLoop != null;
     }
 
@@ -234,6 +236,8 @@ public class CoreRitualLoopBridge : MonoBehaviour
 
     private bool HasCoreRitualLoop()
     {
+        ResolveCoreRitualLoop();
+
         if (coreRitualLoop != null)
         {
             return true;
@@ -241,5 +245,20 @@ public class CoreRitualLoopBridge : MonoBehaviour
 
         Debug.LogError($"{nameof(CoreRitualLoopBridge)} requires a {nameof(CoreRitualLoop)} reference.", this);
         return false;
+    }
+
+    private void ResolveCoreRitualLoop()
+    {
+        if (coreRitualLoop != null)
+        {
+            return;
+        }
+
+        coreRitualLoop = GetComponent<CoreRitualLoop>();
+
+        if (coreRitualLoop == null)
+        {
+            coreRitualLoop = FindFirstObjectByType<CoreRitualLoop>();
+        }
     }
 }
