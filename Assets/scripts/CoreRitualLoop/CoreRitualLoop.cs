@@ -92,7 +92,7 @@ public class CoreRitualLoop : MonoBehaviour
             return false;
         }
 
-        return phraseValidator.ValidatePhrase(growingIncantationManager.GetCurrentPhrase(), recognizedPhrase);
+        return phraseValidator.ValidatePhrase(growingIncantationManager.GetCurrentPhrase(), recognizedPhrase).IsSuccess;
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class CoreRitualLoop : MonoBehaviour
     {
         if (phraseValidator != null)
         {
-            return phraseValidator.ValidatePhrase(expectedPhrase, recognizedPhrase);
+            return phraseValidator.ValidatePhrase(expectedPhrase, recognizedPhrase).IsSuccess;
         }
 
         return ValidatePhraseCandidate(expectedPhrase, recognizedPhrase);
@@ -121,7 +121,7 @@ public class CoreRitualLoop : MonoBehaviour
     /// <returns>True when the recognized phrase satisfies the expected phrase.</returns>
     public static bool ValidatePhraseCandidate(string expectedPhrase, string recognizedPhrase)
     {
-        return PhraseValidator.Validate(expectedPhrase, recognizedPhrase);
+        return PhraseValidator.Validate(expectedPhrase, recognizedPhrase).IsSuccess;
     }
 
     /// <summary>

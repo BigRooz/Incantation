@@ -18,6 +18,9 @@ public class IncantationManager : MonoBehaviour
     [SerializeField] private UnityEvent onIncantationCompleted = new UnityEvent();
 
     private readonly List<IncantationWord> currentIncantation = new List<IncantationWord>();
+    private PhraseValidationResult activePhraseValidationResult;
+    private int activePhraseReplayIndex;
+    private bool hasActivePhraseReplay;
 
     public string CurrentWord
     {
@@ -51,6 +54,9 @@ public class IncantationManager : MonoBehaviour
     }
 
     public bool IsCompleted => currentIncantation.Count > 0 && CurrentWordIndex >= currentIncantation.Count;
+    public bool HasActivePhraseReplay => hasActivePhraseReplay;
+    public bool IsPhraseReplayComplete => !hasActivePhraseReplay;
+    public PhraseValidationResult LastPhraseValidationResult { get; private set; }
 
     public UnityEvent OnIncantationGenerated => onIncantationGenerated;
     public UnityEvent OnCorrectWord => onCorrectWord;
@@ -114,21 +120,68 @@ public class IncantationManager : MonoBehaviour
             return false;
         }
 
-        string normalizedSpokenPhrase = NormalizePhrase(spokenPhrase, phraseNormalizer);
-        string normalizedExpectedPhrase = NormalizePhrase(GetCurrentIncantationText(), phraseNormalizer);
+        StartPhraseJudgmentReplay(spokenPhrase, phraseNormalizer);
 
-        if (normalizedSpokenPhrase != normalizedExpectedPhrase)
+        PhraseValidationWordResult replayedWord;
+        while (TryAdvancePhraseJudgmentReplay(out replayedWord))
         {
-            onIncorrectWord.Invoke();
+        }
+
+        return IsCompleted && LastPhraseValidationResult.IsSuccess;
+    }
+
+    public PhraseValidationResult StartPhraseJudgmentReplay(string spokenPhrase, VoicePhraseNormalizer phraseNormalizer)
+    {
+        string normalizedSpokenPhrase = NormalizePhrase(spokenPhrase, phraseNormalizer);
+        string normalizedExpectedPhrase = NormalizePhrase(GetCurrentIncantationText(), null);
+
+        activePhraseValidationResult = PhraseValidator.Validate(normalizedExpectedPhrase, normalizedSpokenPhrase);
+        LastPhraseValidationResult = activePhraseValidationResult;
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = activePhraseValidationResult.WordTimeline.Length > 0;
+
+        return activePhraseValidationResult;
+    }
+
+    public bool TryAdvancePhraseJudgmentReplay(out PhraseValidationWordResult replayedWord)
+    {
+        replayedWord = default(PhraseValidationWordResult);
+
+        if (!hasActivePhraseReplay)
+            return false;
+
+        if (activePhraseReplayIndex >= activePhraseValidationResult.WordTimeline.Length)
+        {
+            hasActivePhraseReplay = false;
             return false;
         }
 
-        for (int i = 0; i < currentIncantation.Count; i++)
-            currentIncantation[i].MarkCompleted();
+        replayedWord = activePhraseValidationResult.WordTimeline[activePhraseReplayIndex];
+        activePhraseReplayIndex++;
 
-        CurrentWordIndex = currentIncantation.Count;
-        onCorrectWord.Invoke();
-        onIncantationCompleted.Invoke();
+        if (replayedWord.State == PhraseValidationWordState.Success)
+        {
+            if (IsCompleted)
+            {
+                hasActivePhraseReplay = false;
+                return true;
+            }
+
+            currentIncantation[CurrentWordIndex].MarkCompleted();
+            CurrentWordIndex++;
+            onCorrectWord.Invoke();
+
+            if (IsCompleted && activePhraseValidationResult.IsSuccess)
+            {
+                hasActivePhraseReplay = false;
+                onIncantationCompleted.Invoke();
+            }
+
+            return true;
+        }
+
+        hasActivePhraseReplay = false;
+        onIncorrectWord.Invoke();
         return true;
     }
 
@@ -136,6 +189,10 @@ public class IncantationManager : MonoBehaviour
     {
         currentIncantation.Clear();
         CurrentWordIndex = 0;
+        activePhraseValidationResult = default(PhraseValidationResult);
+        LastPhraseValidationResult = default(PhraseValidationResult);
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = false;
     }
 
     private List<IncantationWord> GetUniquePossibleWords()
