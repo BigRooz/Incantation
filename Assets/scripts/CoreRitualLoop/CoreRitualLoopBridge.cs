@@ -4,8 +4,8 @@ using UnityEngine;
 
 /// <summary>
 /// Provides the narrow adapter surface between legacy ritual gameplay and CoreRitualLoop.
-/// Depends on CoreRitualLoop for phrase authority and can mirror that phrase into the legacy
-/// IncantationManager display model while migration is in progress.
+/// Depends on CoreRitualLoop for migrated active-player lookup and phrase authority, and can mirror
+/// the core phrase into the legacy IncantationManager display model while migration is in progress.
 /// Does not own gameplay, validation, phrase growth, timer, networking, or voice-recognition rules.
 /// TODO: Remove the legacy IncantationManager mirror after UI reads directly from CoreRitualLoop.
 /// </summary>
@@ -68,6 +68,25 @@ public class CoreRitualLoopBridge : MonoBehaviour
         }
 
         return coreRitualLoop.GetCurrentPlayerIndex();
+    }
+
+    /// <summary>
+    /// Safely forwards current active player index lookup to CoreRitualLoop for migration callers
+    /// that need an explicit fallback path when the bridge is unavailable.
+    /// </summary>
+    /// <param name="currentPlayerIndex">The current active player index reported by CoreRitualLoop.</param>
+    /// <returns>True when CoreRitualLoop supplied the active player index.</returns>
+    public bool TryGetCurrentPlayerIndex(out int currentPlayerIndex)
+    {
+        currentPlayerIndex = 0;
+
+        if (!IsReady())
+        {
+            return false;
+        }
+
+        currentPlayerIndex = coreRitualLoop.GetCurrentPlayerIndex();
+        return true;
     }
 
     /// <summary>
@@ -152,6 +171,22 @@ public class CoreRitualLoopBridge : MonoBehaviour
         }
 
         coreRitualLoop.AdvanceSuccessfulTurn();
+    }
+
+    /// <summary>
+    /// Safely forwards successful turn advancement to CoreRitualLoop for legacy callers that must
+    /// preserve their existing fallback behavior while migration is in progress.
+    /// </summary>
+    /// <returns>True when CoreRitualLoop handled successful turn advancement.</returns>
+    public bool TryAdvanceSuccessfulTurn()
+    {
+        if (!IsReady())
+        {
+            return false;
+        }
+
+        coreRitualLoop.AdvanceSuccessfulTurn();
+        return true;
     }
 
     /// <summary>

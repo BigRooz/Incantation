@@ -79,12 +79,17 @@ public class SeatManager : MonoBehaviour
         if (seat == null)
             return;
 
-        currentBookSeat = seat;
+        SetCurrentBookSeat(seat);
 
         LogDebug("SeatManager.MoveBookToSeat used for: " + seat.name);
 
         if (bookMover != null)
             bookMover.MoveToSeat(seat);
+    }
+
+    public void SetCurrentBookSeat(Seat seat)
+    {
+        currentBookSeat = seat;
     }
 
     public void MoveBookToNextOccupiedSeat()

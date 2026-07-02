@@ -278,6 +278,10 @@ public class RitualController : MonoBehaviour
 
         LogDebug($"Moving book to: {CurrentActiveSeat.name}");
         bookMover.MoveToSeat(CurrentActiveSeat);
+
+        if (seatManager != null)
+            seatManager.SetCurrentBookSeat(CurrentActiveSeat);
+
         return true;
     }
 
@@ -792,7 +796,7 @@ public class RitualController : MonoBehaviour
 
     private void CompleteSuccessfulPlayerTurn()
     {
-        AdvanceCoreRitualLoopAfterSuccessfulTurn();
+        TryAdvanceCoreRitualLoopAfterSuccessfulTurn();
         CompletePlayerTurn();
     }
 
@@ -1088,12 +1092,12 @@ public class RitualController : MonoBehaviour
         return true;
     }
 
-    private void AdvanceCoreRitualLoopAfterSuccessfulTurn()
+    private bool TryAdvanceCoreRitualLoopAfterSuccessfulTurn()
     {
         if (!isUsingCoreRitualLoopPhraseAuthority || !TryResolveReadyCoreRitualLoopBridge())
-            return;
+            return false;
 
-        coreRitualLoopBridge.AdvanceSuccessfulTurn();
+        return coreRitualLoopBridge.TryAdvanceSuccessfulTurn();
     }
 
     private int GetOccupiedSeatCount()
