@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -62,6 +63,10 @@ public class IncantationManager : MonoBehaviour
     public UnityEvent OnCorrectWord => onCorrectWord;
     public UnityEvent OnIncorrectWord => onIncorrectWord;
     public UnityEvent OnIncantationCompleted => onIncantationCompleted;
+    public event Action OnPhraseReplayReset;
+    public event Action<PhraseValidationWordResult> OnPhraseReplayAcceptedWord;
+    public event Action<PhraseValidationWordResult> OnPhraseReplayRejectedWord;
+    public event Action OnPhraseReplayFinished;
 
     public void GenerateIncantation()
     {
@@ -75,7 +80,7 @@ public class IncantationManager : MonoBehaviour
 
         for (int i = 0; i < targetLength; i++)
         {
-            int randomIndex = Random.Range(0, availableWords.Count);
+            int randomIndex = UnityEngine.Random.Range(0, availableWords.Count);
             IncantationWord selectedWord = availableWords[randomIndex];
 
             currentIncantation.Add(new IncantationWord(selectedWord.Word, selectedWord.SpeechAliases));
@@ -139,6 +144,10 @@ public class IncantationManager : MonoBehaviour
         LastPhraseValidationResult = activePhraseValidationResult;
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = activePhraseValidationResult.WordTimeline.Length > 0;
+        OnPhraseReplayReset?.Invoke();
+
+        if (!hasActivePhraseReplay)
+            OnPhraseReplayFinished?.Invoke();
 
         return activePhraseValidationResult;
     }
@@ -153,6 +162,7 @@ public class IncantationManager : MonoBehaviour
         if (activePhraseReplayIndex >= activePhraseValidationResult.WordTimeline.Length)
         {
             hasActivePhraseReplay = false;
+            OnPhraseReplayFinished?.Invoke();
             return false;
         }
 
@@ -170,11 +180,13 @@ public class IncantationManager : MonoBehaviour
             currentIncantation[CurrentWordIndex].MarkCompleted();
             CurrentWordIndex++;
             onCorrectWord.Invoke();
+            OnPhraseReplayAcceptedWord?.Invoke(replayedWord);
 
             if (IsCompleted && activePhraseValidationResult.IsSuccess)
             {
                 hasActivePhraseReplay = false;
                 onIncantationCompleted.Invoke();
+                OnPhraseReplayFinished?.Invoke();
             }
 
             return true;
@@ -182,6 +194,8 @@ public class IncantationManager : MonoBehaviour
 
         hasActivePhraseReplay = false;
         onIncorrectWord.Invoke();
+        OnPhraseReplayRejectedWord?.Invoke(replayedWord);
+        OnPhraseReplayFinished?.Invoke();
         return true;
     }
 
@@ -193,6 +207,7 @@ public class IncantationManager : MonoBehaviour
         LastPhraseValidationResult = default(PhraseValidationResult);
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = false;
+        OnPhraseReplayReset?.Invoke();
     }
 
     private List<IncantationWord> GetUniquePossibleWords()
