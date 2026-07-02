@@ -1,10 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum SeatTraversalDirection
+{
+    Clockwise,
+    CounterClockwise
+}
+
 public class SeatManager : MonoBehaviour
 {
     [Header("Sièges détectés")]
     public List<Seat> seats = new List<Seat>();
+
+    [Header("Physical Table Order")]
+    [Tooltip("Official clockwise physical seat order: 1 -> 5 -> 3 -> 6 -> 2 -> 7 -> 4 -> 8. Assign Seat references in that exact order.")]
+    [SerializeField] private List<Seat> clockwisePhysicalSeatOrder = new List<Seat>();
 
     [Header("Livre")]
     public BookMover bookMover;
@@ -44,6 +54,84 @@ public class SeatManager : MonoBehaviour
             if (seat != null)
                 seats.Add(seat);
         }
+    }
+
+    public IReadOnlyList<Seat> GetClockwisePhysicalSeatOrder()
+    {
+        return clockwisePhysicalSeatOrder;
+    }
+
+    public bool HasConfiguredPhysicalSeatOrder()
+    {
+        if (clockwisePhysicalSeatOrder == null || clockwisePhysicalSeatOrder.Count != 8)
+            return false;
+
+        HashSet<Seat> uniqueSeats = new HashSet<Seat>();
+
+        foreach (Seat seat in clockwisePhysicalSeatOrder)
+        {
+            if (seat == null || uniqueSeats.Contains(seat))
+                return false;
+
+            uniqueSeats.Add(seat);
+        }
+
+        return true;
+    }
+
+    public List<Seat> GetPhysicalSeats(SeatTraversalDirection direction)
+    {
+        List<Seat> orderedSeats = new List<Seat>();
+
+        if (!HasConfiguredPhysicalSeatOrder())
+            return orderedSeats;
+
+        if (direction == SeatTraversalDirection.Clockwise)
+        {
+            orderedSeats.AddRange(clockwisePhysicalSeatOrder);
+            return orderedSeats;
+        }
+
+        for (int seatIndex = clockwisePhysicalSeatOrder.Count - 1; seatIndex >= 0; seatIndex--)
+            orderedSeats.Add(clockwisePhysicalSeatOrder[seatIndex]);
+
+        return orderedSeats;
+    }
+
+    public Seat GetFirstActiveSeat(SeatTraversalDirection direction, System.Predicate<Seat> isSeatActive)
+    {
+        List<Seat> orderedSeats = GetPhysicalSeats(direction);
+
+        foreach (Seat seat in orderedSeats)
+        {
+            if (isSeatActive == null || isSeatActive(seat))
+                return seat;
+        }
+
+        return null;
+    }
+
+    public Seat GetNextActiveSeat(Seat currentSeat, SeatTraversalDirection direction, System.Predicate<Seat> isSeatActive)
+    {
+        List<Seat> orderedSeats = GetPhysicalSeats(direction);
+
+        if (orderedSeats.Count == 0)
+            return null;
+
+        int currentIndex = currentSeat != null ? orderedSeats.IndexOf(currentSeat) : -1;
+
+        for (int offset = 1; offset <= orderedSeats.Count; offset++)
+        {
+            int nextIndex = currentIndex < 0 ? offset - 1 : currentIndex + offset;
+            nextIndex %= orderedSeats.Count;
+
+            Seat candidateSeat = orderedSeats[nextIndex];
+
+            if (isSeatActive == null || isSeatActive(candidateSeat))
+                return candidateSeat;
+        }
+
+        return null;
     }
 
     public void TrySit(Seat seat)
@@ -122,6 +210,9 @@ public class SeatManager : MonoBehaviour
 
     public Seat GetNextOccupiedSeat(Seat currentSeat)
     {
+        if (HasConfiguredPhysicalSeatOrder())
+            return GetNextActiveSeat(currentSeat, SeatTraversalDirection.Clockwise, IsSeatOccupied);
+
         List<Seat> occupiedSeats = GetOccupiedSeats();
 
         if (occupiedSeats.Count == 0)
@@ -141,6 +232,11 @@ public class SeatManager : MonoBehaviour
             nextIndex = 0;
 
         return occupiedSeats[nextIndex];
+    }
+
+    private bool IsSeatOccupied(Seat seat)
+    {
+        return seat != null && !seat.IsFree();
     }
 
     private void LogDebug(string message)
