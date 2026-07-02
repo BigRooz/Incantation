@@ -75,8 +75,8 @@ public class GrowingIncantationManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Unlocks exactly one additional ritual word when another word is available.
-    /// Calling this after all vocabulary words are unlocked safely leaves the phrase unchanged.
+    /// Unlocks exactly one additional ritual word when ritual vocabulary is available.
+    /// The configured vocabulary supplies the word order, but it does not cap phrase length.
     /// </summary>
     public void UnlockNextWord()
     {
@@ -92,10 +92,10 @@ public class GrowingIncantationManager : MonoBehaviour
     /// <summary>
     /// Checks whether the ritual phrase can unlock one more vocabulary word.
     /// </summary>
-    /// <returns>True when at least one locked vocabulary word remains; otherwise false.</returns>
+    /// <returns>True when at least one valid vocabulary word is configured; otherwise false.</returns>
     public bool CanUnlockNextWord()
     {
-        return currentUnlockedWordCount < GetConfiguredVocabulary().Count;
+        return GetConfiguredVocabulary().Count > 0;
     }
 
     private void RebuildCurrentPhrase()
@@ -104,14 +104,18 @@ public class GrowingIncantationManager : MonoBehaviour
 
         currentRitualWords.Clear();
 
-        int wordsToUnlock = Mathf.Min(currentUnlockedWordCount, configuredVocabulary.Count);
-
-        for (int wordIndex = 0; wordIndex < wordsToUnlock; wordIndex++)
+        if (configuredVocabulary.Count == 0)
         {
-            currentRitualWords.Add(configuredVocabulary[wordIndex]);
+            currentUnlockedWordCount = 0;
+            currentRitualPhrase = string.Empty;
+            return;
         }
 
-        currentUnlockedWordCount = currentRitualWords.Count;
+        for (int wordIndex = 0; wordIndex < currentUnlockedWordCount; wordIndex++)
+        {
+            currentRitualWords.Add(configuredVocabulary[wordIndex % configuredVocabulary.Count]);
+        }
+
         currentRitualPhrase = string.Join(" ", currentRitualWords);
     }
 
