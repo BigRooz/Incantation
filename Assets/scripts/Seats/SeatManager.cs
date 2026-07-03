@@ -21,7 +21,10 @@ public class SeatManager : MonoBehaviour
     public Seat currentBookSeat;
 
     [Header("Debug")]
+    [SerializeField] private bool allowMultipleDebugOccupants = false;
     [SerializeField] private bool enableDebugLogs = false;
+
+    private readonly Dictionary<Seat, GameObject> debugOccupantsBySeat = new Dictionary<Seat, GameObject>();
 
     private void Awake()
     {
@@ -139,6 +142,12 @@ public class SeatManager : MonoBehaviour
         if (seat == null)
             return;
 
+        if (allowMultipleDebugOccupants)
+        {
+            ToggleDebugOccupant(seat);
+            return;
+        }
+
         GameObject player = GameObject.FindWithTag("Player");
 
         if (player == null)
@@ -198,10 +207,13 @@ public class SeatManager : MonoBehaviour
     public List<Seat> GetOccupiedSeats()
     {
         List<Seat> occupiedSeats = new List<Seat>();
+        List<Seat> orderedSeats = HasConfiguredPhysicalSeatOrder()
+            ? GetPhysicalSeats(SeatTraversalDirection.Clockwise)
+            : seats;
 
-        foreach (Seat seat in seats)
+        foreach (Seat seat in orderedSeats)
         {
-            if (!seat.IsFree())
+            if (IsSeatOccupied(seat))
                 occupiedSeats.Add(seat);
         }
 
@@ -210,9 +222,6 @@ public class SeatManager : MonoBehaviour
 
     public Seat GetNextOccupiedSeat(Seat currentSeat)
     {
-        if (HasConfiguredPhysicalSeatOrder())
-            return GetNextActiveSeat(currentSeat, SeatTraversalDirection.Clockwise, IsSeatOccupied);
-
         List<Seat> occupiedSeats = GetOccupiedSeats();
 
         if (occupiedSeats.Count == 0)
@@ -237,6 +246,78 @@ public class SeatManager : MonoBehaviour
     private bool IsSeatOccupied(Seat seat)
     {
         return seat != null && !seat.IsFree();
+    }
+
+    private void ToggleDebugOccupant(Seat seat)
+    {
+        if (seat == null)
+            return;
+
+        if (IsOccupiedByDebugOccupant(seat))
+        {
+            FreeDebugOccupant(seat);
+            LogDebug($"Debug occupant removed from {seat.name}");
+            return;
+        }
+
+        if (!seat.IsFree())
+        {
+            LogDebug($"{seat.name} is already occupied by a non-debug player.");
+            return;
+        }
+
+        GameObject debugOccupant = new GameObject($"DebugOccupant_{seat.name}");
+        debugOccupant.transform.SetParent(transform);
+
+        if (seat.playerSpawn != null)
+        {
+            debugOccupant.transform.position = seat.playerSpawn.position;
+            debugOccupant.transform.rotation = seat.playerSpawn.rotation;
+        }
+
+        debugOccupantsBySeat[seat] = debugOccupant;
+        seat.Occupy(debugOccupant);
+
+        LogDebug($"Debug occupant added to {seat.name}");
+    }
+
+    private bool IsOccupiedByDebugOccupant(Seat seat)
+    {
+        if (seat == null)
+            return false;
+
+        if (!debugOccupantsBySeat.TryGetValue(seat, out GameObject debugOccupant))
+            return false;
+
+        if (debugOccupant == null || seat.currentPlayer != debugOccupant)
+        {
+            debugOccupantsBySeat.Remove(seat);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void FreeDebugOccupant(Seat seat)
+    {
+        if (seat == null)
+            return;
+
+        if (!debugOccupantsBySeat.TryGetValue(seat, out GameObject debugOccupant))
+            return;
+
+        debugOccupantsBySeat.Remove(seat);
+
+        if (seat.currentPlayer == debugOccupant)
+            seat.Free();
+
+        if (debugOccupant == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(debugOccupant);
+        else
+            DestroyImmediate(debugOccupant);
     }
 
     private void LogDebug(string message)

@@ -18,6 +18,8 @@ public class IncantationTextDisplay : MonoBehaviour
     [SerializeField] private Color correctFeedbackColor = Color.green;
     [SerializeField] private Color incorrectFeedbackColor = Color.red;
     [SerializeField] private float feedbackDuration = 0.25f;
+    [Min(0f)]
+    [SerializeField] private float incorrectFeedbackDuration = 0.45f;
     [SerializeField] private float replayStepDuration = 0.22f;
     [SerializeField] private float replayPulseScale = 1.15f;
     [Min(0f)]
@@ -37,6 +39,8 @@ public class IncantationTextDisplay : MonoBehaviour
     private float replayWordScale = 1f;
     private Color replayWordColor;
     private int finalRejectedWordIndex = -1;
+
+    public bool IsReplayingJudgment => isReplayingJudgment || replayCoroutine != null || replaySteps.Count > 0;
 
     private void Reset()
     {
@@ -255,7 +259,7 @@ public class IncantationTextDisplay : MonoBehaviour
         BeginReplayStep(replayStep);
 
         float elapsed = 0f;
-        float duration = Mathf.Max(0f, replayStepDuration > 0f ? replayStepDuration : feedbackDuration);
+        float duration = GetReplayStepDuration(replayStep);
 
         while (elapsed < duration)
         {
@@ -268,6 +272,14 @@ public class IncantationTextDisplay : MonoBehaviour
         }
 
         FinishReplayStep(replayStep);
+    }
+
+    private float GetReplayStepDuration(ReplayWordStep replayStep)
+    {
+        if (!replayStep.IsAccepted)
+            return Mathf.Max(0f, incorrectFeedbackDuration);
+
+        return Mathf.Max(0f, replayStepDuration > 0f ? replayStepDuration : feedbackDuration);
     }
 
     private void ApplyReplayStepImmediately(ReplayWordStep replayStep)
@@ -304,6 +316,8 @@ public class IncantationTextDisplay : MonoBehaviour
         replayWordIndex = -1;
         replayWordScale = 1f;
         hasReplayWordColor = false;
+        hasFinalRejectedWord = false;
+        finalRejectedWordIndex = -1;
         UpdateDisplay();
     }
 
