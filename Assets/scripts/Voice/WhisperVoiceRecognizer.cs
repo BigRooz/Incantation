@@ -20,6 +20,10 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     private const int EmptyTranscriptRetryWordCount = 4;
     private const float MeaningfulDetectedSpeechRecordingSeconds = 1.0f;
     private const float EmptyTranscriptRetryPaddingSeconds = 0.35f;
+    private const float MinimumShortPhraseMaxRecordingSeconds = 1.0f;
+    private const float LongPhraseCropLeadingPaddingSeconds = 1.25f;
+    private const float LongPhraseCropTrailingPaddingSeconds = 0.9f;
+    private const float MinimumLongPhraseCropDurationSeconds = 2.0f;
 
     [Header("Whisper")]
     [SerializeField] private WhisperManager whisper;
@@ -40,6 +44,11 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     [SerializeField, Min(MinimumExpectedPhraseWordCount)] private int expectedPhraseWordCount = MinimumExpectedPhraseWordCount;
     [SerializeField] private bool autoEnableMicrophoneVad = true;
 
+    [Header("Short Phrase Guard")]
+    [SerializeField] private bool enableShortPhraseMaxRecordingDuration = true;
+    [SerializeField, Min(MinimumShortPhraseMaxRecordingSeconds)] private float oneWordMaxRecordingSeconds = 2.75f;
+    [SerializeField, Min(MinimumShortPhraseMaxRecordingSeconds)] private float twoWordMaxRecordingSeconds = 3.75f;
+
     [Header("Debug")]
     [SerializeField] private bool enableDebugLogs = true;
     [SerializeField] private bool logRecognizedPhrases = true;
@@ -57,8 +66,24 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     private float lastSpeechDetectedAt;
     private float sessionActiveSpeechDuration;
     private float lastSpeechDetectionUpdateAt;
+    private float sessionRecordingStartedAt;
+    private float sessionSpeechStartedAt;
+    private float sessionDetectedSpeechStartOffset;
+    private float sessionDetectedSpeechEndOffset;
     private int listeningSessionId;
     private long lastRecognitionLatencyMs;
+
+    private struct AudioPreparationDetails
+    {
+        public float RawDuration;
+        public float FinalDuration;
+        public float LeadingPaddingUsed;
+        public float TrailingPaddingUsed;
+        public float ActiveSpeechDuration;
+        public int ExpectedWordCount;
+        public bool WasCropped;
+        public string Reason;
+    }
 
     public bool IsListening => isListening;
     public bool IsProcessingRecognition => isProcessingRecognition || isTranscribing;
@@ -281,6 +306,10 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
         lastSpeechDetectedAt = 0f;
         sessionActiveSpeechDuration = 0f;
         lastSpeechDetectionUpdateAt = Time.realtimeSinceStartup;
+        sessionRecordingStartedAt = lastSpeechDetectionUpdateAt;
+        sessionSpeechStartedAt = 0f;
+        sessionDetectedSpeechStartOffset = 0f;
+        sessionDetectedSpeechEndOffset = 0f;
 
         if (!enableSpeechEndAutoStop || microphoneRecord == null)
             return;
@@ -298,6 +327,8 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
         hasSpeechStarted = false;
         lastSpeechDetectedAt = 0f;
         lastSpeechDetectionUpdateAt = 0f;
+        sessionRecordingStartedAt = 0f;
+        sessionSpeechStartedAt = 0f;
 
         if (!hasTemporaryMicrophoneVadOverride || microphoneRecord == null)
             return;
@@ -321,11 +352,23 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
         float deltaSeconds = Mathf.Max(0f, now - lastSpeechDetectionUpdateAt);
         lastSpeechDetectionUpdateAt = now;
 
+        if (ShouldStopShortPhraseRecording(now))
+        {
+            float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
+            float recordingDuration = now - sessionRecordingStartedAt;
+            float speechDuration = now - sessionSpeechStartedAt;
+            Log($"Whisper voice recognition reached short phrase recording cap after {speechDuration:0.00}s of detected speech using {maxRecordingSeconds:0.00}s maximum for {expectedPhraseWordCount} expected word(s). Recording duration: {recordingDuration:0.00}s. Active speech: {sessionActiveSpeechDuration:0.00}s. Session {listeningSessionId} will be transcribed.");
+            StopListeningAndTranscribeRecording();
+            return;
+        }
+
         if (microphoneRecord.IsVoiceDetected)
         {
             if (!hasSpeechStarted)
             {
                 Log($"Whisper voice recognition detected speech. Session {listeningSessionId}. Expected words: {expectedPhraseWordCount}. VAD threshold: {microphoneRecord.vadThd:0.00}.");
+                sessionSpeechStartedAt = now;
+                sessionDetectedSpeechStartOffset = Mathf.Max(0f, sessionSpeechStartedAt - sessionRecordingStartedAt);
             }
 
             if (hasSpeechStarted)
@@ -334,6 +377,7 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
             hasSpeechStarted = true;
             sessionSpeechDetected = true;
             lastSpeechDetectedAt = now;
+            sessionDetectedSpeechEndOffset = Mathf.Max(sessionDetectedSpeechStartOffset, lastSpeechDetectedAt - sessionRecordingStartedAt);
             return;
         }
 
@@ -362,9 +406,13 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
             return;
         }
 
-        if (recordedAudio.Length < minimumRecordingLengthSeconds)
+        AudioChunk audioForWhisper = PrepareAudioForWhisper(recordedAudio, sessionId, out AudioPreparationDetails audioPreparation);
+
+        Log($"Whisper voice recognition prepared audio for session {sessionId}. Raw recording: {audioPreparation.RawDuration:0.00}s. Final Whisper chunk: {audioPreparation.FinalDuration:0.00}s. Leading padding: {audioPreparation.LeadingPaddingUsed:0.00}s. Trailing padding: {audioPreparation.TrailingPaddingUsed:0.00}s. Chunk mode: {(audioPreparation.WasCropped ? "cropped" : "full")}. Reason: {audioPreparation.Reason}. Active speech: {audioPreparation.ActiveSpeechDuration:0.00}s. Expected words: {audioPreparation.ExpectedWordCount}.");
+
+        if (audioForWhisper.Length < minimumRecordingLengthSeconds)
         {
-            Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: short audio ({recordedAudio.Length:0.00}s < {minimumRecordingLengthSeconds:0.00}s). Expected words: {expectedPhraseWordCount}. Speech detected: {sessionSpeechDetected}. Active speech: {sessionActiveSpeechDuration:0.00}s.");
+            Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: short audio ({audioForWhisper.Length:0.00}s < {minimumRecordingLengthSeconds:0.00}s). Expected words: {expectedPhraseWordCount}. Speech detected: {sessionSpeechDetected}. Active speech: {sessionActiveSpeechDuration:0.00}s.");
             return;
         }
 
@@ -373,25 +421,27 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
         try
         {
-            bool speechWasDetected = sessionSpeechDetected || recordedAudio.IsVoiceDetected;
+            bool speechWasDetected = sessionSpeechDetected || audioForWhisper.IsVoiceDetected;
             float activeSpeechDuration = sessionActiveSpeechDuration;
             float activeSpeechEndSilenceSeconds = GetActiveSpeechEndSilenceSeconds();
 
-            Log($"Whisper voice recognition transcribing final recording for session {sessionId}: {recordedAudio.Length:0.00}s, {recordedAudio.Frequency}Hz, {recordedAudio.Channels} channel(s). Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. VAD threshold: {GetVadThresholdLogValue()}.");
+            Log($"Whisper voice recognition transcribing final recording for session {sessionId}: {audioForWhisper.Length:0.00}s, {audioForWhisper.Frequency}Hz, {audioForWhisper.Channels} channel(s). Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. VAD threshold: {GetVadThresholdLogValue()}.");
 
-            WhisperResult result = await whisper.GetTextAsync(recordedAudio.Data, recordedAudio.Frequency, recordedAudio.Channels);
+            WhisperResult result = await whisper.GetTextAsync(audioForWhisper.Data, audioForWhisper.Frequency, audioForWhisper.Channels);
             stopwatch.Stop();
             lastRecognitionLatencyMs = stopwatch.ElapsedMilliseconds;
 
             string recognizedText = result != null ? result.Result.Trim() : string.Empty;
 
-            if (IsEmptyTranscript(recognizedText) && ShouldRetryEmptyTranscript(recordedAudio, speechWasDetected))
+            if (IsEmptyTranscript(recognizedText) && ShouldRetryEmptyTranscript(audioForWhisper, speechWasDetected))
             {
                 Log($"Whisper voice recognition returned an empty transcript for session {sessionId} despite detected speech. Retrying once with {EmptyTranscriptRetryPaddingSeconds:0.00}s padding for {expectedPhraseWordCount} expected word(s). Latency: {lastRecognitionLatencyMs} ms.");
 
                 stopwatch.Restart();
-                float[] paddedAudio = CreatePaddedAudio(recordedAudio.Data, recordedAudio.Frequency, recordedAudio.Channels, EmptyTranscriptRetryPaddingSeconds);
-                result = await whisper.GetTextAsync(paddedAudio, recordedAudio.Frequency, recordedAudio.Channels);
+                float[] paddedAudio = CreatePaddedAudio(audioForWhisper.Data, audioForWhisper.Frequency, audioForWhisper.Channels, EmptyTranscriptRetryPaddingSeconds);
+                float paddedDuration = GetAudioDuration(paddedAudio, audioForWhisper.Frequency, audioForWhisper.Channels);
+                Log($"Whisper voice recognition retry audio for session {sessionId}. Raw recording: {audioPreparation.RawDuration:0.00}s. Final Whisper chunk: {paddedDuration:0.00}s. Leading padding: {EmptyTranscriptRetryPaddingSeconds:0.00}s. Trailing padding: {EmptyTranscriptRetryPaddingSeconds:0.00}s. Chunk mode: {(audioPreparation.WasCropped ? "cropped+retry-padding" : "full+retry-padding")}. Active speech: {activeSpeechDuration:0.00}s. Expected words: {expectedPhraseWordCount}.");
+                result = await whisper.GetTextAsync(paddedAudio, audioForWhisper.Frequency, audioForWhisper.Channels);
                 stopwatch.Stop();
                 lastRecognitionLatencyMs += stopwatch.ElapsedMilliseconds;
                 recognizedText = result != null ? result.Result.Trim() : string.Empty;
@@ -399,9 +449,9 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
 
             if (IsEmptyTranscript(recognizedText))
             {
-                Log($"Whisper voice recognition found no speech in session {sessionId}. Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Recording duration: {recordedAudio.Length:0.00}s. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. Latency: {lastRecognitionLatencyMs} ms.");
+                Log($"Whisper voice recognition found no speech in session {sessionId}. Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Recording duration: {audioForWhisper.Length:0.00}s. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. Latency: {lastRecognitionLatencyMs} ms.");
 
-                if (!ShouldEmitEmptyTranscript(recordedAudio, speechWasDetected) && (ignoreEmptyTranscripts || IsPunctuationOnlyTranscript(recognizedText)))
+                if (!ShouldEmitEmptyTranscript(audioForWhisper, speechWasDetected) && (ignoreEmptyTranscripts || IsPunctuationOnlyTranscript(recognizedText)))
                 {
                     Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: empty Whisper result ignored.");
                     return;
@@ -447,6 +497,8 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
         twoWordSpeechEndSilenceSeconds = Mathf.Max(twoWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
         threeWordSpeechEndSilenceSeconds = Mathf.Max(threeWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
         fourOrMoreWordSpeechEndSilenceSeconds = Mathf.Max(fourOrMoreWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
+        oneWordMaxRecordingSeconds = Mathf.Max(oneWordMaxRecordingSeconds, MinimumShortPhraseMaxRecordingSeconds);
+        twoWordMaxRecordingSeconds = Mathf.Max(twoWordMaxRecordingSeconds, MinimumShortPhraseMaxRecordingSeconds);
         expectedPhraseWordCount = Mathf.Max(expectedPhraseWordCount, MinimumExpectedPhraseWordCount);
     }
 
@@ -465,6 +517,182 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
             return threeWordSpeechEndSilenceSeconds;
 
         return fourOrMoreWordSpeechEndSilenceSeconds;
+    }
+
+    private bool ShouldStopShortPhraseRecording(float now)
+    {
+        if (!enableShortPhraseMaxRecordingDuration || !hasSpeechStarted || sessionSpeechStartedAt <= 0f)
+            return false;
+
+        float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
+
+        if (maxRecordingSeconds <= 0f)
+            return false;
+
+        return now - sessionSpeechStartedAt >= maxRecordingSeconds;
+    }
+
+    private float GetShortPhraseMaxRecordingSeconds()
+    {
+        if (expectedPhraseWordCount <= 1)
+            return oneWordMaxRecordingSeconds;
+
+        if (expectedPhraseWordCount == 2)
+            return twoWordMaxRecordingSeconds;
+
+        return 0f;
+    }
+
+    private AudioChunk PrepareAudioForWhisper(AudioChunk recordedAudio, int sessionId, out AudioPreparationDetails details)
+    {
+        details = new AudioPreparationDetails
+        {
+            RawDuration = GetAudioDuration(recordedAudio),
+            FinalDuration = GetAudioDuration(recordedAudio),
+            LeadingPaddingUsed = 0f,
+            TrailingPaddingUsed = 0f,
+            ActiveSpeechDuration = sessionActiveSpeechDuration,
+            ExpectedWordCount = expectedPhraseWordCount,
+            WasCropped = false,
+            Reason = "full raw recording"
+        };
+
+        if (recordedAudio.Data == null)
+            return recordedAudio;
+
+        AudioChunk preparedAudio = GetBoundedShortPhraseRecording(recordedAudio, sessionId, out bool wasShortPhraseCropped);
+
+        if (wasShortPhraseCropped)
+        {
+            details.FinalDuration = GetAudioDuration(preparedAudio);
+            details.WasCropped = true;
+            details.Reason = "short phrase recording cap";
+            return preparedAudio;
+        }
+
+        if (!ShouldUseLongPhraseSpeechCrop(recordedAudio))
+        {
+            details.FinalDuration = GetAudioDuration(preparedAudio);
+            return preparedAudio;
+        }
+
+        AudioChunk croppedAudio = GetSpeechCenteredLongPhraseRecording(recordedAudio, sessionId, out bool wasLongPhraseCropped, out float leadingPaddingUsed, out float trailingPaddingUsed, out string reason);
+        details.FinalDuration = GetAudioDuration(croppedAudio);
+        details.LeadingPaddingUsed = leadingPaddingUsed;
+        details.TrailingPaddingUsed = trailingPaddingUsed;
+        details.WasCropped = wasLongPhraseCropped;
+        details.Reason = reason;
+        return croppedAudio;
+    }
+
+    private bool ShouldUseLongPhraseSpeechCrop(AudioChunk recordedAudio)
+    {
+        return expectedPhraseWordCount >= EmptyTranscriptRetryWordCount &&
+            sessionSpeechDetected &&
+            recordedAudio.Data != null &&
+            recordedAudio.Data.Length > 0 &&
+            recordedAudio.Frequency > 0 &&
+            sessionDetectedSpeechEndOffset > 0f;
+    }
+
+    private AudioChunk GetBoundedShortPhraseRecording(AudioChunk recordedAudio, int sessionId, out bool wasCropped)
+    {
+        wasCropped = false;
+
+        if (!enableShortPhraseMaxRecordingDuration || recordedAudio.Data == null)
+            return recordedAudio;
+
+        float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
+
+        if (maxRecordingSeconds <= 0f || recordedAudio.Length <= maxRecordingSeconds)
+            return recordedAudio;
+
+        if (recordedAudio.Frequency <= 0)
+            return recordedAudio;
+
+        int channels = Mathf.Max(1, recordedAudio.Channels);
+        int maxSampleCount = Mathf.RoundToInt(recordedAudio.Frequency * channels * maxRecordingSeconds);
+
+        if (maxSampleCount <= 0 || recordedAudio.Data.Length <= maxSampleCount)
+            return recordedAudio;
+
+        float[] boundedAudio = new float[maxSampleCount];
+        Array.Copy(recordedAudio.Data, recordedAudio.Data.Length - maxSampleCount, boundedAudio, 0, maxSampleCount);
+
+        float originalLength = recordedAudio.Length;
+        recordedAudio.Data = boundedAudio;
+        recordedAudio.Length = (float)boundedAudio.Length / (recordedAudio.Frequency * channels);
+        wasCropped = true;
+
+        Log($"Whisper voice recognition limited short phrase recording for session {sessionId} from {originalLength:0.00}s to {recordedAudio.Length:0.00}s for {expectedPhraseWordCount} expected word(s).");
+        return recordedAudio;
+    }
+
+    private AudioChunk GetSpeechCenteredLongPhraseRecording(AudioChunk recordedAudio, int sessionId, out bool wasCropped, out float leadingPaddingUsed, out float trailingPaddingUsed, out string reason)
+    {
+        wasCropped = false;
+        leadingPaddingUsed = 0f;
+        trailingPaddingUsed = 0f;
+        reason = "full raw recording";
+
+        float rawDuration = GetAudioDuration(recordedAudio);
+
+        if (rawDuration <= 0f || recordedAudio.Frequency <= 0)
+        {
+            reason = "invalid audio timing";
+            return recordedAudio;
+        }
+
+        float speechStartSeconds = Mathf.Clamp(sessionDetectedSpeechStartOffset, 0f, rawDuration);
+        float speechEndSeconds = Mathf.Clamp(Mathf.Max(sessionDetectedSpeechEndOffset, speechStartSeconds + sessionActiveSpeechDuration), speechStartSeconds, rawDuration);
+
+        if (speechEndSeconds <= speechStartSeconds)
+        {
+            reason = "invalid detected speech window";
+            return recordedAudio;
+        }
+
+        float cropStartSeconds = Mathf.Max(0f, speechStartSeconds - LongPhraseCropLeadingPaddingSeconds);
+        float cropEndSeconds = Mathf.Min(rawDuration, speechEndSeconds + LongPhraseCropTrailingPaddingSeconds);
+        float cropDurationSeconds = cropEndSeconds - cropStartSeconds;
+
+        if (cropDurationSeconds < MinimumLongPhraseCropDurationSeconds && rawDuration > MinimumLongPhraseCropDurationSeconds)
+        {
+            float speechCenterSeconds = (speechStartSeconds + speechEndSeconds) * 0.5f;
+            cropStartSeconds = Mathf.Clamp(speechCenterSeconds - MinimumLongPhraseCropDurationSeconds * 0.5f, 0f, rawDuration - MinimumLongPhraseCropDurationSeconds);
+            cropEndSeconds = cropStartSeconds + MinimumLongPhraseCropDurationSeconds;
+        }
+
+        leadingPaddingUsed = Mathf.Max(0f, speechStartSeconds - cropStartSeconds);
+        trailingPaddingUsed = Mathf.Max(0f, cropEndSeconds - speechEndSeconds);
+
+        if (cropStartSeconds <= 0f && cropEndSeconds >= rawDuration)
+        {
+            reason = "detected speech already spans raw recording";
+            return recordedAudio;
+        }
+
+        int channels = Mathf.Max(1, recordedAudio.Channels);
+        int startSample = Mathf.FloorToInt(cropStartSeconds * recordedAudio.Frequency) * channels;
+        int endSample = Mathf.CeilToInt(cropEndSeconds * recordedAudio.Frequency) * channels;
+        startSample = Mathf.Clamp(startSample, 0, recordedAudio.Data.Length);
+        endSample = Mathf.Clamp(endSample, startSample, recordedAudio.Data.Length);
+        int croppedSampleCount = endSample - startSample;
+
+        if (croppedSampleCount <= 0 || croppedSampleCount >= recordedAudio.Data.Length)
+        {
+            reason = "crop matched raw recording";
+            return recordedAudio;
+        }
+
+        float[] croppedAudio = new float[croppedSampleCount];
+        Array.Copy(recordedAudio.Data, startSample, croppedAudio, 0, croppedSampleCount);
+
+        recordedAudio.Data = croppedAudio;
+        recordedAudio.Length = GetAudioDuration(croppedAudio, recordedAudio.Frequency, channels);
+        wasCropped = true;
+        reason = $"speech-centered crop for session {sessionId}";
+        return recordedAudio;
     }
 
     private bool IsEmptyTranscript(string transcript)
@@ -509,6 +737,22 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
             return "disabled";
 
         return microphoneRecord.vadThd.ToString("0.00");
+    }
+
+    private static float GetAudioDuration(AudioChunk audioChunk)
+    {
+        if (audioChunk.Data == null)
+            return 0f;
+
+        return GetAudioDuration(audioChunk.Data, audioChunk.Frequency, audioChunk.Channels);
+    }
+
+    private static float GetAudioDuration(float[] audioData, int frequency, int channels)
+    {
+        if (audioData == null || audioData.Length == 0 || frequency <= 0)
+            return 0f;
+
+        return (float)audioData.Length / (frequency * Mathf.Max(1, channels));
     }
 
     private static float[] CreatePaddedAudio(float[] audioData, int frequency, int channels, float paddingSeconds)

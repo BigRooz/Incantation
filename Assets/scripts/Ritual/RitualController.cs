@@ -5,6 +5,12 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
+public enum VoiceValidationMode
+{
+    WordByWordRealtime,
+    FullPhrase
+}
+
 public class RitualController : MonoBehaviour
 {
     private const float VoiceRecognitionProcessingTimeoutSeconds = 5f;
@@ -22,6 +28,7 @@ public class RitualController : MonoBehaviour
     [Header("Voice Recognizer Selection")]
     [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
     [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
+    [SerializeField] private VoiceValidationMode voiceValidationMode = VoiceValidationMode.WordByWordRealtime;
 
     [Header("Speech Normalization")]
     [SerializeField] private VoicePhraseNormalizer voicePhraseNormalizer;
@@ -629,7 +636,7 @@ public class RitualController : MonoBehaviour
 
         ConfigureWhisperListeningContext();
         lastProcessedWhisperPhrase = string.Empty;
-        Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()}.");
+        Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()} using {voiceValidationMode} validation mode.");
         voiceRecognizer.StartListening();
         Debug.Log($"Ritual listening started with {GetActiveVoiceRecognizerTypeName()}. Local active player microphone only.");
     }
@@ -847,16 +854,16 @@ public class RitualController : MonoBehaviour
             ? voicePhraseNormalizer.Normalize(recognizedPhrase)
             : recognizedPhrase;
 
-        if (isUsingWhisperRecognizer)
+        if (voiceValidationMode == VoiceValidationMode.FullPhrase)
         {
-            ProcessWhisperPhraseRecognition(recognizedPhrase, normalizedPhrase);
+            ProcessFullPhraseRecognition(recognizedPhrase, normalizedPhrase);
             return;
         }
 
         ProcessSequentialWordRecognition(recognizedPhrase, normalizedPhrase);
     }
 
-    private void ProcessWhisperPhraseRecognition(string recognizedPhrase, string normalizedPhrase)
+    private void ProcessFullPhraseRecognition(string recognizedPhrase, string normalizedPhrase)
     {
         Debug.Log($"Ritual phrase transcript received: {recognizedPhrase}");
         Debug.Log($"Final phrase recognized: {recognizedPhrase}");

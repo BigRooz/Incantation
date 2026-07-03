@@ -15,6 +15,7 @@ public class BookController : MonoBehaviour
 
     public event Action<Seat> OnMoveStarted;
     public event Action<Seat> OnArrived;
+    public event Action OnRitualAccepted;
 
     private Coroutine arrivalRoutine;
 
@@ -26,21 +27,21 @@ public class BookController : MonoBehaviour
             bookMover = GetComponent<BookMover>();
     }
 
-    public void MoveToSeat(Seat seat)
+    public bool MoveToSeat(Seat seat)
     {
         if (bookMover == null)
         {
             Debug.LogWarning("BookController requires a BookMover reference.");
-            return;
+            return false;
         }
 
         if (seat == null)
-            return;
+            return false;
 
         if (seat.GetBookDestination() == null)
         {
             Debug.LogWarning("BookController could not move because the Seat has no book destination.");
-            return;
+            return false;
         }
 
         if (arrivalRoutine != null)
@@ -52,6 +53,12 @@ public class BookController : MonoBehaviour
         bookMover.MoveToSeat(seat);
 
         arrivalRoutine = StartCoroutine(WaitForArrival(seat));
+        return true;
+    }
+
+    public void NotifyRitualAccepted()
+    {
+        OnRitualAccepted?.Invoke();
     }
 
     private IEnumerator WaitForArrival(Seat seat)
