@@ -117,6 +117,60 @@ public class IncantationManager : MonoBehaviour
         return true;
     }
 
+    public bool TryValidateCurrentWordRealtime(string spokenWord, VoicePhraseNormalizer phraseNormalizer)
+    {
+        if (IsCompleted || currentIncantation.Count == 0)
+        {
+            onIncorrectWord.Invoke();
+            return false;
+        }
+
+        int judgedWordIndex = CurrentWordIndex;
+        string expectedWord = CurrentWord;
+        string normalizedSpokenWord = NormalizePhrase(spokenWord, phraseNormalizer);
+        string normalizedExpectedWord = NormalizeWord(expectedWord);
+
+        activePhraseValidationResult = default(PhraseValidationResult);
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = true;
+        OnPhraseReplayReset?.Invoke();
+
+        if (normalizedSpokenWord == normalizedExpectedWord)
+        {
+            PhraseValidationWordResult acceptedWord = new PhraseValidationWordResult(
+                judgedWordIndex,
+                expectedWord,
+                normalizedSpokenWord,
+                PhraseValidationWordState.Success);
+
+            currentIncantation[CurrentWordIndex].MarkCompleted();
+            CurrentWordIndex++;
+            onCorrectWord.Invoke();
+            OnPhraseReplayAcceptedWord?.Invoke(acceptedWord);
+
+            hasActivePhraseReplay = false;
+
+            if (IsCompleted)
+                onIncantationCompleted.Invoke();
+
+            OnPhraseReplayFinished?.Invoke();
+            return true;
+        }
+
+        PhraseValidationWordResult rejectedWord = new PhraseValidationWordResult(
+            judgedWordIndex,
+            expectedWord,
+            normalizedSpokenWord,
+            PhraseValidationWordState.Failed);
+
+        hasActivePhraseReplay = false;
+        onIncorrectWord.Invoke();
+        OnPhraseReplayRejectedWord?.Invoke(rejectedWord);
+        ResetCurrentPhraseProgress();
+        OnPhraseReplayFinished?.Invoke();
+        return false;
+    }
+
     public bool TryCompleteCurrentPhrase(string spokenPhrase, VoicePhraseNormalizer phraseNormalizer)
     {
         if (IsCompleted || currentIncantation.Count == 0)

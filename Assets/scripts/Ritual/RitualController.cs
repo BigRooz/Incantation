@@ -16,6 +16,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private BookController bookController;
     [SerializeField] private HourglassController hourglassController;
     [SerializeField] private IncantationManager incantationManager;
+    [SerializeField] private IncantationTextDisplay incantationTextDisplay;
     [SerializeField] private CoreRitualLoopBridge coreRitualLoopBridge;
 
     [Header("Voice Recognizer Selection")]
@@ -32,6 +33,8 @@ public class RitualController : MonoBehaviour
     [Header("Turn Timing")]
     [Tooltip("Development turn duration in seconds. Keep this long enough for Play Mode voice recognition retries.")]
     [SerializeField, Min(5f)] private float hourglassDuration = 30f;
+    [Tooltip("Delay after the successful phrase judgment replay before the book accepts the ritual and leaves.")]
+    [SerializeField, Min(0f)] private float ritualAcceptancePauseSeconds = 0.75f;
 
     [Header("Speech Alias Learning")]
     [SerializeField] private bool enableLearningMode = false;
@@ -45,6 +48,9 @@ public class RitualController : MonoBehaviour
     private Coroutine ritualRoutine;
     private Coroutine turnRoutine;
     private Coroutine retryListeningRoutine;
+    private Coroutine successfulTurnRoutine;
+    private Seat preMovedBookSeat;
+    private bool currentTurnBookMoveSkipped;
     private IVoiceRecognizer voiceRecognizer;
     private IVoiceRecognizerProcessingStatus voiceRecognizerProcessingStatus;
     private IVoiceRecognizer loggedVoiceRecognizer;
@@ -134,6 +140,7 @@ public class RitualController : MonoBehaviour
         }
 
         StopRetryListeningRoutine();
+        StopSuccessfulTurnRoutine();
 
         if (ritualRoutine != null)
         {
@@ -162,6 +169,8 @@ public class RitualController : MonoBehaviour
         isUsingCoreRitualLoopPhraseAuthority = false;
         configuredCoreRitualPlayerCount = 0;
         lastCompletedSeat = null;
+        preMovedBookSeat = null;
+        currentTurnBookMoveSkipped = false;
         lastProcessedWhisperPhrase = string.Empty;
         StopListening();
 
@@ -206,6 +215,7 @@ public class RitualController : MonoBehaviour
 
         if (!IsSeatOccupied(CurrentActiveSeat))
         {
+            ClearPreMovedBookSeatIfMatches(CurrentActiveSeat);
             CurrentActiveSeat = null;
             LogWaitingForOccupiedSeat();
             yield break;
@@ -221,10 +231,14 @@ public class RitualController : MonoBehaviour
 
         yield return WaitForBookMoveDuration();
 
+        if (!currentTurnBookMoveSkipped)
+            Debug.Log($"Book movement completed to active seat: {CurrentActiveSeat.name}.");
+
         LogDebug($"Book arrived at: {CurrentActiveSeat.name}");
 
         if (!IsSeatOccupied(CurrentActiveSeat))
         {
+            ClearPreMovedBookSeatIfMatches(CurrentActiveSeat);
             CurrentActiveSeat = null;
             LogWaitingForOccupiedSeat();
             yield break;
@@ -286,19 +300,70 @@ public class RitualController : MonoBehaviour
         if (CurrentActiveSeat == null)
             return false;
 
+        if (preMovedBookSeat == CurrentActiveSeat && IsBookAlreadyAtSeat(CurrentActiveSeat))
+        {
+            preMovedBookSeat = null;
+            currentTurnBookMoveSkipped = true;
+            Debug.Log($"Book movement skipped with reason: Book already moved to next active seat {CurrentActiveSeat.name} after ritual acceptance.");
+            return true;
+        }
+
+        if (preMovedBookSeat != null)
+            preMovedBookSeat = null;
+
+        currentTurnBookMoveSkipped = false;
         LogDebug($"Moving book to: {CurrentActiveSeat.name}");
 
+        return MoveBookToSeat(CurrentActiveSeat);
+    }
+
+    private bool MoveBookToSeat(Seat seat)
+    {
+        if (bookMover == null)
+        {
+            LogMissingBookMover();
+            return false;
+        }
+
+        if (seat == null)
+            return false;
+
+        if (seat.GetBookDestination() == null)
+        {
+            Debug.LogWarning($"Book movement skipped with reason: target seat {seat.name} has no book destination.", this);
+            return false;
+        }
+
         BookController resolvedBookController = ResolveBookController();
+        bool didStartMovement = false;
 
         if (resolvedBookController != null)
-            resolvedBookController.MoveToSeat(CurrentActiveSeat);
-        else
-            bookMover.MoveToSeat(CurrentActiveSeat);
+            didStartMovement = resolvedBookController.MoveToSeat(seat);
+
+        if (!didStartMovement)
+        {
+            if (resolvedBookController != null)
+                Debug.LogWarning($"BookController could not start movement to {seat.name}; falling back to BookMover.", this);
+
+            bookMover.MoveToSeat(seat);
+            didStartMovement = true;
+        }
 
         if (seatManager != null)
-            seatManager.SetCurrentBookSeat(CurrentActiveSeat);
+            seatManager.SetCurrentBookSeat(seat);
 
-        return true;
+        return didStartMovement;
+    }
+
+    private bool IsBookAlreadyAtSeat(Seat seat)
+    {
+        return seatManager != null && seatManager.currentBookSeat == seat;
+    }
+
+    private void ClearPreMovedBookSeatIfMatches(Seat seat)
+    {
+        if (preMovedBookSeat == seat)
+            preMovedBookSeat = null;
     }
 
     private BookController ResolveBookController()
@@ -314,6 +379,9 @@ public class RitualController : MonoBehaviour
 
     private IEnumerator WaitForBookMoveDuration()
     {
+        if (currentTurnBookMoveSkipped)
+            yield break;
+
         if (bookMover == null)
             yield break;
 
@@ -466,9 +534,12 @@ public class RitualController : MonoBehaviour
             return false;
         }
 
+        if (lastCompletedSeat == null)
+            Debug.Log($"Occupied seats before ritual:\n{FormatSeatList(occupiedSeats)}");
+
         CurrentActiveSeat = lastCompletedSeat == null
-            ? GetFirstOccupiedSeatInPhysicalOrder()
-            : seatManager.GetNextOccupiedSeat(lastCompletedSeat);
+            ? occupiedSeats[0]
+            : GetNextOccupiedSeatFromList(occupiedSeats, lastCompletedSeat);
 
         if (CurrentActiveSeat == null)
         {
@@ -489,21 +560,30 @@ public class RitualController : MonoBehaviour
         return true;
     }
 
+    private Seat GetNextOccupiedSeatFromList(List<Seat> occupiedSeats, Seat currentSeat)
+    {
+        if (occupiedSeats == null || occupiedSeats.Count == 0)
+            return null;
+
+        if (currentSeat == null)
+            return occupiedSeats[0];
+
+        int currentIndex = occupiedSeats.IndexOf(currentSeat);
+
+        if (currentIndex < 0)
+            return occupiedSeats[0];
+
+        int nextIndex = currentIndex + 1;
+
+        if (nextIndex >= occupiedSeats.Count)
+            nextIndex = 0;
+
+        return occupiedSeats[nextIndex];
+    }
+
     private bool IsSeatOccupied(Seat seat)
     {
         return seat != null && !seat.IsFree();
-    }
-
-    private Seat GetFirstOccupiedSeatInPhysicalOrder()
-    {
-        if (seatManager == null)
-            return null;
-
-        if (seatManager.HasConfiguredPhysicalSeatOrder())
-            return seatManager.GetFirstActiveSeat(SeatTraversalDirection.Clockwise, IsSeatOccupied);
-
-        List<Seat> occupiedSeats = seatManager.GetOccupiedSeats();
-        return occupiedSeats.Count > 0 ? occupiedSeats[0] : null;
     }
 
     private void LogWaitingForOccupiedSeat()
@@ -809,7 +889,7 @@ public class RitualController : MonoBehaviour
         Debug.Log($"Normalized phrase: {normalizedPhrase}");
 
         string expectedWord = incantationManager.CurrentWord;
-        bool completedCurrentWord = incantationManager.TryCompleteCurrentWord(normalizedPhrase);
+        bool completedCurrentWord = incantationManager.TryValidateCurrentWordRealtime(recognizedPhrase, voicePhraseNormalizer);
 
         if (!completedCurrentWord)
         {
@@ -833,8 +913,151 @@ public class RitualController : MonoBehaviour
 
     private void CompleteSuccessfulPlayerTurn()
     {
+        if (!isTurnActive || playerTurnComplete || ritualFailed || successfulTurnRoutine != null)
+            return;
+
+        successfulTurnRoutine = StartCoroutine(CompleteSuccessfulPlayerTurnSequence());
+    }
+
+    private IEnumerator CompleteSuccessfulPlayerTurnSequence()
+    {
+        yield return WaitForPhraseReplayToFinish();
+
+        if (!isTurnActive || playerTurnComplete || ritualFailed)
+        {
+            successfulTurnRoutine = null;
+            yield break;
+        }
+
+        if (ritualAcceptancePauseSeconds > 0f)
+        {
+            Debug.Log($"Book acceptance pause started for {ritualAcceptancePauseSeconds:0.00}s.");
+            yield return new WaitForSeconds(ritualAcceptancePauseSeconds);
+        }
+
+        if (!isTurnActive || playerTurnComplete || ritualFailed)
+        {
+            successfulTurnRoutine = null;
+            yield break;
+        }
+
+        Seat completedSeat = CurrentActiveSeat;
+        BookController resolvedBookController = ResolveBookController();
+
+        Debug.Log("Book accepted ritual.");
+
+        if (resolvedBookController != null)
+            resolvedBookController.NotifyRitualAccepted();
+
         TryAdvanceCoreRitualLoopAfterSuccessfulTurn();
+
+        yield return MoveBookToNextActiveSeatAfterSuccess(completedSeat);
+
         CompletePlayerTurn();
+        successfulTurnRoutine = null;
+    }
+
+    private IEnumerator MoveBookToNextActiveSeatAfterSuccess(Seat completedSeat)
+    {
+        if (completedSeat == null)
+        {
+            Debug.Log("Book movement skipped with reason: completed seat was missing after ritual acceptance.");
+            yield break;
+        }
+
+        if (seatManager == null)
+        {
+            LogMissingSeatManager();
+            Debug.Log("Book movement skipped with reason: SeatManager reference is missing.");
+            yield break;
+        }
+
+        List<Seat> occupiedSeats = seatManager.GetOccupiedSeats();
+        Debug.Log($"Occupied seats after successful ritual:\n{FormatSeatList(occupiedSeats)}");
+
+        Seat nextSeat = GetNextOccupiedSeatFromList(occupiedSeats, completedSeat);
+
+        if (nextSeat == null)
+        {
+            Debug.Log("Book movement skipped with reason: no next occupied active seat was found.");
+            yield break;
+        }
+
+        Debug.Log($"Selected next seat: {nextSeat.name}");
+
+        if (nextSeat == completedSeat)
+        {
+            Debug.Log($"Book movement skipped with reason: only one occupied active seat is available ({completedSeat.name}).");
+            yield break;
+        }
+
+        if (nextSeat.GetBookDestination() == null)
+        {
+            Debug.LogWarning($"Book movement skipped with reason: next active seat {nextSeat.name} has no book destination.");
+            yield break;
+        }
+
+        Debug.Log($"Book moving to next seat: {nextSeat.name}.");
+
+        if (!MoveBookToSeat(nextSeat))
+        {
+            Debug.LogWarning($"Book movement skipped with reason: movement command failed for next active seat {nextSeat.name}.");
+            yield break;
+        }
+
+        preMovedBookSeat = nextSeat;
+
+        if (bookMover != null && bookMover.moveDuration > 0f)
+            yield return new WaitForSeconds(bookMover.moveDuration);
+        else
+            yield return null;
+
+        Debug.Log($"Book movement completed to next seat: {nextSeat.name}.");
+    }
+
+    private string FormatSeatList(List<Seat> seatsToFormat)
+    {
+        if (seatsToFormat == null || seatsToFormat.Count == 0)
+            return "(none)";
+
+        StringBuilder builder = new StringBuilder();
+
+        for (int seatIndex = 0; seatIndex < seatsToFormat.Count; seatIndex++)
+        {
+            Seat seat = seatsToFormat[seatIndex];
+
+            if (seatIndex > 0)
+                builder.AppendLine();
+
+            builder.Append(seatIndex);
+            builder.Append(": ");
+            builder.Append(seat != null ? seat.name : "(missing seat)");
+        }
+
+        return builder.ToString();
+    }
+
+    private IEnumerator WaitForPhraseReplayToFinish()
+    {
+        if (incantationManager == null)
+            yield break;
+
+        while (incantationManager.HasActivePhraseReplay)
+            yield return null;
+
+        IncantationTextDisplay resolvedIncantationTextDisplay = ResolveIncantationTextDisplay();
+
+        while (resolvedIncantationTextDisplay != null && resolvedIncantationTextDisplay.IsReplayingJudgment)
+            yield return null;
+    }
+
+    private IncantationTextDisplay ResolveIncantationTextDisplay()
+    {
+        if (incantationTextDisplay != null)
+            return incantationTextDisplay;
+
+        incantationTextDisplay = FindFirstObjectByType<IncantationTextDisplay>();
+        return incantationTextDisplay;
     }
 
     private bool IsUsingWhisperRecognizer()
@@ -986,6 +1209,15 @@ public class RitualController : MonoBehaviour
 
         StopCoroutine(retryListeningRoutine);
         retryListeningRoutine = null;
+    }
+
+    private void StopSuccessfulTurnRoutine()
+    {
+        if (successfulTurnRoutine == null)
+            return;
+
+        StopCoroutine(successfulTurnRoutine);
+        successfulTurnRoutine = null;
     }
 
     private void HandleSpeechAliasSuggestion(string recognizedPhrase, string expectedWord)
