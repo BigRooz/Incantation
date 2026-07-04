@@ -2,7 +2,20 @@
 
 This document describes the current milestone, future milestones, known limitations, technical debt, and production priorities.
 
-For the short milestone list, read `Docs/MILESTONES.md`. For project onboarding, read `Docs/START_HERE.md`.
+Purpose: guide planning beyond the immediate next task.
+
+Questions answered here:
+
+- What is the current milestone scope?
+- What comes after the current milestone?
+- What technical debt affects future work?
+- What limitations must production planning respect?
+
+This document does not contain the immediate task handoff, the current status snapshot, completed milestone history, or gameplay law.
+
+Read next: `Docs/NEXT_TASK.md` for the immediate objective, `Docs/PROJECT_STATUS.md` for today's status, or `Docs/MILESTONES.md` for historical milestone memory.
+
+For project onboarding, read `Docs/START_HERE.md`.
 
 ## Current Milestone
 

@@ -1,5 +1,17 @@
 # Incantation
 
+Purpose: introduce the repository and point contributors to the official documentation entry point.
+
+Questions answered here:
+
+- What is Incantation?
+- Where should a new contributor start?
+- What is the short version of the current prototype?
+
+This document does not contain the authoritative reading order, full current status, detailed architecture, or task workflow.
+
+Read next: `Docs/START_HERE.md`.
+
 Incantation is a Unity 6 multiplayer party game set in a dark fantasy horror atmosphere.
 
 Tagline:
@@ -12,7 +24,7 @@ The game is built around one cursed book, one table, seated players, an hourglas
 
 New developers should begin with `Docs/START_HERE.md`.
 
-That document is the repository onboarding map. It identifies the authoritative docs, current prototype state, design rationale, architecture boundaries, project history, workflow, and next milestones.
+That document is the repository onboarding map and official reading order. It points to the authoritative docs, current prototype state, design rationale, architecture boundaries, workflow, and next task.
 
 `Docs/GAMEPLAY_TRUTH.md` is the gameplay source of truth. If another gameplay document conflicts with it, update the conflicting document or deliberately update `GAMEPLAY_TRUTH.md`.
 

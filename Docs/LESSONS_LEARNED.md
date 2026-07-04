@@ -2,6 +2,18 @@
 
 This document preserves practical discoveries from development so future work does not repeat avoidable mistakes.
 
+Purpose: preserve practical historical learning without turning it into current status.
+
+Questions answered here:
+
+- What mistakes should future work avoid?
+- What prototype discoveries affected gameplay feel?
+- What implementation traps have already been found?
+
+This document does not contain current project status, active task scope, authoritative gameplay law, or milestone planning.
+
+Read next: `Docs/PROJECT_STATUS.md` for current reality or the relevant source-of-truth document before making changes.
+
 ## Gameplay Feel
 
 - Real-time word validation feels significantly better than delayed judgment for the current prototype.

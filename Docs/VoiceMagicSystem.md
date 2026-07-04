@@ -1,5 +1,17 @@
 # Voice Magic System
 
+Purpose: define current voice-recognition direction and recognition-versus-validation boundaries.
+
+Questions answered here:
+
+- Which voice validation modes exist?
+- Which recognizer path is preferred for realtime prototype play?
+- What should voice recognizers not own?
+
+This document does not contain current task planning, full ritual architecture, ritual word vocabulary ownership, or external voice-service setup.
+
+Read next: `Docs/IncantationSystem.md` for phrase ownership and `Docs/CoreRitualLoopArchitecture.md` for ritual coordination.
+
 ## Current Voice Plan
 
 The current prototype supports two ritual validation modes:

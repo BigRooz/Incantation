@@ -2,6 +2,18 @@
 
 This is a quick gameplay reference.
 
+Purpose: provide a short checklist of current ritual rules.
+
+Questions answered here:
+
+- What are the basic ritual rules?
+- What is out of scope right now?
+- Which voice validation paths are current?
+
+This document does not contain full gameplay authority, current project status, historical memory, or implementation architecture.
+
+Read next: `Docs/GAMEPLAY_TRUTH.md`, which wins if this quick reference disagrees with it.
+
 For authoritative gameplay rules and design intent, read `Docs/GAMEPLAY_TRUTH.md`.
 
 When this quick reference conflicts with `Docs/GAMEPLAY_TRUTH.md`, `GAMEPLAY_TRUTH.md` wins until the conflict is deliberately resolved.

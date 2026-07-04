@@ -2,6 +2,18 @@
 
 This document centralizes recommended Inspector setup for the current v0.1 prototype.
 
+Purpose: preserve current Inspector values and scene-reference expectations that matter to the prototype.
+
+Questions answered here:
+
+- Which Inspector references are intentional?
+- Which prototype tuning values should be preserved?
+- Which scene setup assumptions affect Play Mode validation?
+
+This document does not contain gameplay law, task planning, code architecture, or permission to modify scenes, prefabs, assets, or scripts.
+
+Read next: `Docs/UNITY_SCENE_SETUP.md` for scene expectations and `Docs/PROJECT_STATUS.md` for current prototype state.
+
 It is documentation only. Do not treat it as permission to modify scenes, prefabs, assets, or scripts.
 
 Values marked `Prototype tuning` are current or recommended prototype values that may change after playtesting.

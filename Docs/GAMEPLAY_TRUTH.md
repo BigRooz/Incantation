@@ -2,6 +2,19 @@
 
 This document defines the sacred gameplay rules of Incantation.
 
+Purpose: protect the gameplay identity and hard laws of the table ritual.
+
+Questions answered here:
+
+- What is Incantation at its core?
+- What gameplay rules must not be accidentally broken?
+- Which systems are paused until the core loop is reliable?
+- What counts as the current v0.1 prototype truth?
+
+This document does not contain implementation details, current task planning, milestone history, or Inspector tuning.
+
+Read next: `Docs/GAME_DESIGN_PILLARS.md` for design philosophy, then `Docs/PROJECT_STATUS.md` for today's project state.
+
 When implementation details conflict with this document, this document wins until it is deliberately updated.
 
 ## Core Gameplay Truth

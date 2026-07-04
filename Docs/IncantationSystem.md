@@ -1,5 +1,17 @@
 # Incantation System
 
+Purpose: define the spoken ritual phrase system and its boundaries.
+
+Questions answered here:
+
+- Who owns ritual word vocabulary and phrase state?
+- How do validation modes affect phrase acceptance?
+- What should the incantation system not own?
+
+This document does not contain current task planning, full voice implementation details, book movement ownership, or elimination rules.
+
+Read next: `Docs/VoiceMagicSystem.md` for voice-recognition boundaries or `Docs/CoreRitualLoopArchitecture.md` for ritual coordination.
+
 ## Purpose
 
 The Incantation System is the source of truth for the spoken ritual phrase.

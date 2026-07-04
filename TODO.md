@@ -1,5 +1,17 @@
 # TODO
 
+Purpose: hold a lightweight working checklist while authoritative task direction lives elsewhere.
+
+Questions answered here:
+
+- What rough work items are visible from the current priority?
+- What areas are paused?
+- Which voice-service paths should not be used?
+
+This document does not contain official onboarding, authoritative current status, the immediate task handoff, or milestone history.
+
+Read next: `Docs/NEXT_TASK.md` for the active objective and `Docs/PROJECT_STATUS.md` for current reality.
+
 ## Current Priority
 
 Priority 1: clean core ritual loop and reliable voice recognition.

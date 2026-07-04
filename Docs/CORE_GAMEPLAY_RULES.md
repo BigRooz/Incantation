@@ -2,6 +2,18 @@
 
 This document expands the core laws of Incantation for design discussion and implementation review.
 
+Purpose: provide expanded explanation of core gameplay laws subordinate to `Docs/GAMEPLAY_TRUTH.md`.
+
+Questions answered here:
+
+- How should the book, seats, phrase, voice, and hourglass behave?
+- What gameplay assumptions should implementation preserve?
+- What core rules need extra explanation?
+
+This document does not contain current status, task planning, implementation architecture, or milestone history.
+
+Read next: `Docs/GAMEPLAY_TRUTH.md` for authority, then `Docs/CoreRitualLoopArchitecture.md` before changing ritual systems.
+
 It is not a Game Design Document.
 
 It is not a technical document.

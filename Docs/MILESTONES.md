@@ -1,5 +1,17 @@
 # Milestones
 
+Purpose: preserve milestone memory and completed project beats.
+
+Questions answered here:
+
+- What major milestones have been completed?
+- What milestone is currently being pursued?
+- What comes after the current milestone at a high level?
+
+This document does not contain the current status snapshot, immediate task handoff, detailed architecture, or gameplay law.
+
+Read next: `Docs/PROJECT_STATUS.md` for today's state and `Docs/NEXT_TASK.md` for the immediate objective.
+
 ## Completed Prototype Milestone: v0.1 Local Ritual
 
 The v0.1 prototype proves the core table ritual can function locally.

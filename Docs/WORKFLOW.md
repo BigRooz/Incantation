@@ -2,7 +2,20 @@
 
 This document describes the current development workflow for Incantation.
 
-For contributor rules, read `AGENTS.md`. For current project state, read `Docs/START_HERE.md` and `Docs/CURRENT_PROJECT_STATE.md`.
+Purpose: define how tasks, commits, validation, and documentation updates are handled.
+
+Questions answered here:
+
+- How should a task be started and completed?
+- What validation is expected before commit?
+- How should Git and branches be handled?
+- When should documentation be updated?
+
+This document does not contain gameplay law, current project status, milestone history, or detailed system architecture.
+
+Read next: `Docs/PROJECT_STATUS.md` for current state and `Docs/NEXT_TASK.md` for the immediate objective.
+
+For contributor rules, read `AGENTS.md`. For official onboarding, read `Docs/START_HERE.md`.
 
 ## Task Philosophy
 
@@ -25,13 +38,15 @@ For each Codex task:
 
 1. Read `AGENTS.md`.
 2. Read `Docs/START_HERE.md`.
-3. Read the relevant system documents inside `Docs`.
-4. Run `git status` before editing.
-5. Respect existing user changes.
-6. Keep edits focused on the requested task.
-7. Do not modify paused systems unless explicitly requested.
-8. Validate the result.
-9. Explain architectural decisions after the task.
+3. Read `Docs/PROJECT_STATUS.md`.
+4. Read `Docs/NEXT_TASK.md` when starting production work.
+5. Read the relevant system documents inside `Docs`.
+6. Run `git status` before editing.
+7. Respect existing user changes.
+8. Keep edits focused on the requested task.
+9. Do not modify paused systems unless explicitly requested.
+10. Validate the result.
+11. Explain architectural decisions after the task.
 
 Documentation-only tasks must not modify scripts, scenes, prefabs, or assets.
 
@@ -128,6 +143,6 @@ When a decision changes, update all affected sources of truth in the same task:
 - `Docs/GAMEPLAY_TRUTH.md` for gameplay law.
 - `DECISIONS.md` and `Docs/WHY.md` for rationale.
 - Relevant system document for implementation guidance.
-- `Docs/CURRENT_PROJECT_STATE.md`, `Docs/Roadmap.md`, or `Docs/MILESTONES.md` when milestone status changes.
+- `Docs/PROJECT_STATUS.md`, `Docs/NEXT_TASK.md`, `Docs/Roadmap.md`, or `Docs/MILESTONES.md` when milestone status changes.
 
 Prefer one authoritative source and cross-reference it instead of duplicating large blocks everywhere.

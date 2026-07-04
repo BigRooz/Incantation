@@ -2,6 +2,18 @@
 
 This file records durable project decisions that should survive individual task conversations.
 
+Purpose: keep a concise ledger of durable decisions and their implications.
+
+Questions answered here:
+
+- What major decisions have been made?
+- Why were they made?
+- What do they mean for future work?
+
+This document does not contain current project status, the immediate next task, implementation reference, or milestone history.
+
+Read next: `Docs/WHY.md` for deeper rationale, then the relevant source-of-truth document before changing a decision.
+
 For onboarding, read `Docs/START_HERE.md`.
 
 For authoritative gameplay rules, read `Docs/GAMEPLAY_TRUTH.md`.

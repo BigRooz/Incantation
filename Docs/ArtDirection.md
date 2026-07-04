@@ -1,5 +1,17 @@
 # Art Direction
 
+Purpose: describe current visual and ambience direction without authorizing asset work.
+
+Questions answered here:
+
+- What atmosphere should visuals support?
+- Which visual systems exist in the prototype?
+- What visual work is currently paused?
+
+This document does not contain gameplay law, current task planning, asset implementation instructions, or permission to modify scenes and prefabs.
+
+Read next: `Docs/GAME_DESIGN_PILLARS.md` for emotional direction or `Docs/PROJECT_STATUS.md` for current status.
+
 ## Current Status
 
 Visual and ambience work exists in the v0.1 prototype, but new art work is paused unless explicitly requested.

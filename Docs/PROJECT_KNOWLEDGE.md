@@ -2,7 +2,21 @@
 
 This document preserves critical project knowledge that should not depend on previous conversations.
 
-Read this after `Docs/START_HERE.md` when taking over development, planning a feature, or deciding whether an old system is current, paused, legacy, or experimental.
+Purpose: preserve the current code map, runtime migration notes, known traps, and validation expectations.
+
+Questions answered here:
+
+- What does the prototype really prove?
+- Which scripts currently own which responsibilities?
+- Where is the runtime mid-migration?
+- What design rules are easy to break?
+- How should core-loop code tasks be manually validated?
+
+This document does not contain the immediate next task, current status snapshot, historical milestone archive, or durable design-law authority.
+
+Read next: the focused system document for the area you are changing, then `Docs/WORKFLOW.md` before implementation.
+
+Read this after `Docs/START_HERE.md` and `Docs/PROJECT_STATUS.md` when taking over development, planning a feature, or deciding whether an old system is current, paused, legacy, or experimental.
 
 ## Current Engine And Project Shape
 

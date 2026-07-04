@@ -2,6 +2,18 @@
 
 This document defines how code must be written for Incantation.
 
+Purpose: keep implementation readable, modular, Inspector-friendly, and aligned with the seated ritual.
+
+Questions answered here:
+
+- How should C# classes be structured?
+- What ownership and naming standards should code follow?
+- What implementation patterns should be avoided?
+
+This document does not contain gameplay law, current project status, task planning, or scene setup instructions.
+
+Read next: `AGENTS.md` for contributor rules and the relevant architecture document before implementation.
+
 It complements `AGENTS.md`, `GAMEPLAY_TRUTH.md`, and `CoreRitualLoopArchitecture.md`.
 
 These standards exist to keep the project simple, readable, testable, and focused on the seated ritual around the book, the hourglass, and the spoken phrase.

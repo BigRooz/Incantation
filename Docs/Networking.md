@@ -1,5 +1,17 @@
 # Networking
 
+Purpose: define the current networking boundary and prevent premature networking work.
+
+Questions answered here:
+
+- Is networking currently implemented?
+- Is networking currently in scope?
+- What shape must future networking preserve?
+
+This document does not contain lobby implementation, current status details, transport architecture, or permission to modify networking systems.
+
+Read next: `Docs/NEXT_TASK.md` for active lobby work or `Docs/FUTURE_DEVELOPMENT.md` for milestone order.
+
 ## Current Status
 
 Do not touch unless explicitly asked.

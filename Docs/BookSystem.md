@@ -1,5 +1,17 @@
 # Book System
 
+Purpose: define ownership and boundaries for the single cursed book.
+
+Questions answered here:
+
+- What is the real gameplay book?
+- How does the book relate to Seats?
+- Which book-related objects are visual references only?
+
+This document does not contain current task planning, full ritual architecture, card behavior, or demon reactions.
+
+Read next: `Docs/BOOK_STATE_MACHINE.md` for state flow or `Docs/TechnicalArchitecture.md` for wider ownership boundaries.
+
 ## Current Rule
 
 There is one real cursed book.

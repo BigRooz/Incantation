@@ -2,6 +2,18 @@
 
 This document summarizes the current design direction.
 
+Purpose: provide a broad design summary for the current playable concept.
+
+Questions answered here:
+
+- What is the current core design?
+- What does the v0.1 prototype demonstrate?
+- What modes and systems are planned at a high level?
+
+This document does not contain authoritative gameplay law, current status ownership, immediate task scope, or detailed architecture.
+
+Read next: `Docs/GAMEPLAY_TRUTH.md` for authority and `Docs/PROJECT_STATUS.md` for today's state.
+
 For onboarding, read `Docs/START_HERE.md`.
 
 For authoritative gameplay rules, read `Docs/GAMEPLAY_TRUTH.md`.

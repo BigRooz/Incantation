@@ -324,11 +324,20 @@ Workflow:
    - Pushed.
 6. Bug fixes remain inside the same task conversation until the task is complete.
 7. Read AGENTS.md before making any code changes.
-8. Read the relevant documentation inside Docs before implementing new systems.
+8. Read `Docs/START_HERE.md` and follow the official documentation reading order before implementing new systems.
 9. Prefer extending existing systems over creating new ones.
 10. Keep systems modular and event-driven.
 11. Avoid putting gameplay logic inside visual components.
 12. Explain architectural decisions after every completed task.
+
+Documentation is production memory.
+
+- Treat documentation as production code.
+- Use `Docs/DOCUMENTATION_GOVERNANCE.md` for document ownership, lifecycle, update rules, and conflict resolution.
+- Use `Docs/PROJECT_STATUS.md` for today's project state.
+- Use `Docs/NEXT_TASK.md` for the immediate production objective.
+- Do not leave important gameplay, architecture, workflow, Inspector, or production knowledge only inside a conversation.
+- When documentation becomes outdated, update it before considering the task complete.
 
 ## Git Rules
 

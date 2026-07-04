@@ -2,6 +2,20 @@
 
 This document records the reasoning behind major Incantation decisions so future developers understand what they are protecting before changing it.
 
+Purpose: explain why durable design and technical decisions exist.
+
+Questions answered here:
+
+- Why does Incantation have one book?
+- Why are players seated?
+- Why does phrase growth happen by rotation?
+- Why is realtime word-by-word validation the default prototype feel?
+- Why are some systems paused?
+
+This document does not contain today's status, the immediate next task, detailed code ownership, or milestone history.
+
+Read next: `DECISIONS.md` for the shorter decision ledger, then the relevant system document before changing implementation.
+
 For the shorter decision ledger, read `DECISIONS.md`. For strict gameplay law, read `Docs/GAMEPLAY_TRUTH.md`.
 
 ## Why One Book

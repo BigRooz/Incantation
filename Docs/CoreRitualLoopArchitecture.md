@@ -1,5 +1,17 @@
 # Core Ritual Loop Architecture
 
+Purpose: define the Core Ritual Loop architecture direction for Incantation.
+
+Questions answered here:
+
+- How should the ritual loop be coordinated?
+- Which systems should own turn, phrase, validation, book, and timer responsibilities?
+- What migration direction should future work preserve?
+
+This document does not contain current task planning, full current status, scene setup, or permission to touch paused systems.
+
+Read next: `Docs/PROJECT_KNOWLEDGE.md` for the current code map and `Docs/TechnicalArchitecture.md` for broader ownership boundaries.
+
 ## Purpose
 
 This document defines the Core Ritual Loop architecture direction for Incantation.

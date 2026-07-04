@@ -1,5 +1,17 @@
 # Project Vision
 
+Purpose: describe the long-term creative vision for Incantation.
+
+Questions answered here:
+
+- What is the game trying to become?
+- What player experience should all systems serve?
+- What pillars define the long-term project?
+
+This document does not contain current status, task planning, implementation architecture, or milestone history.
+
+Read next: `Docs/GAMEPLAY_TRUTH.md` for authoritative gameplay law and `Docs/GAME_DESIGN_PILLARS.md` for design philosophy.
+
 ## Incantation
 
 Incantation is a competitive multiplayer party game set in a dark fantasy horror atmosphere.

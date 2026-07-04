@@ -1,5 +1,17 @@
 # Book State Machine
 
+Purpose: define the official book state machine for ritual flow planning.
+
+Questions answered here:
+
+- What states can the book occupy?
+- What can transition the book between states?
+- How does the book avoid getting stuck?
+
+This document does not contain current status, lobby implementation details, visual effects scope, or permission to modify scenes.
+
+Read next: `Docs/BookSystem.md` for book system boundaries or `Docs/CoreRitualLoopArchitecture.md` for the wider ritual loop.
+
 ## Purpose
 
 This document defines the official book state machine for Incantation.

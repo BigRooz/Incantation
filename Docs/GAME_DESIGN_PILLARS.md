@@ -2,6 +2,18 @@
 
 This document explains the fundamental design philosophy behind Incantation.
 
+Purpose: define the emotional target and feature filter for the game.
+
+Questions answered here:
+
+- What moments should the game create?
+- Why are the book, table, voice, and social pressure central?
+- What kinds of features belong or should wait?
+
+This document does not contain current project status, task planning, implementation architecture, or historical milestone records.
+
+Read next: `Docs/WHY.md` and `DECISIONS.md` for rationale behind specific decisions.
+
 For strict gameplay rules, read `Docs/GAMEPLAY_TRUTH.md`. For durable decision rationale, read `Docs/WHY.md` and `DECISIONS.md`.
 
 ## Core Fantasy

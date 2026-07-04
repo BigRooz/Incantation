@@ -2,6 +2,18 @@
 
 This document gives a high-level map of current prototype ownership, dependencies, events, responsibilities, and extension points.
 
+Purpose: provide a visual and textual map of how current prototype systems relate.
+
+Questions answered here:
+
+- Which systems depend on each other?
+- What events and ownership boundaries exist?
+- Where are likely extension points?
+
+This document does not contain full code reference, current task planning, gameplay law, or milestone history.
+
+Read next: `Docs/TechnicalArchitecture.md` and `Docs/CoreRitualLoopArchitecture.md` for deeper architecture notes.
+
 For deeper architecture notes, read `Docs/TechnicalArchitecture.md` and `Docs/CoreRitualLoopArchitecture.md`.
 
 ## High-Level Runtime Map

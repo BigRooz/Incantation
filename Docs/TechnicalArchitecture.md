@@ -1,5 +1,20 @@
 # Technical Architecture
 
+This document defines current technical ownership and architecture boundaries.
+
+Purpose: help contributors change systems without moving authority into the wrong place.
+
+Questions answered here:
+
+- Which systems own gameplay authority?
+- Which objects are visual-only?
+- What is the current runtime migration state?
+- What boundaries must architecture changes preserve?
+
+This document does not contain gameplay law, current task planning, historical milestone memory, or complete code-level reference.
+
+Read next: `Docs/PROJECT_KNOWLEDGE.md` for the detailed code map, or a focused system document for the system being changed.
+
 ## Current Priority
 
 Priority 1 is the clean core ritual loop and reliable voice interaction.

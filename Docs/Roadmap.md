@@ -1,5 +1,20 @@
 # Roadmap
 
+This document describes milestone order and production priorities.
+
+Purpose: show how Incantation should move from the current prototype toward the next playable vertical slice.
+
+Questions answered here:
+
+- What milestone comes next?
+- What order should production work follow?
+- Which systems are paused?
+- Which voice-service paths are outside the current plan?
+
+This document does not contain today's complete status snapshot, the immediate task handoff, historical milestone memory, or detailed architecture.
+
+Read next: `Docs/NEXT_TASK.md` for the immediate objective, or `Docs/FUTURE_DEVELOPMENT.md` for deeper future scope and technical debt.
+
 ## Current Priority
 
 Priority 1 is the clean core ritual loop and reliable voice interaction.

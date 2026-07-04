@@ -1,5 +1,17 @@
 # Unity Scene Setup
 
+Purpose: record current scene setup expectations for the v0.1 playable prototype.
+
+Questions answered here:
+
+- What scene pieces must exist for the ritual?
+- What should Seats contain?
+- What scene boundaries must not be crossed?
+
+This document does not contain gameplay law, current task planning, source-code architecture, or permission to modify scenes.
+
+Read next: `Docs/INSPECTOR_REFERENCE.md` for tuning values and `Docs/PROJECT_KNOWLEDGE.md` for scene knowledge.
+
 ## Purpose
 
 This document records the current scene setup expectations for the v0.1 playable prototype.
