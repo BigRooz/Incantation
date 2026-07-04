@@ -32,6 +32,33 @@ The current v0.1 prototype includes:
 - `HourglassController` for timer pressure.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
+For a visual overview of ownership, dependencies, events, and extension points, read `Docs/SYSTEM_DIAGRAM.md`.
+
+## High-Level System Diagram
+
+```mermaid
+flowchart TD
+    Player["Player / Debug Occupant"]
+    SeatManager["SeatManager\nPhysical seat order"]
+    RitualController["RitualController\nPrototype orchestration"]
+    Book["BookController / BookMover\nOne real book"]
+    Hourglass["HourglassController / Timer\nPressure and timeout signal"]
+    Voice["IVoiceRecognizer\nSpeech candidates"]
+    Validation["Validation\nSelected mode"]
+    Phrase["Phrase authority\nGrowingIncantationManager direction"]
+    Display["IncantationTextDisplay\nFeedback only"]
+
+    Player --> SeatManager
+    SeatManager --> RitualController
+    RitualController --> Book
+    RitualController --> Hourglass
+    RitualController --> Voice
+    Voice --> Validation
+    RitualController --> Validation
+    Validation --> Phrase
+    Phrase --> Display
+```
+
 ## Runtime Migration State
 
 The project is in an incremental migration, not a completed rewrite.

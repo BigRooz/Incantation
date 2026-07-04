@@ -72,3 +72,5 @@ Future work should happen only after the core loop remains stable:
 Every milestone must strengthen the table, book, hourglass, voice, or social chaos.
 
 If a milestone distracts from those pillars, it should wait.
+
+For known technical debt, current limitations, and production priority detail, read `Docs/FUTURE_DEVELOPMENT.md`.

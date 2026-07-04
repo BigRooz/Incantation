@@ -28,25 +28,37 @@ Read these first, in this order:
    - The gameplay source of truth.
    - If gameplay behavior conflicts with this document, `GAMEPLAY_TRUTH.md` wins until it is deliberately updated.
 
-3. `Docs/CURRENT_PROJECT_STATE.md`
+3. `Docs/GAME_DESIGN_PILLARS.md`
+   - The project's core fantasy, emotional target, design pillars, and long-term identity.
+
+4. `Docs/WHY.md`
+   - Rationale behind major design and technical decisions.
+
+5. `Docs/CURRENT_PROJECT_STATE.md`
    - What the prototype currently does and does not do.
 
-4. `Docs/CoreRitualLoopArchitecture.md`
+6. `Docs/CoreRitualLoopArchitecture.md`
    - The intended architecture for the seated ritual loop.
    - Use before changing ritual orchestration, turn flow, phrase progression, voice validation, hourglass pressure, or book movement.
 
-5. `Docs/TechnicalArchitecture.md`
+7. `Docs/TechnicalArchitecture.md`
    - System ownership boundaries and current prototype components.
 
-6. `Docs/Roadmap.md` and `Docs/MILESTONES.md`
+8. `Docs/SYSTEM_DIAGRAM.md`
+   - High-level ownership, dependencies, event flow, responsibilities, and extension points.
+
+9. `Docs/Roadmap.md`, `Docs/MILESTONES.md`, and `Docs/FUTURE_DEVELOPMENT.md`
    - Current priority and upcoming milestone order.
 
-7. `DECISIONS.md`
+10. `DECISIONS.md`
    - Durable design and technical decisions with rationale.
 
 Supporting references:
 
 - `Docs/PROJECT_KNOWLEDGE.md`: preserved project memory, runtime migration notes, code map, known tensions, and validation expectations.
+- `Docs/LESSONS_LEARNED.md`: practical discoveries that should survive future implementation work.
+- `Docs/INSPECTOR_REFERENCE.md`: current recommended Inspector values and prototype tuning notes.
+- `Docs/WORKFLOW.md`: Git, Codex, branch, task, commit, prototype, production, and documentation workflow.
 - `Docs/CORE_GAMEPLAY_RULES.md`: expanded explanation of the core laws, subordinate to `GAMEPLAY_TRUTH.md`.
 - `Docs/BookSystem.md` and `Docs/BOOK_STATE_MACHINE.md`: book ownership, movement, and state direction.
 - `Docs/IncantationSystem.md` and `Docs/VoiceMagicSystem.md`: ritual phrase and voice recognition boundaries.

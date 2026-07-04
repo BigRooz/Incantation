@@ -95,6 +95,8 @@ The current scene includes ambience and lighting support:
 
 These elements support the ritual mood but are not the gameplay authority.
 
+For current recommended Inspector values and prototype tuning notes, read `Docs/INSPECTOR_REFERENCE.md`.
+
 ## Current Missing Production Setup
 
 The scene does not yet represent the full production flow.

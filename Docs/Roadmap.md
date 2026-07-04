@@ -38,6 +38,8 @@ The next milestone should replace local debug occupants with a real pre-ritual p
 
 Networking is not implemented yet and should not be assumed by documentation or tasks.
 
+For detailed future milestone scope, known limitations, technical debt, and production priorities, read `Docs/FUTURE_DEVELOPMENT.md`.
+
 ## Vertical Slice Order
 
 1. Preserve the current one-book ritual.
