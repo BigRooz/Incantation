@@ -32,6 +32,20 @@ The current v0.1 prototype includes:
 - `HourglassController` for timer pressure.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
+## Runtime Migration State
+
+The project is in an incremental migration, not a completed rewrite.
+
+`RitualController` is still the working prototype runtime surface. It coordinates seats, book movement, hourglass timing, voice listening, incantation display, validation mode handling, retry behavior, and successful turn advancement.
+
+`CoreRitualLoop` is the cleaner logic direction. It coordinates `TurnManager`, `GrowingIncantationManager`, and `PhraseValidator`, but it does not know about scene visuals, the book transform, the hourglass, voice recognizer implementations, networking, or UI.
+
+`CoreRitualLoopBridge` adapts the newer core phrase path into the legacy `IncantationManager` model while UI and feedback still depend on it.
+
+Do not assume newer core-loop scripts have replaced the current prototype runtime. Prefer incremental migration that keeps Play Mode working.
+
+For a detailed code map and known migration tensions, read `Docs/PROJECT_KNOWLEDGE.md`.
+
 ## Physical Seat Order
 
 The cursed book advances according to the configured physical seating order, not according to GameObject names, seat numbers, hierarchy order, player join order, or network player index.

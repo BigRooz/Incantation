@@ -8,6 +8,14 @@ Tagline:
 
 The game is built around one cursed book, one table, seated players, an hourglass, and voice-driven ritual pressure. Horror is the atmosphere; the real goal is memorable social chaos.
 
+## Start Here
+
+New developers should begin with `Docs/START_HERE.md`.
+
+That document is the repository onboarding map. It identifies the authoritative docs, current prototype state, design rationale, architecture boundaries, project history, workflow, and next milestones.
+
+`Docs/GAMEPLAY_TRUTH.md` is the gameplay source of truth. If another gameplay document conflicts with it, update the conflicting document or deliberately update `GAMEPLAY_TRUTH.md`.
+
 ## Current v0.1 Prototype
 
 The current playable prototype is a local table-ritual slice.

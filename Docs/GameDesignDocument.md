@@ -1,5 +1,11 @@
 # Game Design Document
 
+This document summarizes the current design direction.
+
+For onboarding, read `Docs/START_HERE.md`.
+
+For authoritative gameplay rules, read `Docs/GAMEPLAY_TRUTH.md`.
+
 ## Current Core Design
 
 Incantation is a seated multiplayer party game built around one cursed book, one table, an hourglass, and spoken ritual pressure.

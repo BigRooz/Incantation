@@ -282,6 +282,15 @@ The first production pass should keep elimination simple and avoid extra punishm
 
 Do not rewrite the working prototype all at once.
 
+Current runtime reality:
+
+- `RitualController` is still the working prototype orchestration surface.
+- `CoreRitualLoop` is the cleaner logic direction.
+- `CoreRitualLoopBridge` is a migration adapter while display and feedback still depend on `IncantationManager`.
+- `TurnManager` currently tracks count-based turn order, while `SeatManager` remains the authority for physical seat traversal.
+
+Read `Docs/PROJECT_KNOWLEDGE.md` before changing this migration boundary.
+
 Recommended migration approach:
 
 1. Keep the current ritual prototype stable.

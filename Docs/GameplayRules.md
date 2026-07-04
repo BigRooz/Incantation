@@ -1,5 +1,11 @@
 # Gameplay Rules
 
+This is a quick gameplay reference.
+
+For authoritative gameplay rules and design intent, read `Docs/GAMEPLAY_TRUTH.md`.
+
+When this quick reference conflicts with `Docs/GAMEPLAY_TRUTH.md`, `GAMEPLAY_TRUTH.md` wins until the conflict is deliberately resolved.
+
 ## Current Ritual Rules
 
 - Players stay seated.

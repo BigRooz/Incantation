@@ -4,6 +4,8 @@
 
 Priority 1: clean core ritual loop and reliable voice recognition.
 
+For authoritative onboarding and priority context, read `Docs/START_HERE.md`.
+
 ## Core Ritual Loop
 
 - Confirm lobby flow.
@@ -13,8 +15,11 @@ Priority 1: clean core ritual loop and reliable voice recognition.
 - Start the ritual phrase with 1 word.
 - Require every player to say the same current phrase.
 - Add 1 word after the book completes a full table rotation.
-- Validate speech through Whisper first.
-- Keep Windows speech recognition as fallback only.
+- Keep `WordByWordRealtime` as the default prototype validation mode.
+- Use `WindowsKeywordVoiceRecognizer` for immediate realtime keyword validation.
+- Keep `FullPhrase` as an optional strict validation mode.
+- Keep Whisper available for full-phrase or experimental recognition paths.
+- Do not force Whisper as the only validation path.
 
 ## Paused Until Core Voice Loop Works
 

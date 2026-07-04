@@ -1,6 +1,6 @@
 # Core Gameplay Rules
 
-This document is the constitution of Incantation.
+This document expands the core laws of Incantation for design discussion and implementation review.
 
 It is not a Game Design Document.
 
@@ -8,9 +8,9 @@ It is not a technical document.
 
 It is not a roadmap.
 
-It defines the immutable gameplay rules that every feature, system, balance change, and future expansion must respect.
+The authoritative gameplay source of truth is `Docs/GAMEPLAY_TRUTH.md`.
 
-When a gameplay decision conflicts with this document, this document wins until it is deliberately updated.
+When this document conflicts with `Docs/GAMEPLAY_TRUTH.md`, `GAMEPLAY_TRUTH.md` wins until the conflict is deliberately resolved.
 
 ## 1. The Book
 
