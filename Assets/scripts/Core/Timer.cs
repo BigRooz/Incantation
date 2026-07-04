@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>
+/// Owns simple countdown timer state and raises lifecycle events for systems that react to time pressure.
+/// Depends only on Unity time and does not own ritual, voice, book, or visual behavior.
+/// </summary>
 public class Timer : MonoBehaviour
 {
     [Header("Settings")]
@@ -12,6 +16,7 @@ public class Timer : MonoBehaviour
     [SerializeField] private UnityEvent onWarning = new UnityEvent();
     [SerializeField] private UnityEvent onFinished = new UnityEvent();
     [SerializeField] private UnityEvent onStopped = new UnityEvent();
+    [SerializeField] private UnityEvent onReset = new UnityEvent();
 
     private bool hasWarned;
 
@@ -23,6 +28,7 @@ public class Timer : MonoBehaviour
     public UnityEvent OnWarning => onWarning;
     public UnityEvent OnFinished => onFinished;
     public UnityEvent OnStopped => onStopped;
+    public UnityEvent OnReset => onReset;
 
     private void Update()
     {
@@ -74,5 +80,6 @@ public class Timer : MonoBehaviour
         IsRunning = false;
         RemainingTime = duration;
         hasWarned = false;
+        onReset.Invoke();
     }
 }

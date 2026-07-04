@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 1298638673170379023}
   - component: {fileID: 2714099834426015402}
   - component: {fileID: 166241908416858720}
+  - component: {fileID: 9144776926586810998}
   m_Layer: 0
   m_Name: Candel
   m_TagString: Untagged
@@ -208,3 +209,22 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &9144776926586810998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1823500807645424565}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e86da56cd6ce449cba43aabd218d5755, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetLight: {fileID: 563463110908781257}
+  baseIntensity: 1.2
+  intensityVariation: 0.2
+  baseRange: 2.5
+  rangeVariation: 0.25
+  flickerSpeed: 7
+  randomizeOffset: 1

@@ -11,11 +11,13 @@ public class HourglassController : MonoBehaviour
     [SerializeField] private UnityEvent onWarning = new UnityEvent();
     [SerializeField] private UnityEvent onFinished = new UnityEvent();
     [SerializeField] private UnityEvent onStopped = new UnityEvent();
+    [SerializeField] private UnityEvent onReset = new UnityEvent();
 
     public UnityEvent OnStarted => onStarted;
     public UnityEvent OnWarning => onWarning;
     public UnityEvent OnFinished => onFinished;
     public UnityEvent OnStopped => onStopped;
+    public UnityEvent OnReset => onReset;
 
     private void OnEnable()
     {
@@ -63,6 +65,7 @@ public class HourglassController : MonoBehaviour
         timer.OnWarning.AddListener(HandleTimerWarning);
         timer.OnFinished.AddListener(HandleTimerFinished);
         timer.OnStopped.AddListener(HandleTimerStopped);
+        timer.OnReset.AddListener(HandleTimerReset);
     }
 
     private void UnsubscribeFromTimer()
@@ -74,6 +77,7 @@ public class HourglassController : MonoBehaviour
         timer.OnWarning.RemoveListener(HandleTimerWarning);
         timer.OnFinished.RemoveListener(HandleTimerFinished);
         timer.OnStopped.RemoveListener(HandleTimerStopped);
+        timer.OnReset.RemoveListener(HandleTimerReset);
     }
 
     private void HandleTimerStarted()
@@ -98,5 +102,11 @@ public class HourglassController : MonoBehaviour
     {
         Debug.Log("Hourglass Stopped");
         onStopped.Invoke();
+    }
+
+    private void HandleTimerReset()
+    {
+        Debug.Log("Hourglass Reset");
+        onReset.Invoke();
     }
 }

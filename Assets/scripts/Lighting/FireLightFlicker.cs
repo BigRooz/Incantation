@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// Applies procedural fire-like flicker to one Light.
+/// Can receive an external intensity multiplier from ritual pressure effects without owning timer logic.
+/// </summary>
 public class FireLightFlicker : MonoBehaviour
 {
     [SerializeField] private Light targetLight;
@@ -15,6 +19,8 @@ public class FireLightFlicker : MonoBehaviour
     private float originalIntensity;
     private float originalRange;
     private bool hasStoredOriginalValues;
+    private float externalIntensityMultiplier = 1f;
+    private float externalRangeMultiplier = 1f;
 
     private void Awake()
     {
@@ -43,8 +49,43 @@ public class FireLightFlicker : MonoBehaviour
         float intensityNoise = Mathf.PerlinNoise(noiseOffset, time);
         float rangeNoise = Mathf.PerlinNoise(rangeNoiseOffset, time * 0.75f);
 
-        targetLight.intensity = Mathf.Max(0f, baseIntensity + ((intensityNoise * 2f - 1f) * intensityVariation));
-        targetLight.range = Mathf.Max(0f, baseRange + ((rangeNoise * 2f - 1f) * rangeVariation));
+        float flickeredIntensity = baseIntensity + ((intensityNoise * 2f - 1f) * intensityVariation);
+        float flickeredRange = baseRange + ((rangeNoise * 2f - 1f) * rangeVariation);
+
+        targetLight.intensity = Mathf.Max(0f, flickeredIntensity * externalIntensityMultiplier);
+        targetLight.range = Mathf.Max(0f, flickeredRange * externalRangeMultiplier);
+    }
+
+    public void SetExternalIntensityMultiplier(float intensityMultiplier)
+    {
+        externalIntensityMultiplier = Mathf.Max(0f, intensityMultiplier);
+    }
+
+    public void SetExternalRangeMultiplier(float rangeMultiplier)
+    {
+        externalRangeMultiplier = Mathf.Max(0f, rangeMultiplier);
+    }
+
+    public void SetExternalMultipliers(float intensityMultiplier, float rangeMultiplier)
+    {
+        SetExternalIntensityMultiplier(intensityMultiplier);
+        SetExternalRangeMultiplier(rangeMultiplier);
+    }
+
+    public void ResetExternalIntensityMultiplier()
+    {
+        externalIntensityMultiplier = 1f;
+    }
+
+    public void ResetExternalRangeMultiplier()
+    {
+        externalRangeMultiplier = 1f;
+    }
+
+    public void ResetExternalMultipliers()
+    {
+        ResetExternalIntensityMultiplier();
+        ResetExternalRangeMultiplier();
     }
 
     private void OnDisable()
