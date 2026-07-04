@@ -2,7 +2,7 @@
 
 ## Project Identity
 
-You are working on **Incantation**, a Unity 6 multiplayer party horror game.
+You are working on **Incantation**, a Unity 6 multiplayer party game set in a dark fantasy horror atmosphere.
 
 Tagline:
 
@@ -16,8 +16,6 @@ The goal is to create memorable moments between players.
 
 If a feature does not create tension, laughter, betrayal, stress, surprise, or a story players will remember, reconsider it.
 
----
-
 ## Core Vision
 
 Incantation revolves around one cursed book placed at the center of the table.
@@ -30,72 +28,107 @@ The players believe they can inherit its power, but the demon is manipulating th
 
 In Last Priest Standing mode, the last surviving player wins, but the twist is that the winner is also absorbed by the book.
 
-Current core flow:
-
-1. Players enter through a lobby.
-2. Players ready up.
-3. When the ritual begins, players sit automatically around the table.
-4. One real cursed book moves from player to player.
-5. The ritual phrase starts with 1 word.
-6. Every player says the same visible phrase when the book reaches them.
-7. After the book completes a full table rotation, 1 word is added to the shared phrase.
-8. The phrase grows over rotations until players fail, time out, or are eliminated.
-
----
-
-## Golden Gameplay Loop
-
-1. The cursed book moves to a player.
-2. The hourglass flips.
-3. The current shared ritual phrase is shown.
-4. The active player must read the full visible phrase aloud.
-5. Whisper checks the spoken phrase.
-6. Other players may interfere at any time once interference systems are re-enabled.
-7. If the player succeeds, the ritual continues.
-8. If the player fails before time runs out, they may retry.
-9. If the hourglass runs out, the player can be eliminated.
-10. The book moves to another player.
-11. After a full table rotation, the phrase gains 1 new word.
-
 The book is the main character of the game.
 
 The hourglass is the pressure system.
 
-The demon is the master of ceremonies, but demon reactions are paused until the core voice loop works.
+The demon is the master of ceremonies, but demon reactions are paused until the core table and voice loop is reliable.
 
----
+## Current v0.1 Prototype State
+
+The current playable prototype demonstrates the seated table ritual, not the full multiplayer product.
+
+Implemented or present in the current prototype:
+
+1. One real cursed book.
+2. Physical seat traversal around the table.
+3. Phrase growth by full active table rotation.
+4. Local debug seat occupants for Play Mode testing.
+5. Word-by-word realtime voice validation as the default prototype feel.
+6. Optional full-phrase validation mode.
+7. Realtime visual word absorption.
+8. Wrong word rejection feedback.
+9. Hourglass timer pressure.
+10. Book movement after ritual acceptance.
+11. Ambient audio.
+12. Fire flicker.
+13. Hourglass light possession effect.
+14. Room veil and dark cabin ambience.
+
+Not implemented yet:
+
+1. Lobby.
+2. Ready check.
+3. Real multiplayer networking flow.
+4. Networked player seating.
+5. Production elimination flow.
+6. Interference cards.
+7. Demon reactions.
+8. Campaign objectives.
+
+Lobby is the next major milestone.
+
+## Current Core Flow
+
+1. Local debug occupants are assigned to seats for testing.
+2. Players are treated as seated around the ritual table.
+3. One real cursed book moves from active seat to active seat.
+4. The ritual phrase starts with 1 word.
+5. Every active player says the same visible phrase when the book reaches them.
+6. In the default `WordByWordRealtime` mode, each expected word can be accepted immediately as it is spoken.
+7. Incorrect words produce rejection feedback while the timer continues.
+8. When the visible phrase is accepted, the book moves to the next active seat.
+9. After a full active table rotation, 1 word is added to the shared phrase.
+10. The phrase grows over rotations until players fail, time out, or future game-mode rules end the ritual.
+
+Phrase growth is one word per full active table rotation, not one word per player.
+
+## Golden Gameplay Loop
+
+1. The cursed book moves to a player.
+2. The hourglass flips or starts.
+3. The current shared ritual phrase is shown.
+4. The active player must speak the visible phrase.
+5. Voice recognition provides spoken word or phrase candidates.
+6. Ritual validation checks those candidates according to the selected validation mode.
+7. Correct words are visually absorbed in realtime in `WordByWordRealtime` mode.
+8. Wrong words are rejected with feedback.
+9. If the player succeeds, the ritual continues and the book moves.
+10. If the player fails before time runs out, they may retry while time remains.
+11. If the hourglass runs out, the turn can fail and later elimination rules can apply.
+12. After a full active table rotation, the phrase gains 1 new word.
 
 ## Current Priority
 
-Priority 1 is a clean core ritual loop and reliable voice recognition.
+Priority 1 remains a clean core ritual loop and reliable voice interaction.
 
 Focus on:
 
 1. Lobby.
 2. Ready check.
-3. Automatic seating.
+3. Automatic seating from lobby players.
 4. Single book movement.
 5. Hourglass pressure.
 6. Shared phrase progression.
-7. Whisper-based phrase recognition.
-8. Windows speech recognition fallback.
+7. `WordByWordRealtime` validation as the default prototype mode.
+8. `FullPhrase` validation as an optional strict mode.
 9. Player failure, retry, timeout, and elimination.
 
 Do not expand secondary systems until this loop works end to end.
 
----
-
 ## Voice Recognition Rules
 
-- Whisper is the primary voice system.
-- Windows speech recognition is fallback only.
+- The current default prototype validation mode is `WordByWordRealtime`.
+- `WordByWordRealtime` uses `WindowsKeywordVoiceRecognizer` for immediate keyword recognition and visual word validation.
+- `FullPhrase` remains available as an optional strict mode that validates a full phrase transcript.
+- Whisper is kept in the project and may be used for full-phrase or experimental recognition paths.
+- Do not force Whisper as the only validation path.
+- Windows keyword recognition is currently preferred for realtime prototype gameplay.
 - Do not use Unity Dictation.
 - Do not use Azure voice services.
-- Ritual validation should prefer full visible phrase matching.
+- Ritual validation should prefer the current visible phrase and the selected validation mode.
 - `SpellPhraseLibrary` is separate from ritual words.
 - Do not merge spell/card phrases into the core ritual word vocabulary unless explicitly requested.
-
----
 
 ## Do Not Touch Unless Asked
 
@@ -109,9 +142,9 @@ Do not expand secondary systems until this loop works end to end.
 - Lore delivery.
 - Demon reactions.
 
-These systems are paused or out of scope until the core ritual loop and reliable voice recognition are working.
+These systems are paused or out of scope until the core ritual loop and reliable voice interaction are working.
 
----
+Documentation tasks may describe current visuals and ambience, but must not modify assets, scenes, prefabs, or scripts unless explicitly requested.
 
 ## Absolute Design Rules
 
@@ -120,14 +153,13 @@ These systems are paused or out of scope until the core ritual loop and reliable
 - Characters only move their head, mouth, body subtly, eyes, and hands.
 - The game happens around the table.
 - There is one main cursed book.
+- Do not create multiple gameplay books.
 - The book creates tension by choosing who plays next.
 - The hourglass creates urgency.
 - Other players can interfere once interference systems are re-enabled.
 - Fun comes before realism.
 - Voice interaction is central to the game.
 - Do not add mechanics that distract from the table, the book, the voice, or the social chaos.
-
----
 
 ## Unity Architecture
 
@@ -139,20 +171,26 @@ Assets/
 - Scenes/
 - Scripts/
   - Book/
+  - CoreRitualLoop/
+  - Hourglass/
+  - Incantation/
+  - Lighting/
   - Player/
+  - Ritual/
   - Seats/
+  - Voice/
 
 Important scene systems:
 
 - Room: visual environment only.
-- Players: player character instances.
+- Players: player character instances or local debug occupants.
 - Book: book-related objects.
 - SeatSystem: logical seat system.
 - Managers: global managers.
+- Ritual controller objects: prototype ritual orchestration and core-loop bridge components.
+- Lighting and ambience: room veil, fire flicker, hourglass possession light, and ambient sound.
 
 Do not move or rename major systems without a clear reason.
-
----
 
 ## Seat System
 
@@ -172,6 +210,23 @@ The chair is visual.
 
 The Seat is logic.
 
+`SeatManager` owns the configured physical seat order.
+
+The current clockwise order is:
+
+1. Seat1
+2. Seat5
+3. Seat3
+4. Seat6
+5. Seat2
+6. Seat7
+7. Seat4
+8. Seat8
+
+Counter-clockwise order is the exact reverse.
+
+Debug occupants are for local testing only and must not be treated as the final lobby or networking model.
+
 BookGhost is only a visual placement reference.
 
 BookGhost must never contain gameplay scripts.
@@ -179,8 +234,6 @@ BookGhost must never contain gameplay scripts.
 BookModel is the real book.
 
 The real book moves toward BookGhost or BookTarget depending on the current BookMover setup.
-
----
 
 ## Book System
 
@@ -194,11 +247,9 @@ BookTarget defines where the book should go.
 
 BookGhost is a visual preview used in the editor.
 
-The book should eventually move around the table in a dramatic way, not simply teleport.
+The book should move around the table in a dramatic way, not simply teleport.
 
 The book may hesitate, slow down, or fake choosing a player to create tension.
-
----
 
 ## Coding Rules
 
@@ -213,8 +264,6 @@ The book may hesitate, slow down, or fake choosing a player to create tension.
 - Do not add temporary test scripts without marking them clearly.
 - Remove obsolete scripts when they are replaced.
 - Do not silently change architecture.
-
----
 
 ## Game Modes
 
@@ -236,8 +285,6 @@ Players work together to stop the demon and seal it back inside the book.
 
 Campaign uses the same core systems but different objectives.
 
----
-
 ## Development Philosophy
 
 Build moments, not features.
@@ -258,8 +305,6 @@ Work in this order:
 6. Interference cards.
 7. Demon reactions.
 8. Multiplayer polish.
-
----
 
 ## Development Workflow
 
@@ -285,10 +330,9 @@ Workflow:
 11. Avoid putting gameplay logic inside visual components.
 12. Explain architectural decisions after every completed task.
 
----
-
 ## Git Rules
 
+- Run git status before editing.
 - Keep the project working before committing.
 - Commit after every meaningful feature.
 - Use clear commit messages.
@@ -301,8 +345,7 @@ Example commit messages:
 - Add Book Target Movement
 - Add Voice Incantation Prototype
 - Fix BookGhost Script Conflict
-
----
+- Update Prototype Documentation
 
 ## When Unsure
 

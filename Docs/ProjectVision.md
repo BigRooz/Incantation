@@ -17,16 +17,29 @@ Dark fantasy and horror amplify those moments. They do not replace the social pa
 ## Current Core Vision
 
 - Players start in a lobby.
+- Players ready up.
 - Players sit automatically when the ritual begins.
-- A ready check gates the start of the ritual.
 - There is one real cursed book.
 - The book moves player to player around the table.
 - The ritual phrase starts with 1 word.
-- All players say the same visible phrase.
-- After a full table rotation, the phrase grows by 1 word.
-- Whisper is the primary voice recognition system.
-- Windows speech recognition is fallback only.
+- All active players say the same visible phrase.
+- After a full active table rotation, the phrase grows by 1 word.
+- Phrase growth is rotation-based, not player-turn-based.
+- `WordByWordRealtime` is the default prototype validation mode.
+- `FullPhrase` is an optional strict validation mode.
+- `WindowsKeywordVoiceRecognizer` is currently preferred for realtime prototype gameplay.
+- Whisper remains available but should not be forced as the only validation path.
 - Unity Dictation and Azure are not part of the current voice plan.
+
+## Current Prototype State
+
+The v0.1 prototype is a local playable ritual slice.
+
+It includes one cursed book, physical seat traversal, local debug occupants, realtime visual word absorption, wrong-word rejection feedback, hourglass timer pressure, book movement after ritual acceptance, ambient audio, fire flicker, hourglass light possession, room veil, and dark cabin ambience.
+
+Lobby is the next major milestone.
+
+Networking is not implemented yet.
 
 ## Mission
 
@@ -66,9 +79,9 @@ The goal is memorable experiences.
 
 ## Current Priority
 
-Priority 1 is the clean core ritual loop and reliable voice recognition.
+Priority 1 is the clean core ritual loop and reliable voice interaction.
 
-Notebook, card, lore, and demon systems are paused until the core voice loop works.
+Notebook, card, lore, networking, and demon systems are paused until the core voice loop works.
 
 ## Game Modes
 

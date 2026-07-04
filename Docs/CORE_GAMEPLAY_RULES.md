@@ -26,9 +26,13 @@ The book is the protagonist of the gameplay loop.
 
 Every system that affects turn order, pacing, pressure, voice interaction, or player consequence must preserve the feeling that the book is alive, choosing, demanding, and moving the ritual forward.
 
+There is one gameplay book. Do not create one book per player.
+
 ## 2. Physical Seats
 
 The Seat System owns the physical table layout.
+
+`SeatManager` owns the configured physical seat order.
 
 The Core Ritual Engine never assumes:
 
@@ -100,39 +104,61 @@ Not every physical seat.
 
 This means phrase growth, rotation completion, and turn progression are based on the living ritual circle, not on the maximum number of chairs around the table.
 
+Local debug occupants are not final player identity. They are only a Play Mode testing aid until lobby and networking systems exist.
+
 ## 5. Turn Lifecycle
 
 A turn is:
 
 1. Book arrives.
-2. Player speaks.
-3. Timer ends or player succeeds.
-4. Consequences happen.
-5. Seat state updates.
-6. Traversal rule determines next active seat.
-7. Short breathing delay.
-8. Book moves.
-9. Next turn begins.
+2. Hourglass pressure starts.
+3. Player speaks.
+4. Voice recognition emits word or phrase candidates.
+5. Validation accepts, rejects, or waits for more input.
+6. Timer ends or player succeeds.
+7. Consequences happen.
+8. Seat state updates.
+9. Traversal rule determines next active seat.
+10. Short breathing delay.
+11. Book moves.
+12. Next turn begins.
 
 The book never becomes permanently stuck on one player.
 
 A player may panic, fail, retry, or be punished, but the ritual must continue unless the game mode has reached a valid ending condition.
 
-## 6. Consequences
+## 6. Voice Validation
+
+The current prototype has two validation modes:
+
+- `WordByWordRealtime`: default prototype mode. The expected phrase is validated word by word using realtime keyword recognition, with immediate visual absorption for accepted words.
+- `FullPhrase`: optional strict mode. The full spoken transcript is compared against the full current visible phrase.
+
+`WindowsKeywordVoiceRecognizer` is currently preferred for realtime prototype gameplay.
+
+Whisper remains available for full-phrase or experimental recognition paths, but should not be forced as the only path.
+
+Do not use Unity Dictation.
+
+Do not use Azure voice services.
+
+## 7. Consequences
 
 Success and failure are separate from traversal.
 
 Success may:
 
 - Preserve the player.
-- Grow the phrase.
+- Grow the phrase after a completed rotation.
 - Award bonuses.
 
 Failure may:
 
+- Allow retry while time remains.
+- Reject the wrong word.
 - Eliminate the player.
 - Apply curses.
-- Trigger demon events.
+- Trigger future demon events.
 
 Neither success nor failure owns the traversal rule.
 
@@ -142,7 +168,7 @@ Traversal decides where the book goes next.
 
 Those responsibilities must remain separate so future effects can create chaos without breaking the ritual's structure.
 
-## 7. Pacing
+## 8. Pacing
 
 The game intentionally breathes.
 
@@ -167,7 +193,7 @@ The space between turns is not dead time.
 
 It is where tension spreads around the table and where players turn a rule into a story.
 
-## 8. Future Proofing
+## 9. Future Proofing
 
 Future spell cards should modify rules instead of replacing systems.
 
@@ -183,9 +209,9 @@ The Seat System remains the authority.
 
 Future mechanics may bend traversal, pacing, pressure, or consequences, but they must do so by changing the current rule set through the proper authority.
 
-They must not bypass the table, create private turn ownership, or replace the book as the driver of the ritual.
+They must not bypass the table, create private turn ownership, replace the book as the driver of the ritual, create multiple gameplay books, or make characters walk around.
 
-## 9. Design Philosophy
+## 10. Design Philosophy
 
 Every gameplay feature should answer:
 

@@ -4,14 +4,37 @@
 
 There is one real cursed book.
 
+The book is the main character.
+
 Do not create one gameplay book per player unless explicitly requested.
 
-## Current Behavior Goal
+## Current Prototype Behavior
 
 - The book starts as the ritual focus.
-- The book moves from player to player.
+- The book moves from active seat to active seat.
 - The book determines whose turn is active.
-- After a full table rotation, the shared ritual phrase gains 1 word.
+- The book follows the physical seat order owned by `SeatManager`.
+- After a full active table rotation, the shared ritual phrase gains 1 word.
+- After ritual acceptance, the book moves to the next active seat.
+
+## Physical Seat Order
+
+The current clockwise order is:
+
+1. Seat1
+2. Seat5
+3. Seat3
+4. Seat6
+5. Seat2
+6. Seat7
+7. Seat4
+8. Seat8
+
+Counter-clockwise order is the exact reverse.
+
+The book must not assume Seat1 -> Seat2 -> Seat3 order.
+
+The book must not follow player join order or network player index.
 
 ## Scene Boundary
 
@@ -20,3 +43,11 @@ Do not create one gameplay book per player unless explicitly requested.
 `BookTarget` defines where the real book should move.
 
 `BookGhost` is an editor/placement preview only and must not contain gameplay scripts.
+
+Do not put gameplay authority on visual-only book references.
+
+## Design Direction
+
+The book should feel alive and theatrical.
+
+It may hesitate, slow down, or fake intent later, but those flourishes must still preserve the single-book rule and the Seat system's ownership of physical table traversal.

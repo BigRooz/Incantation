@@ -85,14 +85,14 @@ Allowed influences:
 
 The active player's recitation window is open.
 
-The hourglass is running. The visible shared ritual phrase is shown. The active player must speak the full phrase. Whisper is the primary recognition path. Windows speech recognition is fallback only. `PhraseValidator` is the only authority for whether the spoken phrase satisfies the current visible ritual phrase.
+The hourglass is running. The visible shared ritual phrase is shown. The active player must satisfy the selected validation mode. `WordByWordRealtime` is the default prototype mode and validates the phrase one expected word at a time for immediate visual absorption and wrong-word rejection. `FullPhrase` is an optional strict mode that validates a full phrase transcript against the current visible ritual phrase.
 
 Allowed influences:
 
 - Hourglass system provides timeout pressure.
-- WhisperController provides recognized phrase candidates.
-- Windows speech recognition may provide fallback candidates only through the approved fallback path.
-- PhraseValidator decides whether a candidate matches the current full visible phrase.
+- `WindowsKeywordVoiceRecognizer` provides realtime keyword candidates for the default prototype mode.
+- Whisper may provide full-phrase or experimental transcript candidates when that path is explicitly selected.
+- Ritual validation decides whether a candidate satisfies the current visible phrase and selected validation mode.
 - GrowingIncantationManager provides the current shared phrase but does not advance turns.
 - Other players may interfere in the future only through approved interference systems.
 
@@ -182,9 +182,10 @@ The book state machine owns which state the book is in, but it does not own ever
 - Book movement owns movement start, cancellation, and arrival reporting.
 - Core ritual orchestration owns state coordination and prevents duplicate movement, listening, timer starts, and turn resolution.
 - Hourglass owns timeout pressure during `Listening`.
-- WhisperController owns primary recognition session flow.
-- Windows speech recognition owns only fallback candidate generation when enabled.
-- PhraseValidator owns phrase correctness.
+- Voice recognizers own candidate generation only.
+- `WindowsKeywordVoiceRecognizer` is currently preferred for realtime prototype gameplay.
+- Whisper remains available for full-phrase or experimental recognition paths but is not the only validation path.
+- Ritual validation owns phrase correctness according to the selected mode.
 - GrowingIncantationManager owns the current shared phrase and one-word growth after full active-seat rotations.
 - Game mode rules own valid ending conditions.
 
@@ -247,9 +248,10 @@ It must not choose active players, move the book, listen to microphones, or deci
 
 ### Validation-Owned Influences
 
-PhraseValidator may influence:
+Ritual validation may influence:
 
-- Whether the recognized phrase matches the expected full visible phrase.
+- Whether a recognized keyword matches the next expected word in `WordByWordRealtime`.
+- Whether a recognized transcript matches the expected full visible phrase in `FullPhrase`.
 - Failure reasons for mismatch if structured validation exists.
 
 It must not advance turns, eliminate players, move the book, or mutate the phrase.
@@ -274,7 +276,7 @@ Success and failure affect consequences first, then advancement.
 
 ### Success
 
-When the active player speaks the full visible phrase correctly before timeout:
+When the active player satisfies the selected validation mode before timeout:
 
 1. `Listening` transitions to `ResolvingTurn`.
 2. Listening stops.
@@ -424,9 +426,11 @@ Delay effects must not allow duplicate listening sessions, duplicate hourglass s
 - Success and failure do not directly own traversal.
 - Consequences update player, Seat, phrase, or game state before traversal asks for the next destination.
 - Phrase growth happens after a full active-seat rotation, not after every turn.
-- Whisper is the primary recognition path.
-- Windows speech recognition is fallback only.
-- PhraseValidator is the only phrase correctness authority.
+- `WordByWordRealtime` is the default prototype validation mode.
+- `FullPhrase` is an optional strict validation mode.
+- `WindowsKeywordVoiceRecognizer` is currently preferred for realtime prototype gameplay.
+- Whisper remains available for full-phrase or experimental recognition paths, but is not the only validation path.
+- Ritual validation is the phrase correctness authority for the selected mode.
 - GrowingIncantationManager is the only current ritual phrase authority.
 - `SpellPhraseLibrary` remains separate from ritual words.
 - `BookGhost` is visual-only and must not contain gameplay scripts.

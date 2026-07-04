@@ -17,25 +17,53 @@ The ritual is the game.
 ## The Laws Of Incantation
 
 1. Players stay seated for the ritual.
-2. There is one real cursed book.
-3. The book is the main driver of tension.
-4. The hourglass is the pressure system.
-5. Voice interaction is central to play.
-6. All active players recite the same current visible phrase.
-7. The ritual phrase starts with exactly 1 word.
-8. Exactly 1 word is added after every full table rotation.
-9. Phrase growth is rotation-based, not turn-based.
-10. A player must recite the full visible phrase to progress.
-11. Players may retry failed recitations while time remains.
-12. Timeout can lead to elimination.
-13. Fun comes before realism.
-14. Every mechanic must support tension, laughter, betrayal, stress, surprise, or a story players will remember.
+2. Characters do not walk around.
+3. There is one real cursed book.
+4. The book is the main driver of tension.
+5. The hourglass is the pressure system.
+6. Voice interaction is central to play.
+7. All active players recite the same current visible phrase.
+8. The ritual phrase starts with exactly 1 word.
+9. Exactly 1 word is added after every full active table rotation.
+10. Phrase growth is rotation-based, not turn-based.
+11. A player must satisfy the selected validation mode to progress.
+12. Players may retry failed recitations while time remains.
+13. Timeout can lead to elimination.
+14. Fun comes before realism.
+15. Every mechanic must support tension, laughter, betrayal, stress, surprise, or a story players will remember.
+
+## Current v0.1 Prototype Truth
+
+The current prototype is a playable local ritual slice.
+
+It includes:
+
+- One cursed book.
+- Physical seat traversal.
+- Local debug seat occupants.
+- Shared phrase growth by full active table rotation.
+- `WordByWordRealtime` validation as the default feel.
+- `FullPhrase` validation as an optional strict mode.
+- Realtime visual word absorption.
+- Wrong word rejection feedback.
+- Hourglass timer pressure.
+- Book movement after ritual acceptance.
+- Ambient audio and dark cabin ambience.
+- Fire flicker.
+- Hourglass light possession effect.
+- Room veil.
+
+Lobby is the next major milestone.
+
+Networking is not implemented yet.
+
+Debug occupants are local testing tools only.
 
 ## Physical Seat Rotation Truth
 
 The cursed book always travels according to the physical seating order around the table.
 
-The physical seat order is explicitly configured and owned by the Seat system.
+The physical seat order is explicitly configured and owned by `SeatManager`.
 
 The physical seat order is not determined by:
 
@@ -66,19 +94,24 @@ Future spell cards may temporarily change the traversal rule, such as reverse ro
 
 ## Voice And Validation Truth
 
-Whisper only transcribes.
+Voice recognizers provide candidates. They do not own gameplay success.
 
-Whisper never decides gameplay success, failure, elimination, phrase progression, or turn advancement.
+The current validation modes are:
 
-Windows speech recognition is fallback only. It also does not decide gameplay authority.
+- `WordByWordRealtime`: default prototype mode. Spoken keywords are validated immediately against the next expected word, giving realtime visual word absorption and wrong word rejection.
+- `FullPhrase`: optional strict mode. A full phrase transcript is validated against the current visible phrase.
 
-`PhraseValidator` is the only validation authority for whether spoken text satisfies the current ritual phrase.
+`WindowsKeywordVoiceRecognizer` is currently preferred for realtime prototype gameplay.
 
-`GrowingIncantationManager` is the only source of truth for the current ritual phrase.
+Whisper is kept in the project for full-phrase and experimental recognition paths, but must not be forced as the only validation path.
+
+Unity Dictation and Azure voice services must not be reintroduced.
+
+`PhraseValidator`, `IncantationManager`, and the selected validation mode define whether spoken text satisfies the current ritual phrase.
+
+`GrowingIncantationManager` and incantation phrase systems own the current ritual phrase.
 
 No UI, card, spell, voice chat, networking, book, timer, player, demon, or lore system may independently decide what the current ritual phrase is.
-
-No system may bypass `PhraseValidator` to mark a ritual recitation as correct.
 
 ## Ritual Phrase Rules
 
@@ -88,7 +121,7 @@ All active players recite the same phrase.
 
 The phrase remains unchanged during a table rotation.
 
-Exactly 1 word is added after every full table rotation.
+Exactly 1 word is added after every full active table rotation.
 
 The phrase must not grow after every individual player turn.
 
@@ -106,7 +139,7 @@ Voice Chat is independent from ritual recognition.
 
 Voice Chat may let players talk, panic, negotiate, deceive, or distract each other.
 
-Ritual recognition listens for ritual recitation and sends transcription candidates into validation.
+Ritual recognition listens for ritual recitation and sends recognition candidates into validation.
 
 Voice Chat must not validate ritual speech, mutate the phrase, advance turns, or eliminate players.
 
@@ -126,7 +159,7 @@ Do not add mechanics that pull attention away from the seated table ritual unles
 
 ## Out Of Scope For The Current Milestone
 
-The current milestone is the clean core ritual loop and reliable voice recognition.
+The current milestone is the clean core ritual loop and reliable voice interaction, with lobby next.
 
 Out-of-scope systems include:
 
@@ -137,10 +170,11 @@ Out-of-scope systems include:
 - Notebook systems.
 - Campaign objectives.
 - Interference systems beyond the current core loop.
-- Visual polish unrelated to core ritual clarity.
 - New networking architecture.
-- Any system that changes the phrase outside `GrowingIncantationManager`.
-- Any system that validates ritual speech outside `PhraseValidator`.
+- Multiple gameplay books.
+- Walking characters.
+- Any system that changes the phrase outside the incantation phrase authority.
+- Any system that validates ritual speech outside the selected ritual validation path.
 
 These systems may return later, but they must not complicate the current milestone.
 
