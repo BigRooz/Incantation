@@ -145,6 +145,45 @@ Notes:
 - `HourglassController` wraps timer control for ritual systems.
 - It should signal pressure and timeout, not decide phrase validation or traversal.
 
+## HourglassVisualController
+
+Recommended setup:
+
+- `timer`: assign the scene `Timer`.
+- `hourglassRoot`: optionally assign the root of the hourglass visual object for organization/reference.
+- `topSand`: optionally assign a separate top sand visual Transform.
+- `bottomSand`: optionally assign a separate bottom sand visual Transform.
+- `topSandFullScale`: set to the authored full local scale of the top sand visual.
+- `bottomSandFullScale`: set to the authored full local scale of the bottom sand visual.
+- `sandCurve`: tune the visual fill/drain progression only.
+- `resetVisualsOnEnable`: keep `true` when the hourglass should start with full top sand and empty bottom sand.
+
+Notes:
+
+- This component is visual-only.
+- It reads `Timer` state and timer lifecycle events, but it must not start, stop, reset, or otherwise modify timer gameplay.
+- The existing Sablier mesh does not need to be edited or replaced. Use separate Inspector-assigned sand visual objects when configuring this effect.
+
+## HourglassWarningAudio
+
+Recommended setup:
+
+- `timer`: assign the scene `Timer`.
+- `audioSource`: assign the AudioSource that should play the warning tick/chime.
+- `warningClip`: assign the warning sound clip. If left empty, playback is skipped safely.
+- `warningThreshold`: keep `10` seconds for the default final-countdown warning window.
+- `playEverySecond`: keep `true` for one warning sound per whole second.
+- `resetOnTimerRestart`: keep `true` so each new turn can warn again.
+- `fadeOutDuration`: keep `0.35` seconds for a short turn-end fade.
+- `fadeOutOnTimerStop`: keep `true` so warning audio fades out when the active timed turn ends.
+
+Notes:
+
+- This component is audio-only.
+- It reads `Timer` state and timer lifecycle events, but it must not start, stop, reset, or otherwise modify timer gameplay.
+- Fade-out should be driven only by `Timer.OnStopped`, `Timer.OnReset`, or `Timer.OnFinished`, not by individual word validation.
+- It should live beside the hourglass audio/visual setup, not on gameplay authority objects like Seats, BookGhost, or ritual phrase systems.
+
 ## HourglassLightPossessionController
 
 Current `MainGame` setup:
