@@ -77,6 +77,7 @@ Current `MainGame` setup:
 - `incantationManager`: assigned.
 - `incantationTextDisplay`: assigned.
 - `coreRitualLoopBridge`: assigned when available.
+- `demonHandController`: assign the `DemonHandController` under the single `BookModel` so ritual failure can trigger the demon hand visual sequence.
 - `voiceRecognizerBehaviour`: assigned to `WindowsKeywordVoiceRecognizer` for the default prototype feel.
 - `voiceValidationMode`: `WordByWordRealtime`.
 - `voicePhraseNormalizer`: assigned.
@@ -116,6 +117,59 @@ Notes:
 - `BookController` is an adapter around `BookMover`.
 - Arrival is currently duration-based using `BookMover.moveDuration`.
 - Future improvement: replace duration-based arrival with a true movement completion callback.
+
+## DemonHandController
+
+Recommended setup:
+
+- Exact correct `MainGame` hierarchy:
+  - `Book`
+  - `BookModel`
+  - `DemonHandAttackV1`
+  - `DemonHandModel`
+- The only gameplay-driving demon hand setup must live under `Book > BookModel > DemonHandAttackV1`.
+- `BookGhost` objects may exist as visual/editor placement references, but they must not contain gameplay-driving `DemonHandController` components.
+- Use `Tools/Incantation/Validate Demon Hand Setup` to inspect all `DemonHandController` components in the open scene, including whether they are under `BookModel`, whether their references are assigned, whether their Animator has a controller and avatar, whether `Attack` and `Reset` triggers exist, and whether any controllers are under `BookGhost`.
+- Use `Tools/Incantation/Repair Demon Hand Setup` to repair the expected `BookModel` setup automatically. The repair assigns `DemonHandModel` as `handRoot`, assigns the Animator on `DemonHandAttackV1`, restores the expected Animator Controller and imported avatar, sets safe visibility/debug values, removes `DemonHandController` components from `BookGhost` children only, and marks the scene dirty.
+- Place `DemonHandController` on an active object under `BookModel` that can remain enabled while `handRoot` is hidden.
+- The preferred setup is to keep the controller on the same GameObject as the hand Animator only when `handRoot` is a child visual root, not the controller's own GameObject.
+- `handRoot`: assign the demon hand visual root GameObject that should be hidden at scene start and shown during the sequence.
+- `handAnimator`: assign the Animator that plays the demon hand attack animation.
+- `attackTriggerName`: keep `Attack` unless the Animator Controller uses a different trigger parameter.
+- `resetTriggerName`: keep `Reset` unless the Animator Controller uses a different trigger parameter.
+- `hideOnAwake`: keep `true` so the hand does not appear immediately at scene start.
+- `deactivateWhenIdle`: keep `true` unless the hand must remain active after the animation for visual debugging.
+- `fallbackSequenceDuration`: set to the expected attack animation length when Animation Events are not yet configured.
+- `playOnStartForDebug`: keep `false` except when intentionally testing the hand in Play Mode.
+
+Animator Controller:
+
+- Use `Assets/assets/Models/DemonHand/DemonHandController.controller` on the demon hand Animator unless the asset is intentionally replaced.
+- Required trigger parameters:
+  - `Attack`
+  - `Reset`
+- State machine:
+  - `Entry` -> `Idle`.
+  - `Idle` is the default state and has no motion.
+  - `Idle` -> `Attack` uses the `Attack` trigger.
+  - `Idle` -> `Attack` has `Has Exit Time` off and `Transition Duration` set to `0`.
+  - `Attack` uses the imported demon hand attack animation clip.
+  - `Attack` -> `Idle` has `Has Exit Time` on, `Exit Time` set to `1`, and `Transition Duration` set to `0`.
+
+Animation Events:
+
+- Add an Animation Event at the exact grab/contact frame that calls `AnimationEvent_GrabMoment`.
+- Add an Animation Event on the last frame that calls `AnimationEvent_SequenceFinished`.
+- Animation Events are delivered to components on the animated Animator GameObject. If `DemonHandController` is not on that GameObject, add a relay component later or move the controller to the Animator object while keeping `handRoot` as a child visual root.
+
+Notes:
+
+- This controller is visual-only.
+- It does not eliminate, move, damage, absorb, or otherwise mutate player gameplay state.
+- Future elimination or absorption systems should call `PlaySequence()` and listen to `onSequenceStarted`, `onGrabMoment`, and `onSequenceFinished`.
+- If the animation events are missing, `fallbackSequenceDuration` finishes the sequence safely and hides `handRoot` when `deactivateWhenIdle` is enabled.
+- The Animator must support trigger parameters named by `attackTriggerName` and `resetTriggerName`; missing triggers are logged once and skipped safely.
+- Do not put this controller on `BookGhost`.
 
 ## Timer
 

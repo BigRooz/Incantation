@@ -24,6 +24,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private IncantationManager incantationManager;
     [SerializeField] private IncantationTextDisplay incantationTextDisplay;
     [SerializeField] private CoreRitualLoopBridge coreRitualLoopBridge;
+    [SerializeField] private DemonHandController demonHandController;
 
     [Header("Voice Recognizer Selection")]
     [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
@@ -75,6 +76,8 @@ public class RitualController : MonoBehaviour
     private bool hasLoggedMissingBookMover;
     private bool hasLoggedMissingVoiceRecognizerBehaviour;
     private bool hasLoggedMissingSpeechAliasWordLibrary;
+    private bool hasLoggedMissingDemonHandController;
+    private bool hasLoggedAutomaticDemonHandControllerAssignment;
     private bool hasLoggedLegacyPhraseFallback;
     private bool hasLoggedRuntimeCoreRitualLoopBridgeSetup;
     private bool hasInitializedCoreRitualLoop;
@@ -101,6 +104,7 @@ public class RitualController : MonoBehaviour
 
     private void Start()
     {
+        ResolveDemonHandController();
         ValidateRequiredReferences();
 
         if (autoStart)
@@ -833,6 +837,71 @@ public class RitualController : MonoBehaviour
             LogMissingSpeechAliasWordLibrary();
     }
 
+    private void ResolveDemonHandController()
+    {
+        if (demonHandController != null)
+            return;
+
+        demonHandController = FindDemonHandControllerUnderBookModel();
+
+        if (demonHandController == null)
+            demonHandController = FindFirstObjectByType<DemonHandController>();
+
+        if (demonHandController != null)
+        {
+            if (!hasLoggedAutomaticDemonHandControllerAssignment)
+            {
+                Debug.Log("Automatically assigned DemonHandController from BookModel.", this);
+                hasLoggedAutomaticDemonHandControllerAssignment = true;
+            }
+
+            hasLoggedMissingDemonHandController = false;
+            return;
+        }
+
+        if (hasLoggedMissingDemonHandController)
+            return;
+
+        Debug.LogError("No DemonHandController could be found in the scene. Ritual failure animation will be disabled.", this);
+        hasLoggedMissingDemonHandController = true;
+    }
+
+    private DemonHandController FindDemonHandControllerUnderBookModel()
+    {
+        GameObject book = GameObject.Find("Book");
+
+        if (book == null)
+            return null;
+
+        Transform bookModel = FindDirectChild(book.transform, "BookModel");
+
+        if (bookModel == null)
+            return null;
+
+        Transform demonHandAttack = FindDirectChild(bookModel, "DemonHandAttackV1");
+
+        if (demonHandAttack == null)
+            return null;
+
+        return demonHandAttack.GetComponent<DemonHandController>();
+    }
+
+    private Transform FindDirectChild(Transform parent, string childName)
+    {
+        if (parent == null)
+            return null;
+
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform child = parent.GetChild(i);
+
+            if (child.name == childName)
+                return child;
+        }
+
+        return null;
+    }
+
     private void HandlePhraseRecognized(string recognizedPhrase)
     {
         if (ritualFailed || playerTurnComplete || !isTurnActive)
@@ -1145,6 +1214,7 @@ public class RitualController : MonoBehaviour
 
         ritualFailed = true;
         Debug.Log($"Ritual failed. {reason}");
+        PlayFailureVisual();
 
         StopRetryListeningRoutine();
         UnsubscribeFromVoiceRecognizer();
@@ -1156,6 +1226,21 @@ public class RitualController : MonoBehaviour
         isTurnActive = false;
         playerTurnComplete = true;
         LogDebug("Ritual is now in failed state. No next seat, incantation, book move, or hourglass restart will start automatically.");
+    }
+
+    private void PlayFailureVisual()
+    {
+        if (demonHandController != null)
+        {
+            demonHandController.PlaySequence();
+            return;
+        }
+
+        if (hasLoggedMissingDemonHandController)
+            return;
+
+        Debug.LogWarning($"{nameof(RitualController)} on '{gameObject.name}' cannot play the ritual failure demon hand visual because '{nameof(demonHandController)}' is not assigned. Ritual failure will continue normally.", this);
+        hasLoggedMissingDemonHandController = true;
     }
 
     private void RestartListeningAfterFailedAttempt()
