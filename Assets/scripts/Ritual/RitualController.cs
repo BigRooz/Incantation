@@ -51,6 +51,8 @@ public class RitualController : MonoBehaviour
     [SerializeField] private List<LearnedSpeechAlias> learnedAliases = new List<LearnedSpeechAlias>();
 
     [Header("Debug")]
+    [Tooltip("Temporary local/debug absorption testing only. Used only when the active Seat has no real player Transform, such as debug occupants. Leave empty for normal multiplayer seating.")]
+    [SerializeField] private Transform debugAbsorptionPlayerOverride;
     [SerializeField] private bool enableDebugLogs = false;
 
     private Coroutine ritualRoutine;
@@ -77,6 +79,8 @@ public class RitualController : MonoBehaviour
     private bool hasLoggedMissingVoiceRecognizerBehaviour;
     private bool hasLoggedMissingSpeechAliasWordLibrary;
     private bool hasLoggedMissingDemonHandController;
+    private bool hasLoggedMissingFailedPlayerTransform;
+    private bool hasLoggedDebugAbsorptionPlayerOverride;
     private bool hasLoggedAutomaticDemonHandControllerAssignment;
     private bool hasLoggedLegacyPhraseFallback;
     private bool hasLoggedRuntimeCoreRitualLoopBridgeSetup;
@@ -87,6 +91,7 @@ public class RitualController : MonoBehaviour
     private string lastProcessedWhisperPhrase = string.Empty;
 
     public Seat CurrentActiveSeat { get; private set; }
+    public Transform CurrentFailedPlayer { get; private set; }
     public bool RitualFailed => ritualFailed;
 
     private void OnEnable()
@@ -138,6 +143,9 @@ public class RitualController : MonoBehaviour
 
         Debug.Log("Ritual started");
         ritualFailed = false;
+        CurrentFailedPlayer = null;
+        hasLoggedMissingFailedPlayerTransform = false;
+        hasLoggedDebugAbsorptionPlayerOverride = false;
         activeRitualController = this;
         ritualRoutine = StartCoroutine(RitualLoop());
     }
@@ -167,6 +175,7 @@ public class RitualController : MonoBehaviour
         isTurnActive = false;
         playerTurnComplete = false;
         ritualFailed = false;
+        CurrentFailedPlayer = null;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
         hasLoggedMissingVoicePhraseNormalizer = false;
@@ -174,6 +183,8 @@ public class RitualController : MonoBehaviour
         hasLoggedMissingBookMover = false;
         hasLoggedMissingVoiceRecognizerBehaviour = false;
         hasLoggedMissingSpeechAliasWordLibrary = false;
+        hasLoggedMissingFailedPlayerTransform = false;
+        hasLoggedDebugAbsorptionPlayerOverride = false;
         hasLoggedLegacyPhraseFallback = false;
         hasLoggedRuntimeCoreRitualLoopBridgeSetup = false;
         hasInitializedCoreRitualLoop = false;
@@ -1212,6 +1223,7 @@ public class RitualController : MonoBehaviour
         if (ritualFailed)
             return;
 
+        CurrentFailedPlayer = GetCurrentActivePlayerTransform();
         ritualFailed = true;
         Debug.Log($"Ritual failed. {reason}");
         PlayFailureVisual();
@@ -1226,6 +1238,44 @@ public class RitualController : MonoBehaviour
         isTurnActive = false;
         playerTurnComplete = true;
         LogDebug("Ritual is now in failed state. No next seat, incantation, book move, or hourglass restart will start automatically.");
+    }
+
+    private Transform GetCurrentActivePlayerTransform()
+    {
+        Transform playerTransform = null;
+
+        if (CurrentActiveSeat != null)
+            playerTransform = CurrentActiveSeat.GetRealPlayerTransform();
+
+        if (playerTransform != null)
+            return playerTransform;
+
+        if (debugAbsorptionPlayerOverride != null)
+        {
+            LogDebugAbsorptionPlayerOverride();
+            return debugAbsorptionPlayerOverride;
+        }
+
+        LogMissingFailedPlayerTransform();
+        return null;
+    }
+
+    private void LogDebugAbsorptionPlayerOverride()
+    {
+        if (hasLoggedDebugAbsorptionPlayerOverride)
+            return;
+
+        Debug.Log("Using debugAbsorptionPlayerOverride for absorption test.", this);
+        hasLoggedDebugAbsorptionPlayerOverride = true;
+    }
+
+    private void LogMissingFailedPlayerTransform()
+    {
+        if (hasLoggedMissingFailedPlayerTransform)
+            return;
+
+        Debug.LogWarning("Cannot absorb failed player because the active seat has no real player Transform assigned.", this);
+        hasLoggedMissingFailedPlayerTransform = true;
     }
 
     private void PlayFailureVisual()

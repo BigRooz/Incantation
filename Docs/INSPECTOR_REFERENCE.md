@@ -55,6 +55,7 @@ Each Seat is logical. Chair meshes are visual.
 Intentional references:
 
 - `PlayerSpawn`: where a seated local/debug player is placed.
+- `realPlayerTransform`: runtime-bound visible player root/model for this Seat. `Seat.Occupy()` assigns this automatically from the occupying player GameObject; normal gameplay should not require manual assignment.
 - `BookTarget`: gameplay destination when used by the current setup.
 - `BookGhost`: visual/editor placement reference.
 - `LookTarget`: seated attention reference.
@@ -64,6 +65,11 @@ Intentional references:
 Notes:
 
 - `Seat.GetBookDestination()` currently prefers `BookGhost` when present, otherwise `BookTarget`.
+- `Seat.Occupy(player)` assigns both `currentPlayer` and `realPlayerTransform` for real visible player objects.
+- `Seat.Free()` clears both `currentPlayer` and `realPlayerTransform`.
+- `Seat.GetRealPlayerTransform()` returns the automatically bound `realPlayerTransform` when valid. If that is empty, it can fall back to `currentPlayer.transform` only for non-debug occupants with visible renderers.
+- Runtime debug occupants named `DebugOccupant_*` or `SimulatedPlayer_*` are local testing placeholders, not visible player models for absorption.
+- For absorption to work, the active Seat must be occupied through `Seat.Occupy()` with the actual visible player root or a player root that contains visible renderers.
 - `BookGhost` must never contain gameplay scripts.
 
 ## RitualController
@@ -86,12 +92,14 @@ Current `MainGame` setup:
 - `hourglassDuration`: `30` seconds. `Prototype tuning`.
 - `ritualAcceptancePauseSeconds`: `0.75` seconds. `Prototype tuning`.
 - `enableLearningMode`: `false` unless intentionally collecting speech aliases.
+- `debugAbsorptionPlayerOverride`: temporary local/debug absorption testing only. Leave empty for normal gameplay and multiplayer; assign a visible player root here only when testing absorption with debug-only Seat occupants.
 - `enableDebugLogs`: `false` by default.
 
 Notes:
 
 - `WordByWordRealtime` is the default prototype mode.
 - `FullPhrase` is optional strict mode.
+- `debugAbsorptionPlayerOverride` is used only if the active Seat cannot provide a real player Transform. A real Seat-bound player is always preferred over this override.
 - Do not assign Unity Dictation or Azure voice services.
 
 ## BookMover
@@ -170,6 +178,167 @@ Notes:
 - If the animation events are missing, `fallbackSequenceDuration` finishes the sequence safely and hides `handRoot` when `deactivateWhenIdle` is enabled.
 - The Animator must support trigger parameters named by `attackTriggerName` and `resetTriggerName`; missing triggers are logged once and skipped safely.
 - Do not put this controller on `BookGhost`.
+
+## PlayerAbsorptionController
+
+Recommended setup:
+
+- Place `PlayerAbsorptionController` on a real book-side scene object, preferably under `Book > BookModel` or on a nearby book visual/controller object.
+- Do not place it on `BookGhost`.
+- `absorptionTarget`: assign a small empty Transform near or slightly inside the visible `BookModel`, positioned where the failed player should be pulled into the book.
+- `absorptionDuration`: `0.75` seconds by default. `Prototype tuning`.
+- `movementCurve`: tune the pull-in motion. Default should move from 0 to 1 over the sequence.
+- `scaleCurve`: tune shrink amount. Default should evaluate from 1 to 0 so the target scales down into the book.
+- `deactivateTargetOnComplete`: keep `true` for the prototype so the absorbed player disappears visually at the end.
+- Debug:
+  - `skipPlayerHide`: development only. Prevents the absorbed player from being hidden/deactivated after the absorption sequence so local tuning can hear audio, inspect particles, and verify timings. Keep disabled during normal gameplay.
+  - `skipPlayerDeactivate`: development only. Prevents the absorbed player from being deactivated after the absorption sequence while preserving the rest of the death sequence. Keep disabled during normal gameplay.
+- `onAbsorptionStarted`: optional visual/audio-only hooks.
+- `onAbsorptionFinished`: optional visual/audio-only hooks.
+
+Notes:
+
+- This controller is visual-only.
+- It moves and scales the assigned target Transform during absorption, then optionally deactivates that target GameObject.
+- The Debug section is only for local tuning of death audio, smoke particles, aftermath timing, and death vision timing. It must remain disabled during normal gameplay.
+- It does not decide ritual failure, timeout, elimination, seating, voice validation, turn order, or book traversal.
+- `ResetAbsorption()` restores the absorbed target to its original position, rotation, scale, and active state for Play Mode testing.
+- If `BeginAbsorption` receives a null target, the controller logs one warning and the game continues.
+
+## DeathVisionVignetteController
+
+Recommended setup:
+
+- Place `DeathVisionVignetteController` on a full-screen UI overlay object, preferably `DeathVisionCanvas > DeathVisionVignette`.
+- Use `Tools/Incantation/Repair Death Vision Setup` to create a simple setup automatically when missing.
+- `vignetteCanvasGroup`: assign the full-screen black overlay CanvasGroup.
+- `vignetteRoot`: assign the same full-screen overlay RectTransform.
+- `initialDelayAfterGrab`: `0.0` seconds by default. This lets the vignette begin immediately when the demon hand grab event fires.
+- `absorptionDelayAfterGrab`: `0.25` seconds by default. `Prototype tuning`.
+- `fullBlackDelayAfterGrab`: `0.85` seconds by default. `Prototype tuning`.
+- `totalDuration`: `1.0` second by default. `Prototype tuning`.
+- `opacityCurve`: controls how quickly the black overlay blocks vision.
+- `scaleCurve`: controls the staged closing scale of the overlay root.
+- `jumpPulseScale`: `1.08` by default for a short jump pulse at each closing stage.
+- `jumpPulseDuration`: `0.045` seconds by default. `Prototype tuning`.
+- `hideOnAwake`: keep `true` so the overlay starts invisible.
+- `onVignetteStarted`: optional visual/audio-only hooks.
+- `onAbsorptionMoment`: invoked after `absorptionDelayAfterGrab`; the bridge also listens to this moment in code to start `PlayerAbsorptionController.BeginAbsorption(CurrentFailedPlayer)`.
+- `onFullBlack`: invoked after `fullBlackDelayAfterGrab`.
+- `onVignetteFinished`: optional visual/audio-only hooks after the overlay reaches full black.
+
+Runtime behavior:
+
+- This component is visual-only.
+- It does not decide ritual failure, timeout, elimination, seating, turn order, or player movement.
+- `Play()` prevents double-play while the vignette sequence is already running.
+- The current prototype uses a simple full-screen black UI Image and CanvasGroup. The art can be improved later without changing the failure-to-absorption timing contract.
+- The vignette should be mostly blocked before visible absorption clipping occurs, and fully black before the absorbed player disappears.
+
+## RitualFailureAbsorptionBridge
+
+Recommended setup:
+
+- Add `RitualFailureAbsorptionBridge` to the same book-side object as `PlayerAbsorptionController`, or to another small scene helper object near the real `BookModel`.
+- `ritualController`: assign the scene `RitualController`.
+- `playerAbsorptionController`: assign the `PlayerAbsorptionController` that should run the visual pull-in.
+- `deathVisionVignetteController`: optional. Assign the scene `DeathVisionVignetteController` to delay absorption behind the death-vision overlay.
+- Connect `DemonHandController.onGrabMoment` to `RitualFailureAbsorptionBridge.AbsorbCurrentFailedPlayer()`.
+
+Runtime behavior:
+
+- `RitualController` still decides when ritual failure happens and calls `DemonHandController.PlaySequence()`.
+- When ritual failure happens, `RitualController` stores `CurrentFailedPlayer` from the current active Seat by calling `Seat.GetRealPlayerTransform()`.
+- For temporary local testing only, if the active Seat has no real player Transform and `debugAbsorptionPlayerOverride` is assigned, `RitualController` stores that override and logs: `Using debugAbsorptionPlayerOverride for absorption test.`
+- `DemonHandController` still controls only the demon hand animation and fires `onGrabMoment` at the grab/contact frame.
+- `RitualFailureAbsorptionBridge` reads the stored failed player from `RitualController.CurrentFailedPlayer` when the grab event fires.
+- If `deathVisionVignetteController` is assigned, the bridge calls `DeathVisionVignetteController.Play()` first. The vignette begins at GrabMoment, then its absorption moment starts `PlayerAbsorptionController.BeginAbsorption(CurrentFailedPlayer)` after `absorptionDelayAfterGrab`.
+- If `deathVisionVignetteController` is missing, the bridge falls back to the previous immediate behavior and calls `PlayerAbsorptionController.BeginAbsorption(CurrentFailedPlayer)` directly at GrabMoment.
+- Default timed sequence: failure starts the demon hand animation, GrabMoment occurs around `2.708` seconds in the demon hand clip, the vignette starts immediately at GrabMoment, absorption begins about `0.25` seconds after GrabMoment, full black occurs about `0.85` seconds after GrabMoment, and the vignette finishes at about `1.0` second after GrabMoment.
+- If no failed player can be resolved, the bridge logs one warning and the failure sequence continues.
+- If the active Seat has no real player Transform, `RitualController` logs: `Cannot absorb failed player because the active seat has no real player Transform assigned.`
+
+Editor validation:
+
+- Use `Tools/Incantation/Validate Absorption Setup` to inspect only the open scene absorption gameplay wiring.
+- The absorption report checks `Book`, `BookModel`, `BookAbsorptionTarget`, `BookFailureSequence`, `PlayerAbsorptionController`, `RitualFailureAbsorptionBridge`, bridge gameplay references, `PlayerAbsorptionController.absorptionTarget`, the `DemonHandController` under `BookModel`, and whether `DemonHandController.onGrabMoment` calls `RitualFailureAbsorptionBridge.AbsorbCurrentFailedPlayer()`.
+- The report also lists every `Seat`, whether `currentPlayer` is assigned, whether `realPlayerTransform` has been automatically assigned, and whether `Seat.GetRealPlayerTransform()` returns a valid absorption target.
+- Use `Tools/Incantation/Repair Absorption Setup` to create missing `BookAbsorptionTarget` and `BookFailureSequence` objects under `BookModel`, add missing absorption gameplay components, assign their gameplay references, and wire the demon hand grab UnityEvent.
+- Use `Tools/Incantation/Validate Death Vision Setup` to inspect only the death vignette UI setup, its timing values, and whether `RitualFailureAbsorptionBridge.deathVisionVignetteController` is assigned.
+- Use `Tools/Incantation/Repair Death Vision Setup` to create or repair `DeathVisionCanvas`, `DeathVisionVignette`, the full-screen black Image, CanvasGroup, `DeathVisionVignetteController`, controller references, and the optional bridge vignette reference.
+- Repair does not delete objects and does not assign player transforms. Seat-to-player binding happens at runtime through `Seat.Occupy()`.
+- If validation reports that an occupied Seat does not expose a real player Transform, make sure that Seat was occupied with the actual visible player root rather than a debug placeholder.
+
+## BookAftermathController
+
+Recommended setup:
+
+- Place `BookAftermathController` on the book-side failure sequence object, preferably `Book > BookModel > BookFailureSequence`.
+- Use `Tools/Incantation/Validate Book Aftermath` to inspect aftermath wiring in the open scene.
+- Use `Tools/Incantation/Repair Book Aftermath` to add the controller if missing, add an `AudioSource` if missing, preserve existing assignments, wire an obvious smoke or ink `ParticleSystem` when one can be found, and connect `PlayerAbsorptionController.onAbsorptionFinished` to `BookAftermathController.PlayAftermath()`.
+- `audioSource`: assign the AudioSource that should play the book burp. Repair adds one on the same object when missing.
+- `burpClips`: assign the possible short burp AudioClips. Size is the number of possible burps. One clip is randomly selected each time the Book consumes a player. At least one clip is required for aftermath validation to pass.
+- `smokeParticles`: optional. Assign the one-shot dark smoke or black ink ParticleSystem that should puff from the book. This should be a visual-only particle effect near the real `BookModel`.
+- `burpDelay`: `0.20` seconds by default. `Prototype tuning`.
+- `onAftermathStarted`: optional visual/audio-only hooks when the aftermath coroutine begins.
+- `onBurpPlayed`: optional visual/audio-only hooks after the burp and smoke are triggered.
+- `onAftermathFinished`: optional visual/audio-only hooks immediately after the aftermath trigger moment.
+
+Runtime behavior:
+
+- This component is visual/audio-only.
+- It does not decide ritual failure, timeout, elimination, seating, turn order, book traversal, voice validation, or player absorption.
+- `PlayAftermath()` starts a coroutine, waits `burpDelay`, randomly selects one assigned `burpClips` entry and plays it once through the assigned AudioSource if both are assigned, plays `smokeParticles` once if assigned, invokes `onBurpPlayed`, and finishes immediately.
+- The intended sequence hook is `PlayerAbsorptionController.onAbsorptionFinished -> BookAftermathController.PlayAftermath()`, so the burp and smoke happen after the player absorption and BOOM punctuation have completed.
+- If no smoke particle system is assigned, the aftermath finishes gracefully without blocking gameplay. Validation reports missing smoke as optional only.
+
+## BookPrisonSpectatorController
+
+Recommended setup:
+
+- Place `BookPrisonSpectatorController` on the book-side failure sequence object, preferably `Book > BookModel > BookFailureSequence`.
+- Use `Tools/Incantation/Validate Book Prison Spectator` to inspect spectator wiring in the open scene.
+- Use `Tools/Incantation/Repair Book Prison Spectator` to add the controller if missing, preserve existing assignments, populate an empty `prisonSlots` array from clearly named numbered objects when they exist, assign the scene `RitualController` when found, connect the portal RenderTexture references when possible, and wire `BookAftermathController.onAftermathFinished` to `BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison()`.
+- `ritualController`: assign the scene `RitualController`. The spectator controller reads `RitualController.CurrentFailedPlayer` after failure and does not search for player objects.
+- `prisonSlots`: assign up to 8 fixed Book Prison slots. Each slot needs a `spawnPoint` and a `spectatorCamera`.
+- `prisonSlots[x].spawnPoint`: assign the fixed position for a consumed player in the DeathZone/Book Prison room.
+- `prisonSlots[x].spectatorCamera`: assign the fixed camera for that dead player slot.
+- `bookPortalCamera`: assign the manually placed `BookPortalCamera`. This camera should look back at the ritual table or book area for the portal view.
+- `bookPortalRenderTexture`: assign a manually created RenderTexture, recommended path `Assets/RenderTextures/RT_BookPortal.renderTexture`.
+- `portalScreenRenderer`: assign the renderer on the manually placed `BookPortalScreen`.
+- `movePlayerToPrison`: keep `true` when the consumed player's Transform should be moved to the first open prison slot spawn.
+- `activateSpectatorCamera`: keep `true` when the consumed player's view should switch by disabling the other prison slot cameras and enabling the assigned slot camera.
+- `deactivateTablePlayerModel`: keep `false` unless the consumed player's table model should be hidden entirely after the spectator transition.
+- `onSpectatorStarted`: optional visual/UI/audio-only hooks after the local spectator transition begins.
+
+Manual scene objects to create:
+
+- `BookPrisonSpawnPoint1` through `BookPrisonSpawnPoint8`: empty Transforms inside the manually built DeathZone/Book Prison room.
+- `BookPrisonSpectatorCamera1` through `BookPrisonSpectatorCamera8`: fixed cameras paired with the matching numbered prison spawn.
+- `BookPortalCamera`: the camera that renders the table/book view into the portal.
+- `BookPortalScreen`: the in-room screen or surface that displays the portal RenderTexture.
+- `RT_BookPortal`: a RenderTexture asset, recommended at `Assets/RenderTextures/RT_BookPortal.renderTexture`.
+
+Runtime behavior:
+
+- This component is local/prototype spectator presentation.
+- It does not decide ritual failure, timeout, elimination, seating, turn order, book traversal, voice validation, player absorption, or aftermath playback.
+- The current intended sequence is `PlayerAbsorptionController.onAbsorptionFinished -> BookAftermathController.PlayAftermath() -> BookAftermathController.onAftermathFinished -> BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison()`.
+- `SendCurrentFailedPlayerToBookPrison()` uses the assigned `RitualController.CurrentFailedPlayer`.
+- `SendPlayerToBookPrison(player)` can be called directly by tests or custom scene events with an explicit player Transform.
+- `SendPlayerToBookPrison(player)` chooses the first `prisonSlots` entry with an assigned `spawnPoint` that is not already occupied, so the first dead player goes to slot 1, the second dead player goes to slot 2, and so on by Inspector array order.
+- Dead players cannot move freely in this MVP. The Book Prison is fixed-position spectator presentation only; do not add movement controls to this controller.
+- Before activating the assigned slot camera, the controller deactivates every other prison slot camera.
+- When `bookPortalCamera` and `bookPortalRenderTexture` are both assigned, the controller assigns `bookPortalCamera.targetTexture`.
+- When `portalScreenRenderer` and `bookPortalRenderTexture` are both assigned, the controller assigns the portal screen material's main texture at runtime.
+- `ResetSpectatorView()` marks every prison slot unoccupied, deactivates all prison slot cameras, and restores player Transform/active state for Play Mode testing.
+
+What remains manual:
+
+- The Book Prison room, art, lighting, camera framing, portal screen mesh, and RenderTexture asset are created and placed manually.
+- Repair does not create the prison room, move art, guess portal placement, or create a RenderTexture asset.
+- Repair only populates an empty `prisonSlots` array from exact numbered objects named `BookPrisonSpawnPoint1`, `BookPrisonSpectatorCamera1`, `BookPrisonSpawnPoint2`, `BookPrisonSpectatorCamera2`, and so on through 8.
+- Repair only assigns `BookPortalCamera` and `BookPortalScreen` automatically when objects with those exact names already exist in the open scene.
 
 ## Timer
 

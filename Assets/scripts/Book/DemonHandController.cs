@@ -135,12 +135,14 @@ public class DemonHandController : MonoBehaviour
 
     public void AnimationEvent_GrabMoment()
     {
+        Debug.Log("DemonHandController GrabMoment animation event fired.");
         Debug.Log($"{nameof(DemonHandController)} Grab animation event fired.");
 
         if (!isPlaying || hasGrabMomentFired)
             return;
 
         hasGrabMomentFired = true;
+        Debug.Log("Invoking onGrabMoment UnityEvent.");
         onGrabMoment?.Invoke();
     }
 
