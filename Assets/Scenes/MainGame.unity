@@ -1824,6 +1824,7 @@ GameObject:
   m_Component:
   - component: {fileID: 231271041}
   - component: {fileID: 231271042}
+  - component: {fileID: 231271043}
   m_Layer: 0
   m_Name: Managers
   m_TagString: Untagged
@@ -1883,7 +1884,7 @@ MonoBehaviour:
   voiceValidationMode: 0
   voicePhraseNormalizer: {fileID: 1855418877}
   speechAliasWordLibrary: {fileID: 651073269}
-  autoStart: 1
+  autoStart: 0
   hourglassDuration: 5
   ritualAcceptancePauseSeconds: 0.1
   enableLearningMode: 0
@@ -1892,6 +1893,27 @@ MonoBehaviour:
   learnedAliases: []
   debugAbsorptionPlayerOverride: {fileID: 1273188056}
   enableDebugLogs: 0
+--- !u!114 &231271043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 231271040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 834c0a24635e4bcdac06798f6feee3cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ritualController: {fileID: 231271042}
+  lobbyCanvasRoot: {fileID: 0}
+  startRitualButton: {fileID: 0}
+  optionsButton: {fileID: 0}
+  quitGameButton: {fileID: 0}
+  createLobbyUiIfMissing: 1
+  autoDisablePlayerMovementDuringLobby: 1
+  lockCursorWhenRitualStarts: 1
+  gameplayInputBehaviours: []
 --- !u!1001 &233275028
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7973,10 +7995,10 @@ MonoBehaviour:
         m_Mode: 0
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: 
+          m_ObjectArgumentAssemblyTypeName:
           m_IntArgument: 0
           m_FloatArgument: 0
-          m_StringArgument: 
+          m_StringArgument:
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!4 &1025187745
@@ -8033,6 +8055,18 @@ MonoBehaviour:
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 231271042}
+        m_TargetAssemblyTypeName: RitualController, Assembly-CSharp
+        m_MethodName: CompleteCurrentFailedPlayerElimination
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName:
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument:
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!82 &1025187747

@@ -25,6 +25,7 @@ public class SeatManager : MonoBehaviour
     [SerializeField] private bool enableDebugLogs = false;
 
     private readonly Dictionary<Seat, GameObject> debugOccupantsBySeat = new Dictionary<Seat, GameObject>();
+    private readonly List<Seat> eliminatedSeats = new List<Seat>();
 
     private void Awake()
     {
@@ -220,6 +221,28 @@ public class SeatManager : MonoBehaviour
         return occupiedSeats;
     }
 
+    public IReadOnlyList<Seat> GetEliminatedSeats()
+    {
+        return eliminatedSeats;
+    }
+
+    public bool IsSeatEliminated(Seat seat)
+    {
+        return seat != null && eliminatedSeats.Contains(seat);
+    }
+
+    public void EliminateSeat(Seat seat)
+    {
+        if (seat == null)
+            return;
+
+        if (!eliminatedSeats.Contains(seat))
+            eliminatedSeats.Add(seat);
+
+        if (!seat.IsFree())
+            seat.Free();
+    }
+
     public Seat GetNextOccupiedSeat(Seat currentSeat)
     {
         List<Seat> occupiedSeats = GetOccupiedSeats();
@@ -245,7 +268,7 @@ public class SeatManager : MonoBehaviour
 
     private bool IsSeatOccupied(Seat seat)
     {
-        return seat != null && !seat.IsFree();
+        return seat != null && !IsSeatEliminated(seat) && !seat.IsFree();
     }
 
     private void ToggleDebugOccupant(Seat seat)

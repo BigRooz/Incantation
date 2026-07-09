@@ -46,7 +46,7 @@ It does not prove:
 - Real player identity.
 - Networked seating.
 - Multiplayer authority.
-- Production elimination.
+- Production end-of-game presentation.
 - Card or spell interference.
 - Demon reactions.
 - Campaign progression.
@@ -258,7 +258,13 @@ This exists to keep the current prototype feeling responsive while orchestration
 
 Retry and timeout behavior exists in prototype form.
 
-Production elimination is not implemented yet. Do not assume current timeout behavior is final Last Priest Standing balance.
+Timeout failure now waits for the absorption, book aftermath, and Book Prison handoff chain before eliminating the failed Seat.
+
+After `RitualController.CompleteCurrentFailedPlayerElimination()` runs, `SeatManager` frees the failed Seat and the ritual loop selects the next alive occupied Seat in physical table order.
+
+Last-player-remaining presentation is still a TODO; when only one alive Seat remains, the ritual stops instead of starting another timed turn.
+
+Do not assume current timeout behavior is final Last Priest Standing balance.
 
 ### Whisper timing work
 

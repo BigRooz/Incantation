@@ -21,8 +21,32 @@ Values marked `Prototype tuning` are current or recommended prototype values tha
 ## Scene
 
 - Current playable scene: `Assets/Scenes/MainGame.unity`.
-- Scene purpose: local seated ritual prototype.
-- Production lobby, networking, and elimination are not implemented yet.
+- Scene purpose: local lobby foundation plus seated ritual prototype.
+- Production networking and ready-based seating are not implemented yet.
+
+## LobbyController
+
+Current `MainGame` setup:
+
+- Add `LobbyController` to the existing `Managers` GameObject.
+- `ritualController`: assign the scene `RitualController`.
+- `lobbyCanvasRoot`: optional. Leave empty to let `LobbyController` create a minimal runtime `LobbyCanvas`.
+- `startRitualButton`: optional when runtime UI creation is enabled. If a hand-authored `LobbyCanvas` is added later, assign the Start Ritual button here.
+- `optionsButton`: optional when runtime UI creation is enabled. Current foundation only logs that Options are not implemented yet.
+- `quitGameButton`: optional when runtime UI creation is enabled.
+- `createLobbyUiIfMissing`: `true` for the current local lobby foundation.
+- `autoDisablePlayerMovementDuringLobby`: `true` so local seated mouse-look scripts do not consume UI mouse input while the lobby is open.
+- `lockCursorWhenRitualStarts`: `true` to restore the existing locked/hidden gameplay cursor behavior after Start Ritual.
+- `gameplayInputBehaviours`: optional manual list of gameplay input behaviours to disable during lobby. Leave empty to let `LobbyController` automatically include `PlayerMovement` instances.
+
+Runtime behavior:
+
+- On scene start, `LobbyController` shows the lobby and keeps the game in `Lobby` state.
+- If no lobby UI is assigned, it creates a simple `LobbyCanvas` with title `Incantation` and buttons `Start Ritual`, `Options`, and `Quit Game`.
+- While in lobby, the cursor is forced visible and unlocked, and configured gameplay input behaviours are disabled.
+- `Start Ritual` hides the lobby canvas, restores disabled gameplay input behaviours, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- The lobby does not generate incantations, start the hourglass, move the book, assign seats, or duplicate ritual initialization.
+- `Options` is a placeholder button for this foundation task only.
 
 ## SeatManager
 
@@ -88,7 +112,7 @@ Current `MainGame` setup:
 - `voiceValidationMode`: `WordByWordRealtime`.
 - `voicePhraseNormalizer`: assigned.
 - `speechAliasWordLibrary`: assigned to the ritual word library.
-- `autoStart`: `true` for local Play Mode prototype.
+- `autoStart`: `false` in `MainGame` so the local lobby appears first. Use `LobbyController.StartLobbyRitual()` or the lobby Start Ritual button to call the existing ritual start flow.
 - `hourglassDuration`: `30` seconds. `Prototype tuning`.
 - `ritualAcceptancePauseSeconds`: `0.75` seconds. `Prototype tuning`.
 - `enableLearningMode`: `false` unless intentionally collecting speech aliases.
@@ -290,6 +314,7 @@ Runtime behavior:
 - It does not decide ritual failure, timeout, elimination, seating, turn order, book traversal, voice validation, or player absorption.
 - `PlayAftermath()` starts a coroutine, waits `burpDelay`, randomly selects one assigned `burpClips` entry and plays it once through the assigned AudioSource if both are assigned, plays `smokeParticles` once if assigned, invokes `onBurpPlayed`, and finishes immediately.
 - The intended sequence hook is `PlayerAbsorptionController.onAbsorptionFinished -> BookAftermathController.PlayAftermath()`, so the burp and smoke happen after the player absorption and BOOM punctuation have completed.
+- `onAftermathFinished` should invoke `BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison()` first, then `RitualController.CompleteCurrentFailedPlayerElimination()` so the failed Seat is eliminated only after the Book Prison transition has run.
 - If no smoke particle system is assigned, the aftermath finishes gracefully without blocking gameplay. Validation reports missing smoke as optional only.
 
 ## BookPrisonSpectatorController
@@ -323,7 +348,7 @@ Runtime behavior:
 
 - This component is local/prototype spectator presentation.
 - It does not decide ritual failure, timeout, elimination, seating, turn order, book traversal, voice validation, player absorption, or aftermath playback.
-- The current intended sequence is `PlayerAbsorptionController.onAbsorptionFinished -> BookAftermathController.PlayAftermath() -> BookAftermathController.onAftermathFinished -> BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison()`.
+- The current intended sequence is `PlayerAbsorptionController.onAbsorptionFinished -> BookAftermathController.PlayAftermath() -> BookAftermathController.onAftermathFinished -> BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison() -> RitualController.CompleteCurrentFailedPlayerElimination()`.
 - `SendCurrentFailedPlayerToBookPrison()` uses the assigned `RitualController.CurrentFailedPlayer`.
 - `SendPlayerToBookPrison(player)` can be called directly by tests or custom scene events with an explicit player Transform.
 - `SendPlayerToBookPrison(player)` chooses the first `prisonSlots` entry with an assigned `spawnPoint` that is not already occupied, so the first dead player goes to slot 1, the second dead player goes to slot 2, and so on by Inspector array order.

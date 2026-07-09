@@ -119,6 +119,6 @@ Still needed:
 - Ready check.
 - Automatic seating from lobby players.
 - Networking.
-- Production elimination flow.
+- Production end-of-game presentation.
 
 Until those exist, local debug occupants remain a testing aid only.

@@ -46,34 +46,39 @@ The current prototype includes:
 2. Physical seat traversal.
 3. Growing incantation by full active table rotation.
 4. Local debug seat occupants.
-5. `WordByWordRealtime` validation as the default prototype mode.
-6. `FullPhrase` validation as an optional strict mode.
-7. `WindowsKeywordVoiceRecognizer` for immediate realtime keyword validation.
-8. Whisper retained for full-phrase or experimental recognition paths.
-9. Realtime visual word absorption.
-10. Wrong word rejection feedback.
-11. Hourglass timer pressure.
-12. Book movement after ritual acceptance.
-13. Ambient audio.
-14. Fire flicker.
-15. Hourglass light possession effect.
-16. Room veil and dark cabin ambience.
+5. Local lobby foundation in `MainGame`.
+6. Explicit Start Ritual handoff from lobby into the existing ritual path.
+7. `WordByWordRealtime` validation as the default prototype mode.
+8. `FullPhrase` validation as an optional strict mode.
+9. `WindowsKeywordVoiceRecognizer` for immediate realtime keyword validation.
+10. Whisper retained for full-phrase or experimental recognition paths.
+11. Realtime visual word absorption.
+12. Wrong word rejection feedback.
+13. Hourglass timer pressure.
+14. Book movement after ritual acceptance.
+15. Failed-seat elimination after the absorption, book aftermath, and Book Prison handoff completes.
+16. Automatic ritual continuation with the remaining alive occupied seats.
+17. Ambient audio.
+18. Fire flicker.
+19. Hourglass light possession effect.
+20. Room veil and dark cabin ambience.
 
 ## Experimental Or Incomplete Systems
 
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
-- Timeout and retry behavior exist in prototype form, but production elimination is not complete.
+- Timeout and retry behavior exist in prototype form.
+- Failed players can be eliminated after the Book Prison transition, and the ritual can continue with remaining alive seats.
+- The last-player-remaining end-of-game presentation is not implemented yet; the ritual stops with one warning TODO log when only one alive seat remains.
 - Debug occupants are useful local testing support, not the final player model.
 
 ## Known Missing Product Systems
 
-- Lobby.
 - Ready check.
 - Production automatic seating from lobby players.
 - Networking.
-- Production elimination flow.
+- Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Demon reactions.
 - Campaign objectives.
@@ -92,7 +97,7 @@ When a bug becomes part of the current project state, add it here briefly and re
 - Core-loop turn indexing must eventually reconcile with physical Seat objects while leaving physical order authority in `SeatManager`.
 - Legacy incantation display paths still depend on `IncantationManager`.
 - `BookController` arrival is duration-based because `BookMover` does not expose a true completion callback.
-- Production elimination rules are not separated cleanly from timeout and retry behavior yet.
+- Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
 
 ## Voice State

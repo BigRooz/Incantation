@@ -71,6 +71,7 @@ public class RitualController : MonoBehaviour
     private bool isTurnActive;
     private bool playerTurnComplete;
     private bool ritualFailed;
+    private bool isFailureSequencePending;
     private bool hasLoggedMissingHourglass;
     private bool hasLoggedMissingIncantationManager;
     private bool hasLoggedMissingVoicePhraseNormalizer;
@@ -84,10 +85,12 @@ public class RitualController : MonoBehaviour
     private bool hasLoggedAutomaticDemonHandControllerAssignment;
     private bool hasLoggedLegacyPhraseFallback;
     private bool hasLoggedRuntimeCoreRitualLoopBridgeSetup;
+    private bool hasLoggedLastPlayerRemainingTodo;
     private bool hasInitializedCoreRitualLoop;
     private bool isUsingCoreRitualLoopPhraseAuthority;
     private int configuredCoreRitualPlayerCount;
     private Seat lastCompletedSeat;
+    private Seat currentFailedSeat;
     private string lastProcessedWhisperPhrase = string.Empty;
 
     public Seat CurrentActiveSeat { get; private set; }
@@ -143,6 +146,8 @@ public class RitualController : MonoBehaviour
 
         Debug.Log("Ritual started");
         ritualFailed = false;
+        isFailureSequencePending = false;
+        currentFailedSeat = null;
         CurrentFailedPlayer = null;
         hasLoggedMissingFailedPlayerTransform = false;
         hasLoggedDebugAbsorptionPlayerOverride = false;
@@ -175,6 +180,7 @@ public class RitualController : MonoBehaviour
         isTurnActive = false;
         playerTurnComplete = false;
         ritualFailed = false;
+        isFailureSequencePending = false;
         CurrentFailedPlayer = null;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
@@ -187,10 +193,12 @@ public class RitualController : MonoBehaviour
         hasLoggedDebugAbsorptionPlayerOverride = false;
         hasLoggedLegacyPhraseFallback = false;
         hasLoggedRuntimeCoreRitualLoopBridgeSetup = false;
+        hasLoggedLastPlayerRemainingTodo = false;
         hasInitializedCoreRitualLoop = false;
         isUsingCoreRitualLoopPhraseAuthority = false;
         configuredCoreRitualPlayerCount = 0;
         lastCompletedSeat = null;
+        currentFailedSeat = null;
         preMovedBookSeat = null;
         currentTurnBookMoveSkipped = false;
         lastProcessedWhisperPhrase = string.Empty;
@@ -208,7 +216,13 @@ public class RitualController : MonoBehaviour
         {
             if (ritualFailed)
             {
-                LogDebug("RitualLoop stopped because the ritual is in a failed state.");
+                if (isFailureSequencePending)
+                {
+                    yield return null;
+                    continue;
+                }
+
+                LogDebug("RitualLoop stopped because the ritual is in a terminal failed state.");
                 yield break;
             }
 
@@ -593,7 +607,9 @@ public class RitualController : MonoBehaviour
         int currentIndex = occupiedSeats.IndexOf(currentSeat);
 
         if (currentIndex < 0)
-            return occupiedSeats[0];
+            return seatManager != null
+                ? seatManager.GetNextActiveSeat(currentSeat, SeatTraversalDirection.Clockwise, IsSeatOccupied)
+                : occupiedSeats[0];
 
         int nextIndex = currentIndex + 1;
 
@@ -605,7 +621,7 @@ public class RitualController : MonoBehaviour
 
     private bool IsSeatOccupied(Seat seat)
     {
-        return seat != null && !seat.IsFree();
+        return seat != null && (seatManager == null || !seatManager.IsSeatEliminated(seat)) && !seat.IsFree();
     }
 
     private void LogWaitingForOccupiedSeat()
@@ -1223,8 +1239,10 @@ public class RitualController : MonoBehaviour
         if (ritualFailed)
             return;
 
+        currentFailedSeat = CurrentActiveSeat;
         CurrentFailedPlayer = GetCurrentActivePlayerTransform();
         ritualFailed = true;
+        isFailureSequencePending = true;
         Debug.Log($"Ritual failed. {reason}");
         PlayFailureVisual();
 
@@ -1237,7 +1255,91 @@ public class RitualController : MonoBehaviour
 
         isTurnActive = false;
         playerTurnComplete = true;
-        LogDebug("Ritual is now in failed state. No next seat, incantation, book move, or hourglass restart will start automatically.");
+        LogDebug("Ritual is waiting for the failure absorption and Book Prison sequence to finish before eliminating the failed seat.");
+    }
+
+    public void CompleteCurrentFailedPlayerElimination()
+    {
+        if (!isFailureSequencePending)
+        {
+            LogDebug("Ignored failed-player elimination completion because no failure sequence is pending.");
+            return;
+        }
+
+        Seat failedSeat = currentFailedSeat;
+
+        if (failedSeat == null)
+        {
+            Debug.LogWarning($"{nameof(RitualController)} cannot eliminate the failed player because no failed Seat was recorded.", this);
+            ClearFailureSequenceState();
+            return;
+        }
+
+        if (seatManager == null)
+        {
+            LogMissingSeatManager();
+            ClearFailureSequenceState();
+            return;
+        }
+
+        seatManager.EliminateSeat(failedSeat);
+        lastCompletedSeat = failedSeat;
+        CurrentActiveSeat = null;
+        preMovedBookSeat = null;
+        currentTurnBookMoveSkipped = false;
+
+        Debug.Log($"Eliminated failed seat after Book Prison transition: {failedSeat.name}");
+
+        List<Seat> aliveSeats = seatManager.GetOccupiedSeats();
+
+        if (aliveSeats.Count <= 1)
+        {
+            ritualFailed = true;
+            isFailureSequencePending = false;
+            CurrentFailedPlayer = null;
+            currentFailedSeat = null;
+            LogLastPlayerRemainingTodo(aliveSeats);
+            return;
+        }
+
+        configuredCoreRitualPlayerCount = aliveSeats.Count;
+
+        if (isUsingCoreRitualLoopPhraseAuthority && TryResolveReadyCoreRitualLoopBridge())
+            coreRitualLoopBridge.ConfigurePlayerCount(aliveSeats.Count);
+
+        ritualFailed = false;
+        isFailureSequencePending = false;
+        CurrentFailedPlayer = null;
+        currentFailedSeat = null;
+
+        SubscribeToVoiceRecognizer();
+        Debug.Log($"Ritual continuing with {aliveSeats.Count} alive seats. Next alive seat will be selected from the physical table order.");
+    }
+
+    private void ClearFailureSequenceState()
+    {
+        ritualFailed = false;
+        isFailureSequencePending = false;
+        CurrentFailedPlayer = null;
+        currentFailedSeat = null;
+        CurrentActiveSeat = null;
+    }
+
+    private void LogLastPlayerRemainingTodo(List<Seat> aliveSeats)
+    {
+        if (hasLoggedLastPlayerRemainingTodo)
+            return;
+
+        string aliveSeatName = aliveSeats != null && aliveSeats.Count == 1 && aliveSeats[0] != null
+            ? aliveSeats[0].name
+            : "none";
+
+        Debug.LogWarning(
+            $"TODO: Last player remaining flow is not implemented yet. Alive seat: {aliveSeatName}. " +
+            "No new ritual turn will start.",
+            this);
+
+        hasLoggedLastPlayerRemainingTodo = true;
     }
 
     private Transform GetCurrentActivePlayerTransform()
@@ -1581,8 +1683,16 @@ public class RitualController : MonoBehaviour
             return false;
         }
 
-        if (hasInitializedCoreRitualLoop && configuredCoreRitualPlayerCount == occupiedSeatCount)
+        if (hasInitializedCoreRitualLoop)
+        {
+            if (configuredCoreRitualPlayerCount != occupiedSeatCount)
+            {
+                coreRitualLoopBridge.ConfigurePlayerCount(occupiedSeatCount);
+                configuredCoreRitualPlayerCount = occupiedSeatCount;
+            }
+
             return true;
+        }
 
         coreRitualLoopBridge.ConfigurePlayerCount(occupiedSeatCount);
         coreRitualLoopBridge.ResetGame();
