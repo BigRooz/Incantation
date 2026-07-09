@@ -20,11 +20,20 @@ public class SeatManager : MonoBehaviour
     public BookMover bookMover;
     public Seat currentBookSeat;
 
+    [Header("Lobby Seat Selection")]
+    [SerializeField] private bool lobbySeatSelectionEnabled = true;
+    [SerializeField] private GameObject localLobbyPlayer;
+    [SerializeField] private bool showLobbyOccupiedMarkers = true;
+    [SerializeField] private Color lobbyOccupiedMarkerColor = new Color(0.55f, 0.05f, 0.03f, 1f);
+    [SerializeField, Min(0.05f)] private float lobbyOccupiedMarkerSize = 0.18f;
+    [SerializeField] private Vector3 lobbyOccupiedMarkerOffset = new Vector3(0f, 0.08f, 0f);
+
     [Header("Debug")]
     [SerializeField] private bool allowMultipleDebugOccupants = false;
     [SerializeField] private bool enableDebugLogs = false;
 
     private readonly Dictionary<Seat, GameObject> debugOccupantsBySeat = new Dictionary<Seat, GameObject>();
+    private readonly Dictionary<Seat, GameObject> lobbyOccupiedMarkersBySeat = new Dictionary<Seat, GameObject>();
     private readonly List<Seat> eliminatedSeats = new List<Seat>();
 
     private void Awake()
@@ -172,6 +181,108 @@ public class SeatManager : MonoBehaviour
         LogDebug($"Le joueur est maintenant assis sur {seat.name}");
     }
 
+    public void SetLocalLobbyPlayer(GameObject player)
+    {
+        localLobbyPlayer = player;
+    }
+
+    public void SetLobbySeatSelectionEnabled(bool isEnabled)
+    {
+        lobbySeatSelectionEnabled = isEnabled;
+
+        if (lobbySeatSelectionEnabled)
+            RefreshLobbySeatVisuals();
+        else
+            ClearLobbySeatVisuals();
+    }
+
+    public bool TryLobbySit(Seat seat)
+    {
+        return TryLobbySit(seat, localLobbyPlayer);
+    }
+
+    public bool TryLobbySit(Seat seat, GameObject player)
+    {
+        if (!lobbySeatSelectionEnabled)
+            return false;
+
+        if (seat == null || player == null)
+            return false;
+
+        Seat currentSeat = GetLobbySeatForPlayer(player);
+
+        if (currentSeat == seat)
+        {
+            MovePlayerToSeat(player, seat);
+            RefreshLobbySeatVisuals();
+            return true;
+        }
+
+        if (!IsLobbySeatAvailable(seat))
+        {
+            LogDebug($"{seat.name} is already occupied and cannot be selected in lobby.");
+            return false;
+        }
+
+        if (seat.playerSpawn == null)
+        {
+            Debug.LogWarning($"{seat.name} cannot seat the lobby player because it has no PlayerSpawn assigned.", seat);
+            return false;
+        }
+
+        LeaveLobbySeat(player);
+        MovePlayerToSeat(player, seat);
+        seat.Occupy(player);
+        RefreshLobbySeatVisuals();
+
+        LogDebug($"Lobby player seated at {seat.name}");
+        return true;
+    }
+
+    public bool LeaveLobbySeat(GameObject player)
+    {
+        if (player == null)
+            return false;
+
+        bool leftSeat = false;
+
+        foreach (Seat seat in seats)
+        {
+            if (seat == null || seat.currentPlayer != player)
+                continue;
+
+            seat.Free();
+            leftSeat = true;
+        }
+
+        if (leftSeat)
+            RefreshLobbySeatVisuals();
+
+        return leftSeat;
+    }
+
+    public bool IsLobbySeatAvailable(Seat seat)
+    {
+        return lobbySeatSelectionEnabled &&
+            seat != null &&
+            !IsSeatEliminated(seat) &&
+            seat.IsFree();
+    }
+
+    public Seat GetLobbySeatForPlayer(GameObject player)
+    {
+        if (player == null)
+            return null;
+
+        foreach (Seat seat in seats)
+        {
+            if (seat != null && seat.currentPlayer == player)
+                return seat;
+        }
+
+        return null;
+    }
+
     public void MoveBookToSeat(Seat seat)
     {
         if (seat == null)
@@ -269,6 +380,99 @@ public class SeatManager : MonoBehaviour
     private bool IsSeatOccupied(Seat seat)
     {
         return seat != null && !IsSeatEliminated(seat) && !seat.IsFree();
+    }
+
+    private static void MovePlayerToSeat(GameObject player, Seat seat)
+    {
+        if (player == null || seat == null || seat.playerSpawn == null)
+            return;
+
+        player.SetActive(true);
+        player.transform.SetPositionAndRotation(seat.playerSpawn.position, seat.playerSpawn.rotation);
+    }
+
+    private void RefreshLobbySeatVisuals()
+    {
+        if (!showLobbyOccupiedMarkers)
+        {
+            ClearLobbySeatVisuals();
+            return;
+        }
+
+        foreach (Seat seat in seats)
+        {
+            if (seat == null)
+                continue;
+
+            bool shouldShowMarker = lobbySeatSelectionEnabled && !seat.IsFree();
+            SetLobbyOccupiedMarkerVisible(seat, shouldShowMarker);
+        }
+    }
+
+    private void SetLobbyOccupiedMarkerVisible(Seat seat, bool isVisible)
+    {
+        if (seat == null)
+            return;
+
+        if (!isVisible)
+        {
+            if (lobbyOccupiedMarkersBySeat.TryGetValue(seat, out GameObject existingMarker) && existingMarker != null)
+                existingMarker.SetActive(false);
+
+            return;
+        }
+
+        GameObject marker = GetOrCreateLobbyOccupiedMarker(seat);
+
+        if (marker != null)
+            marker.SetActive(true);
+    }
+
+    private GameObject GetOrCreateLobbyOccupiedMarker(Seat seat)
+    {
+        if (seat == null)
+            return null;
+
+        if (lobbyOccupiedMarkersBySeat.TryGetValue(seat, out GameObject existingMarker) && existingMarker != null)
+            return existingMarker;
+
+        GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        marker.name = $"LobbyOccupiedMarker_{seat.name}";
+        marker.transform.SetParent(seat.transform, false);
+        marker.transform.position = GetLobbyMarkerWorldPosition(seat);
+        marker.transform.localScale = Vector3.one * lobbyOccupiedMarkerSize;
+
+        Collider markerCollider = marker.GetComponent<Collider>();
+
+        if (markerCollider != null)
+            Destroy(markerCollider);
+
+        Renderer markerRenderer = marker.GetComponent<Renderer>();
+
+        if (markerRenderer != null)
+            markerRenderer.material.color = lobbyOccupiedMarkerColor;
+
+        lobbyOccupiedMarkersBySeat[seat] = marker;
+        return marker;
+    }
+
+    private Vector3 GetLobbyMarkerWorldPosition(Seat seat)
+    {
+        if (seat != null && seat.playerSpawn != null)
+            return seat.playerSpawn.position + lobbyOccupiedMarkerOffset;
+
+        return seat != null
+            ? seat.transform.position + lobbyOccupiedMarkerOffset
+            : lobbyOccupiedMarkerOffset;
+    }
+
+    private void ClearLobbySeatVisuals()
+    {
+        foreach (KeyValuePair<Seat, GameObject> markerEntry in lobbyOccupiedMarkersBySeat)
+        {
+            if (markerEntry.Value != null)
+                markerEntry.Value.SetActive(false);
+        }
     }
 
     private void ToggleDebugOccupant(Seat seat)

@@ -23,6 +23,7 @@ Values marked `Prototype tuning` are current or recommended prototype values tha
 - Current playable scene: `Assets/Scenes/MainGame.unity`.
 - Scene purpose: local lobby foundation plus seated ritual prototype.
 - Production networking and ready-based seating are not implemented yet.
+- Lobby seat selection is local/prototype seating only. It reuses `Seat`, `SeatManager`, and `ChairClick`; it is not a second gameplay seating system.
 
 ## LobbyController
 
@@ -30,6 +31,10 @@ Current `MainGame` setup:
 
 - Add `LobbyController` to the existing `Managers` GameObject.
 - `ritualController`: assign the scene `RitualController`.
+- `seatManager`: assign the scene `SeatManager`.
+- `localLobbyPlayer`: assign the existing visible local player prefab root, not a ghost, marker, preview object, or parent container. This is the real lobby character whose cosmetics/skins should be visible before ritual start. `LobbyController` does not search for a tagged Player fallback.
+- `localPlayerCamera`: assign the Camera that should become active when Start Ritual is pressed. This is an explicit Inspector reference; `LobbyController` does not search under the local player hierarchy or the scene.
+- `lobbyCamera`: optional. Assign the authored scene camera that should be active while the local lobby is visible. Do not create a new camera just for this field if the scene already has an authored lobby camera.
 - `lobbyCanvasRoot`: optional. Leave empty to let `LobbyController` create a minimal runtime `LobbyCanvas`.
 - `startRitualButton`: optional when runtime UI creation is enabled. If a hand-authored `LobbyCanvas` is added later, assign the Start Ritual button here.
 - `optionsButton`: optional when runtime UI creation is enabled. Current foundation only logs that Options are not implemented yet.
@@ -44,9 +49,15 @@ Runtime behavior:
 - On scene start, `LobbyController` shows the lobby and keeps the game in `Lobby` state.
 - If no lobby UI is assigned, it creates a simple `LobbyCanvas` with title `Incantation` and buttons `Start Ritual`, `Options`, and `Quit Game`.
 - While in lobby, the cursor is forced visible and unlocked, and configured gameplay input behaviours are disabled.
-- `Start Ritual` hides the lobby canvas, restores disabled gameplay input behaviours, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
-- The lobby does not generate incantations, start the hourglass, move the book, assign seats, or duplicate ritual initialization.
+- While in lobby, assigned `lobbyCamera` is enabled and assigned `localPlayerCamera` is disabled. Selecting a chair does not switch the camera.
+- While in lobby, chair clicks are routed through `LobbyController.TrySelectLobbySeat(seat)`, which asks `SeatManager.TryLobbySit(...)` to seat or move `localLobbyPlayer`.
+- `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
+- The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
+- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, disables `lobbyCamera`, enables assigned `localPlayerCamera`, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- The lobby does not generate incantations, start the hourglass, move the book, duplicate ritual initialization, change elimination logic, or create a separate seating system.
 - `Options` is a placeholder button for this foundation task only.
+- If `localPlayerCamera` is not assigned, `Start Ritual` logs `LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.` and still starts the ritual.
+- If no selected lobby Seat exists when Start Ritual is pressed, the existing ritual seating fallback is used and a warning is logged.
 
 ## SeatManager
 
@@ -64,6 +75,10 @@ Intentional setup:
 - Counter-clockwise traversal is the exact reverse.
 - `bookMover`: assign the single real `BookMover` on `BookModel`.
 - `currentBookSeat`: runtime state; do not author gameplay logic around a fixed initial value.
+- `lobbySeatSelectionEnabled`: runtime lobby gate. `LobbyController` enables it when showing the lobby and disables it before starting the ritual.
+- `localLobbyPlayer`: runtime/local prototype player used by `TryLobbySit(seat)` when no explicit player argument is supplied. Prefer assigning this through `LobbyController.localLobbyPlayer`, and make sure it is the real visible player prefab root.
+- `showLobbyOccupiedMarkers`: `true` for lightweight runtime feedback that a chair is occupied in the lobby.
+- `lobbyOccupiedMarkerColor`, `lobbyOccupiedMarkerSize`, and `lobbyOccupiedMarkerOffset`: prototype-only runtime marker tuning. These markers are created in Play Mode and are not final VFX.
 - `allowMultipleDebugOccupants`: `false` unless intentionally testing multiple local debug seats.
 - `enableDebugLogs`: `false` by default.
 
@@ -71,6 +86,14 @@ Notes:
 
 - The configured physical order is authoritative.
 - Do not rely on hierarchy order, seat numbering, player join order, or network index.
+- Lobby seat selection methods:
+  - `TryLobbySit(seat, player)` seats the real local player in an available Seat, freeing that player's previous lobby Seat first, keeping the player active, and moving/rotating that same GameObject to `Seat.playerSpawn`.
+  - `TryLobbySit(seat)` uses the assigned `localLobbyPlayer`.
+  - `LeaveLobbySeat(player)` frees the Seat currently occupied by that player.
+  - `IsLobbySeatAvailable(seat)` returns true only when lobby selection is enabled and the Seat is empty and not eliminated.
+  - `SetLobbySeatSelectionEnabled(false)` locks chair selection for the ritual handoff.
+- Occupied lobby chairs cannot be selected by another player. Clicking another empty chair moves the local player and frees the previous Seat.
+- Existing ritual seating continues to read occupied Seats from `SeatManager.GetOccupiedSeats()`.
 
 ## Seat
 
@@ -95,6 +118,55 @@ Notes:
 - Runtime debug occupants named `DebugOccupant_*` or `SimulatedPlayer_*` are local testing placeholders, not visible player models for absorption.
 - For absorption to work, the active Seat must be occupied through `Seat.Occupy()` with the actual visible player root or a player root that contains visible renderers.
 - `BookGhost` must never contain gameplay scripts.
+
+## ChairClick
+
+Intentional setup:
+
+- Place `ChairClick` on the chair click-zone object and assign its `seat` reference to the owning logical `Seat`.
+- During `Lobby`, `ChairClick` only reports the clicked Seat to `LobbyController.TrySelectLobbySeat(seat)`.
+- Outside `Lobby`, `ChairClick` keeps the existing debug/testing path by calling `SeatManager.TrySit(seat)`.
+
+Notes:
+
+- Do not put lobby seating rules inside `ChairClick`.
+- `ChairClick` should stay an interaction relay; `SeatManager` owns whether a Seat can be occupied, freed, or rejected.
+
+## Lobby Seat Setup Validator
+
+Menu tools:
+
+- `Tools/Incantation/Validate Lobby Seat Setup`
+- `Tools/Incantation/Repair Lobby Seat Setup`
+
+Required lobby seat setup:
+
+- The open scene should contain one `LobbyController` and one `SeatManager`.
+- `LobbyController.seatManager` should reference the scene `SeatManager`.
+- A local lobby player must be assigned before Play Mode seating can work. Assign `LobbyController.localLobbyPlayer` to the real visible player prefab root; `LobbyController` forwards that reference to `SeatManager` for lobby seating.
+- Assign `LobbyController.localPlayerCamera` to the Camera that should be enabled after Start Ritual. Assign `LobbyController.lobbyCamera` to an authored lobby camera when the scene has one.
+- Every `Seat` must have `PlayerSpawn` assigned. Lobby seating uses this Transform to place the local player when a chair is selected.
+- Every selectable chair click-zone should have `ChairClick.seat` assigned to its owning logical `Seat`.
+- `SeatManager.showLobbyOccupiedMarkers` may remain enabled for the current lightweight occupied-chair feedback. Per-seat player ghost or preview objects are optional and are not required for the current prototype.
+
+Expected Seat child naming:
+
+- If `Seat.playerSpawn` is empty, `Repair Lobby Seat Setup` only auto-assigns direct child Transforms with these exact names:
+  - `SeatPoint`
+  - `SitPoint`
+  - `PlayerSeatPoint`
+  - `SpawnPoint`
+- If none of those direct children exist, repair creates a direct child named `LobbySeatPoint` under that `Seat`, places it at the Seat transform position, and assigns it to `Seat.playerSpawn`.
+- Repair does not guess random scene objects, create final art, duplicate player prefabs, or modify ritual gameplay flow.
+
+Validation behavior:
+
+- Validate reports whether `LobbyController` and `SeatManager` exist.
+- Validate reports whether a local lobby player can be resolved for the current setup.
+- Validate lists every `Seat`, its spawn assignment, optional occupied visual/ghost status, linked `ChairClick`, and whether it can be used for lobby seating.
+- Validate lists every `ChairClick` and whether it is linked to a `Seat`.
+- Validate ends with an explicit `PASS` or `FAIL` and concrete repair or assignment reasons.
+- After repair, run validate again before Play Mode. A ready setup should pass, and lobby clicks should move the local player between assigned Seat points.
 
 ## RitualController
 
@@ -123,6 +195,7 @@ Notes:
 
 - `WordByWordRealtime` is the default prototype mode.
 - `FullPhrase` is optional strict mode.
+- `LobbyController` may call `RitualController.SetPreferredStartingSeat(selectedSeat)` during Start Ritual so the first ritual turn and book movement begin from the seat selected in lobby instead of the first occupied Seat in physical order.
 - `debugAbsorptionPlayerOverride` is used only if the active Seat cannot provide a real player Transform. A real Seat-bound player is always preferred over this override.
 - Do not assign Unity Dictation or Azure voice services.
 

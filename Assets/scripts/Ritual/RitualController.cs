@@ -90,6 +90,7 @@ public class RitualController : MonoBehaviour
     private bool isUsingCoreRitualLoopPhraseAuthority;
     private int configuredCoreRitualPlayerCount;
     private Seat lastCompletedSeat;
+    private Seat preferredStartingSeat;
     private Seat currentFailedSeat;
     private string lastProcessedWhisperPhrase = string.Empty;
 
@@ -155,6 +156,11 @@ public class RitualController : MonoBehaviour
         ritualRoutine = StartCoroutine(RitualLoop());
     }
 
+    public void SetPreferredStartingSeat(Seat seat)
+    {
+        preferredStartingSeat = seat;
+    }
+
     public void StopRitual()
     {
         if (turnRoutine != null)
@@ -198,6 +204,7 @@ public class RitualController : MonoBehaviour
         isUsingCoreRitualLoopPhraseAuthority = false;
         configuredCoreRitualPlayerCount = 0;
         lastCompletedSeat = null;
+        preferredStartingSeat = null;
         currentFailedSeat = null;
         preMovedBookSeat = null;
         currentTurnBookMoveSkipped = false;
@@ -574,7 +581,7 @@ public class RitualController : MonoBehaviour
             Debug.Log($"Occupied seats before ritual:\n{FormatSeatList(occupiedSeats)}");
 
         CurrentActiveSeat = lastCompletedSeat == null
-            ? occupiedSeats[0]
+            ? GetInitialTurnSeat(occupiedSeats)
             : GetNextOccupiedSeatFromList(occupiedSeats, lastCompletedSeat);
 
         if (CurrentActiveSeat == null)
@@ -594,6 +601,20 @@ public class RitualController : MonoBehaviour
             isWaitingForOccupiedSeat = false;
 
         return true;
+    }
+
+    private Seat GetInitialTurnSeat(List<Seat> occupiedSeats)
+    {
+        if (occupiedSeats == null || occupiedSeats.Count == 0)
+            return null;
+
+        if (preferredStartingSeat != null && occupiedSeats.Contains(preferredStartingSeat) && IsSeatOccupied(preferredStartingSeat))
+        {
+            Debug.Log($"Ritual starting from lobby selected seat: {preferredStartingSeat.name}");
+            return preferredStartingSeat;
+        }
+
+        return occupiedSeats[0];
     }
 
     private Seat GetNextOccupiedSeatFromList(List<Seat> occupiedSeats, Seat currentSeat)

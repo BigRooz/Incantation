@@ -11,8 +11,18 @@ public enum LocalGameState
 
 public class LobbyController : MonoBehaviour
 {
-    [Header("References")]
+    [Header("Core References")]
     [SerializeField] private RitualController ritualController;
+    [SerializeField] private SeatManager seatManager;
+
+    [Header("Player References")]
+    [SerializeField] private GameObject localLobbyPlayer;
+    [SerializeField] private Camera localPlayerCamera;
+
+    [Header("Camera References")]
+    [SerializeField] private Camera lobbyCamera;
+
+    [Header("UI References")]
     [SerializeField] private GameObject lobbyCanvasRoot;
     [SerializeField] private Button startRitualButton;
     [SerializeField] private Button optionsButton;
@@ -27,6 +37,7 @@ public class LobbyController : MonoBehaviour
     [SerializeField] private List<MonoBehaviour> gameplayInputBehaviours = new List<MonoBehaviour>();
 
     private readonly Dictionary<MonoBehaviour, bool> originalGameplayInputEnabledStates = new Dictionary<MonoBehaviour, bool>();
+    private bool hasLoggedMissingPlayerCamera;
 
     public LocalGameState CurrentState { get; private set; } = LocalGameState.Lobby;
 
@@ -69,12 +80,45 @@ public class LobbyController : MonoBehaviour
 
         CurrentState = LocalGameState.Ritual;
 
+        Seat selectedLobbySeat = GetSelectedLobbySeat();
+        ApplySelectedLobbySeatToLocalPlayer(selectedLobbySeat);
+
+        if (seatManager != null)
+            seatManager.SetLobbySeatSelectionEnabled(false);
+
         if (lobbyCanvasRoot != null)
             lobbyCanvasRoot.SetActive(false);
 
         RestoreGameplayInputBehaviours();
+        ApplyRitualCameraState();
         ApplyRitualCursorState();
+
+        if (selectedLobbySeat != null)
+            ritualController.SetPreferredStartingSeat(selectedLobbySeat);
+
         ritualController.StartRitual();
+    }
+
+    public bool TrySelectLobbySeat(Seat seat)
+    {
+        if (CurrentState != LocalGameState.Lobby)
+            return false;
+
+        ResolveLocalLobbyPlayer();
+
+        if (seatManager == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} cannot select a lobby seat because no {nameof(SeatManager)} is assigned.", this);
+            return false;
+        }
+
+        if (localLobbyPlayer == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} cannot select a lobby seat because no local lobby player is assigned.", this);
+            return false;
+        }
+
+        return seatManager.TryLobbySit(seat, localLobbyPlayer);
     }
 
     public void OpenOptions()
@@ -95,7 +139,13 @@ public class LobbyController : MonoBehaviour
     {
         CurrentState = LocalGameState.Lobby;
 
+        ResolveLocalLobbyPlayer();
+
+        if (seatManager != null)
+            seatManager.SetLobbySeatSelectionEnabled(true);
+
         CacheAndDisableGameplayInputBehaviours();
+        ApplyLobbyCameraState();
         ApplyLobbyCursorState();
 
         if (lobbyCanvasRoot != null)
@@ -104,8 +154,115 @@ public class LobbyController : MonoBehaviour
 
     private void ResolveReferences()
     {
-        if (ritualController == null)
-            ritualController = FindFirstObjectByType<RitualController>();
+        ResolveLocalLobbyPlayer();
+    }
+
+    private void ResolveLocalLobbyPlayer()
+    {
+        if (seatManager != null)
+            seatManager.SetLocalLobbyPlayer(localLobbyPlayer);
+    }
+
+    private void ApplyLobbyCameraState()
+    {
+        if (lobbyCamera != null)
+            lobbyCamera.enabled = true;
+
+        if (localPlayerCamera != null)
+            localPlayerCamera.enabled = false;
+    }
+
+    private void ApplyRitualCameraState()
+    {
+        if (lobbyCamera != null)
+            lobbyCamera.enabled = false;
+
+        if (localPlayerCamera != null)
+        {
+            localPlayerCamera.enabled = true;
+            return;
+        }
+
+        if (!hasLoggedMissingPlayerCamera)
+        {
+            Debug.LogWarning("LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.", this);
+            hasLoggedMissingPlayerCamera = true;
+        }
+    }
+
+    private Seat GetSelectedLobbySeat()
+    {
+        ResolveLocalLobbyPlayer();
+
+        if (seatManager == null || localLobbyPlayer == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} has no selected lobby Seat because the SeatManager or local lobby player is missing. Existing ritual seating fallback will be used.", this);
+            return null;
+        }
+
+        Seat selectedSeat = seatManager.GetLobbySeatForPlayer(localLobbyPlayer);
+
+        if (selectedSeat == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} found no selected lobby Seat for the local player. Existing ritual seating fallback will be used.", this);
+            return null;
+        }
+
+        Debug.Log($"Lobby selected seat: {selectedSeat.name}");
+        return selectedSeat;
+    }
+
+    private void ApplySelectedLobbySeatToLocalPlayer(Seat selectedSeat)
+    {
+        if (selectedSeat == null)
+            return;
+
+        Debug.Log($"Applying selected lobby seat to local player: {selectedSeat.name}");
+
+        if (localLobbyPlayer == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} cannot apply selected lobby Seat {selectedSeat.name} because no local lobby player is assigned.", this);
+            return;
+        }
+
+        if (selectedSeat.playerSpawn == null)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} cannot move the local player to {selectedSeat.name} because the Seat has no PlayerSpawn assigned. The ritual will still start.", selectedSeat);
+        }
+        else
+        {
+            localLobbyPlayer.SetActive(true);
+            localLobbyPlayer.transform.SetPositionAndRotation(selectedSeat.playerSpawn.position, selectedSeat.playerSpawn.rotation);
+            Debug.Log($"Moved local player to lobby seat spawn: {GetHierarchyPath(selectedSeat.playerSpawn)}");
+        }
+
+        if (seatManager != null)
+        {
+            foreach (Seat seat in seatManager.seats)
+            {
+                if (seat != null && seat != selectedSeat && seat.currentPlayer == localLobbyPlayer)
+                    seat.Free();
+            }
+        }
+
+        selectedSeat.Occupy(localLobbyPlayer);
+    }
+
+    private static string GetHierarchyPath(Transform transform)
+    {
+        if (transform == null)
+            return "<null>";
+
+        string path = transform.name;
+        Transform current = transform.parent;
+
+        while (current != null)
+        {
+            path = $"{current.name}/{path}";
+            current = current.parent;
+        }
+
+        return path;
     }
 
     private void ApplyLobbyCursorState()

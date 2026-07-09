@@ -2,14 +2,22 @@ using UnityEngine;
 
 public class ChairClick : MonoBehaviour
 {
-    [Header("Seat associé")]
+    [Header("Seat associated")]
     public Seat seat;
 
     private void OnMouseDown()
     {
         if (seat == null)
         {
-            Debug.LogWarning($"{name} n'a pas de Seat assigné.");
+            Debug.LogWarning($"{name} has no Seat assigned.");
+            return;
+        }
+
+        LobbyController lobbyController = FindFirstObjectByType<LobbyController>();
+
+        if (lobbyController != null && lobbyController.CurrentState == LocalGameState.Lobby)
+        {
+            lobbyController.TrySelectLobbySeat(seat);
             return;
         }
 
@@ -17,7 +25,7 @@ public class ChairClick : MonoBehaviour
 
         if (seatManager == null)
         {
-            Debug.LogError("Aucun SeatManager trouvé dans la scène.");
+            Debug.LogError("No SeatManager found in the scene.");
             return;
         }
 
