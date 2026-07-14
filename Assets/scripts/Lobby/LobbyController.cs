@@ -20,7 +20,8 @@ public class LobbyController : MonoBehaviour
     [SerializeField] private Camera localPlayerCamera;
 
     [Header("Camera References")]
-    [SerializeField] private Camera lobbyCamera;
+    [SerializeField] private CameraTransitionManager cameraTransitionManager;
+    [SerializeField] private Transform lobbyCameraTarget;
 
     [Header("UI References")]
     [SerializeField] private GameObject lobbyCanvasRoot;
@@ -38,6 +39,7 @@ public class LobbyController : MonoBehaviour
 
     private readonly Dictionary<MonoBehaviour, bool> originalGameplayInputEnabledStates = new Dictionary<MonoBehaviour, bool>();
     private bool hasLoggedMissingPlayerCamera;
+    private bool hasLoggedMissingMenuCameraTransition;
 
     public LocalGameState CurrentState { get; private set; } = LocalGameState.Lobby;
 
@@ -165,8 +167,15 @@ public class LobbyController : MonoBehaviour
 
     private void ApplyLobbyCameraState()
     {
-        if (lobbyCamera != null)
-            lobbyCamera.enabled = true;
+        if (cameraTransitionManager != null && lobbyCameraTarget != null)
+        {
+            cameraTransitionManager.MoveTo(lobbyCameraTarget);
+        }
+        else if (!hasLoggedMissingMenuCameraTransition)
+        {
+            Debug.LogWarning($"{nameof(LobbyController)} cannot move to the lobby camera target because {nameof(cameraTransitionManager)} or {nameof(lobbyCameraTarget)} is not assigned.", this);
+            hasLoggedMissingMenuCameraTransition = true;
+        }
 
         if (localPlayerCamera != null)
             localPlayerCamera.enabled = false;
@@ -174,9 +183,6 @@ public class LobbyController : MonoBehaviour
 
     private void ApplyRitualCameraState()
     {
-        if (lobbyCamera != null)
-            lobbyCamera.enabled = false;
-
         if (localPlayerCamera != null)
         {
             localPlayerCamera.enabled = true;

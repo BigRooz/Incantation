@@ -34,7 +34,8 @@ Current `MainGame` setup:
 - `seatManager`: assign the scene `SeatManager`.
 - `localLobbyPlayer`: assign the existing visible local player prefab root, not a ghost, marker, preview object, or parent container. This is the real lobby character whose cosmetics/skins should be visible before ritual start. `LobbyController` does not search for a tagged Player fallback.
 - `localPlayerCamera`: assign the Camera that should become active when Start Ritual is pressed. This is an explicit Inspector reference; `LobbyController` does not search under the local player hierarchy or the scene.
-- `lobbyCamera`: optional. Assign the authored scene camera that should be active while the local lobby is visible. Do not create a new camera just for this field if the scene already has an authored lobby camera.
+- `cameraTransitionManager`: assign the scene `CameraTransitionManager` that controls `MenuTransitionCamera`.
+- `lobbyCameraTarget`: assign the authored Lobby viewpoint Transform. This may be the existing `LobbyCamera` Transform, but that camera must be treated as a static destination reference only and must not render during menu navigation.
 - `lobbyCanvasRoot`: optional. Leave empty to let `LobbyController` create a minimal runtime `LobbyCanvas`.
 - `startRitualButton`: optional when runtime UI creation is enabled. If a hand-authored `LobbyCanvas` is added later, assign the Start Ritual button here.
 - `optionsButton`: optional when runtime UI creation is enabled. Current foundation only logs that Options are not implemented yet.
@@ -49,11 +50,11 @@ Runtime behavior:
 - On scene start, `LobbyController` shows the lobby and keeps the game in `Lobby` state.
 - If no lobby UI is assigned, it creates a simple `LobbyCanvas` with title `Incantation` and buttons `Start Ritual`, `Options`, and `Quit Game`.
 - While in lobby, the cursor is forced visible and unlocked, and configured gameplay input behaviours are disabled.
-- While in lobby, assigned `lobbyCamera` is enabled and assigned `localPlayerCamera` is disabled. Selecting a chair does not switch the camera.
+- While in lobby, `LobbyController` requests `cameraTransitionManager.MoveTo(lobbyCameraTarget)` and disables only the assigned `localPlayerCamera`. It does not enable or disable `BookMenuCamera`, `LobbyCamera`, or other menu destination cameras.
 - While in lobby, chair clicks are routed through `LobbyController.TrySelectLobbySeat(seat)`, which asks `SeatManager.TryLobbySit(...)` to seat or move `localLobbyPlayer`.
 - `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
 - The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
-- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, disables `lobbyCamera`, enables assigned `localPlayerCamera`, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, enables assigned `localPlayerCamera`, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
 - The lobby does not generate incantations, start the hourglass, move the book, duplicate ritual initialization, change elimination logic, or create a separate seating system.
 - `Options` is a placeholder button for this foundation task only.
 - If `localPlayerCamera` is not assigned, `Start Ritual` logs `LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.` and still starts the ritual.
@@ -144,7 +145,7 @@ Required lobby seat setup:
 - The open scene should contain one `LobbyController` and one `SeatManager`.
 - `LobbyController.seatManager` should reference the scene `SeatManager`.
 - A local lobby player must be assigned before Play Mode seating can work. Assign `LobbyController.localLobbyPlayer` to the real visible player prefab root; `LobbyController` forwards that reference to `SeatManager` for lobby seating.
-- Assign `LobbyController.localPlayerCamera` to the Camera that should be enabled after Start Ritual. Assign `LobbyController.lobbyCamera` to an authored lobby camera when the scene has one.
+- Assign `LobbyController.localPlayerCamera` to the Camera that should be enabled after Start Ritual. Assign `LobbyController.cameraTransitionManager` to the menu transition manager and `LobbyController.lobbyCameraTarget` to the authored Lobby viewpoint Transform.
 - Every `Seat` must have `PlayerSpawn` assigned. Lobby seating uses this Transform to place the local player when a chair is selected.
 - Every selectable chair click-zone should have `ChairClick.seat` assigned to its owning logical `Seat`.
 - `SeatManager.showLobbyOccupiedMarkers` may remain enabled for the current lightweight occupied-chair feedback. Per-seat player ghost or preview objects are optional and are not required for the current prototype.
@@ -652,9 +653,33 @@ Useful defaults:
 
 ## Camera
 
-Current documentation gap:
+Camera transition foundation:
 
-- No single authoritative camera Inspector profile has been confirmed in documentation.
+- `CameraTransitionManager` lives at `Assets/scripts/Camera/CameraTransitionManager.cs`.
+- `MenuTransitionCamera` is the only rendering camera for menu navigation.
+- `BookMenuCamera`, `LobbyCamera`, and future menu viewpoints such as `CharacterCamera` are static destination Transforms only. They must not render during menu navigation.
+- The manager moves only the assigned active viewing Camera, currently `MenuTransitionCamera`, between authored camera-viewpoint Transforms. It does not create cameras, delete cameras, rename cameras, change camera references, or move the viewpoint Transforms.
+- `transitionDuration`: time in seconds for a smooth camera move. `Prototype tuning`.
+- `transitionCurve`: curve evaluated from 0 to 1 across the move. Use it to shape ease-in, ease-out, or theatrical camera travel without changing target Transforms.
+- `activeCamera`: assign `MenuTransitionCamera`.
+- `MoveTo(target)` and `MoveToImmediate(target)` are the only camera movement API. Menu, lobby, and book interactions pass destination Transforms into this generic mover.
+- Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform, Play requests movement to the `LobbyCamera` Transform, and clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
+
+Book return interaction:
+
+- `BookMenuReturnInteractable` lives at `Assets/scripts/Book/BookMenuReturnInteractable.cs`.
+- Add it to the existing physical Book object that should be clickable from the Lobby camera view. Do not add it to `BookGhost`, and do not create a second gameplay book.
+- The Book must have an existing manually placed `BoxCollider` or other appropriate Collider on the same clickable object so Unity mouse events can reach the component. Size and position this Collider by hand in the scene; the script does not create, resize, enable, or repair Colliders.
+- `cameraTransitionManager`: assign the scene `CameraTransitionManager`.
+- `bookMenuTarget`: assign the authored Book Menu viewpoint Transform, such as the existing `BookMenuCamera` or its target Transform. Do not modify that Transform's position or rotation for this wiring task.
+- `highlightRenderers`: assign the visible Book/BookModel Renderer components that should receive the hover glow. Leave unrelated room, player, hourglass, and UI renderers out of this list.
+- `hoverMode`: keep `Automatic` by default. `Automatic` uses `_EmissionColor` when the assigned Renderer material supports active emission, otherwise it falls back to brightening `_BaseColor`. Use `Emission` only when the material emission path is already enabled and visible; use `BaseColor` for the most reliable URP hover readability.
+- `hoverEmissionColor`: choose a subtle book-appropriate glow color.
+- `hoverEmissionIntensity`: keep near `0.35` for the current prototype unless tuning the hover readability. `Prototype tuning`.
+- `hoverBaseColorMultiplier`: keep near `1.2` for a small temporary brighten when emission is unavailable or disabled. `Prototype tuning`.
+- `interactionEnabled`: keep `true` when the Lobby view should allow clicking the Book to return to the Book Menu camera.
+- Hover feedback uses `MaterialPropertyBlock` and restores each Renderer to its original property-block state on exit or disable. Shared Materials are not modified.
+- If assigned materials do not support visible emission, the hover effect falls back to `_BaseColor` when available. If neither supported property exists, hover feedback is skipped gracefully and click interaction still works.
 
 Guidance:
 
