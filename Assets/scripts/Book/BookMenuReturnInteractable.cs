@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class BookMenuReturnInteractable : MonoBehaviour
@@ -13,10 +14,14 @@ public class BookMenuReturnInteractable : MonoBehaviour
     [SerializeField] private Color hoverEmissionColor = Color.white;
     [SerializeField] private float hoverEmissionIntensity = 0.35f;
     [SerializeField] private float hoverBaseColorMultiplier = 1.2f;
+    [SerializeField] private Light hoverLight;
+    [SerializeField] private float hoverLightIntensity = 1.5f;
+    [SerializeField] private float hoverLightFadeDuration = 0.12f;
     [SerializeField] private bool interactionEnabled = true;
 
     private MaterialPropertyBlock workingPropertyBlock;
     private RendererHighlightState[] rendererStates;
+    private Coroutine hoverLightFadeCoroutine;
     private bool isHovered;
 
     private void Awake()
@@ -27,6 +32,11 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
     private void OnDisable()
     {
+        StopHoverLightFade();
+
+        if (hoverLight != null)
+            hoverLight.intensity = 0f;
+
         RestoreOriginalVisualState();
         isHovered = false;
     }
@@ -38,12 +48,14 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
         isHovered = true;
         ApplyHoverVisualState();
+        StartHoverLightFade(hoverLightIntensity);
     }
 
     private void OnMouseExit()
     {
         isHovered = false;
         RestoreOriginalVisualState();
+        StartHoverLightFade(0f);
     }
 
     private void OnMouseDown()
@@ -58,11 +70,69 @@ public class BookMenuReturnInteractable : MonoBehaviour
     {
         interactionEnabled = enabled;
 
-        if (!interactionEnabled && isHovered)
+        if (!interactionEnabled)
+            StopHoverEffects();
+    }
+
+    public void EnableInteraction()
+    {
+        interactionEnabled = true;
+    }
+
+    public void DisableInteraction()
+    {
+        interactionEnabled = false;
+        StopHoverEffects();
+    }
+
+    private void StopHoverEffects()
+    {
+        isHovered = false;
+        RestoreOriginalVisualState();
+        StartHoverLightFade(0f);
+    }
+
+    private void StartHoverLightFade(float targetIntensity)
+    {
+        if (hoverLight == null)
+            return;
+
+        StopHoverLightFade();
+        hoverLightFadeCoroutine = StartCoroutine(FadeHoverLight(targetIntensity));
+    }
+
+    private IEnumerator FadeHoverLight(float targetIntensity)
+    {
+        float startIntensity = hoverLight.intensity;
+        float duration = Mathf.Max(0f, hoverLightFadeDuration);
+
+        if (duration <= 0f)
         {
-            isHovered = false;
-            RestoreOriginalVisualState();
+            hoverLight.intensity = targetIntensity;
+            hoverLightFadeCoroutine = null;
+            yield break;
         }
+
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            hoverLight.intensity = Mathf.Lerp(startIntensity, targetIntensity, Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
+
+        hoverLight.intensity = targetIntensity;
+        hoverLightFadeCoroutine = null;
+    }
+
+    private void StopHoverLightFade()
+    {
+        if (hoverLightFadeCoroutine == null)
+            return;
+
+        StopCoroutine(hoverLightFadeCoroutine);
+        hoverLightFadeCoroutine = null;
     }
 
     private void CacheOriginalPropertyBlocks()

@@ -33,9 +33,10 @@ Current `MainGame` setup:
 - `ritualController`: assign the scene `RitualController`.
 - `seatManager`: assign the scene `SeatManager`.
 - `localLobbyPlayer`: assign the existing visible local player prefab root, not a ghost, marker, preview object, or parent container. This is the real lobby character whose cosmetics/skins should be visible before ritual start. `LobbyController` does not search for a tagged Player fallback.
-- `localPlayerCamera`: assign the Camera that should become active when Start Ritual is pressed. This is an explicit Inspector reference; `LobbyController` does not search under the local player hierarchy or the scene.
-- `cameraTransitionManager`: assign the scene `CameraTransitionManager` that controls `MenuTransitionCamera`.
+- `localPlayerCamera`: assign the Camera that should become active when Start Ritual is pressed. This is an explicit Inspector reference; `LobbyController` does not search under the local player hierarchy or the scene. Its GameObject may be inactive before ritual start.
+- `cameraTransitionManager`: assign the scene `CameraTransitionManager` that owns and controls `MenuTransitionCamera`. Its `activeCamera` must reference the one rendering menu camera.
 - `lobbyCameraTarget`: assign the authored Lobby viewpoint Transform. This may be the existing `LobbyCamera` Transform, but that camera must be treated as a static destination reference only and must not render during menu navigation.
+- `bookMenuReturnInteractable`: assign the `BookMenuReturnInteractable` on the existing physical Book. This explicit reference lets lobby state own whether menu-only Book hover and click interaction is available; no scene lookup is performed.
 - `lobbyCanvasRoot`: optional. Leave empty to let `LobbyController` create a minimal runtime `LobbyCanvas`.
 - `startRitualButton`: optional when runtime UI creation is enabled. If a hand-authored `LobbyCanvas` is added later, assign the Start Ritual button here.
 - `optionsButton`: optional when runtime UI creation is enabled. Current foundation only logs that Options are not implemented yet.
@@ -50,11 +51,12 @@ Runtime behavior:
 - On scene start, `LobbyController` shows the lobby and keeps the game in `Lobby` state.
 - If no lobby UI is assigned, it creates a simple `LobbyCanvas` with title `Incantation` and buttons `Start Ritual`, `Options`, and `Quit Game`.
 - While in lobby, the cursor is forced visible and unlocked, and configured gameplay input behaviours are disabled.
-- While in lobby, `LobbyController` requests `cameraTransitionManager.MoveTo(lobbyCameraTarget)` and disables only the assigned `localPlayerCamera`. It does not enable or disable `BookMenuCamera`, `LobbyCamera`, or other menu destination cameras.
+- While in lobby, `LobbyController` calls `bookMenuReturnInteractable.EnableInteraction()`, calls `cameraTransitionManager.EnableRendering()`, requests `cameraTransitionManager.MoveTo(lobbyCameraTarget)`, and disables only the assigned `localPlayerCamera`. Book interaction therefore remains available while moving between the Lobby and Book Menu views. It does not enable or disable `BookMenuCamera`, `LobbyCamera`, or other menu destination cameras.
 - While in lobby, chair clicks are routed through `LobbyController.TrySelectLobbySeat(seat)`, which asks `SeatManager.TryLobbySit(...)` to seat or move `localLobbyPlayer`.
 - `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
 - The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
-- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, enables assigned `localPlayerCamera`, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, immediately calls `bookMenuReturnInteractable.DisableInteraction()`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, calls `cameraTransitionManager.DisableRendering()`, activates the assigned `localPlayerCamera` GameObject, enables that Camera, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- `CameraTransitionManager.ActiveCamera`, `EnableRendering()`, and `DisableRendering()` keep menu-camera ownership inside the transition manager. `LobbyController` never searches for or directly identifies `MenuTransitionCamera`.
 - The lobby does not generate incantations, start the hourglass, move the book, duplicate ritual initialization, change elimination logic, or create a separate seating system.
 - `Options` is a placeholder button for this foundation task only.
 - If `localPlayerCamera` is not assigned, `Start Ritual` logs `LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.` and still starts the ritual.
@@ -665,6 +667,26 @@ Camera transition foundation:
 - `MoveTo(target)` and `MoveToImmediate(target)` are the only camera movement API. Menu, lobby, and book interactions pass destination Transforms into this generic mover.
 - Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform, Play requests movement to the `LobbyCamera` Transform, and clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
 
+Book menu controller:
+
+- Add `BookMenuController` to the existing scene object that owns menu coordination. Do not create a second Book, camera, or menu UI object for this component.
+- `cameraTransitionManager`: assign the scene `CameraTransitionManager` that owns `MenuTransitionCamera`.
+- `lobbyCameraTarget`: assign the authored Lobby viewpoint Transform.
+- `characterCameraTarget`: assign the authored Character viewpoint Transform when one is available. Character customization is not implemented; this action currently moves the menu camera only. If the target is unassigned, `OpenCharacter()` logs one clear warning.
+- `bookMenuCameraTarget`: assign the authored Book Menu viewpoint Transform.
+- `lobbyController`: assign the scene `LobbyController`. `OpenLobby()` asks it to keep the existing Lobby interaction active, then requests the validated camera transition. It does not start the ritual, move the player, or lock seat selection.
+- `OpenOptions()` is a placeholder. It only logs `Book options page is not implemented yet.` and does not create UI or modify `LobbyController`.
+- `ReturnToBookMenu()` only requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.
+
+Manual Book menu UnityEvent wiring:
+
+- `TMP_Play` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenLobby()`.
+- `TMP_Character` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenCharacter()`.
+- `TMP_Options` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenOptions()`.
+- `TMP_Quit` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.QuitGame()`.
+- Do not wire a `BookMenuItem` directly to `CameraTransitionManager`. `BookMenuItem` remains a hover/click relay and all Book menu actions route through `BookMenuController`.
+- `BookMenuController.ReturnToBookMenu()` is exposed for UnityEvents but does not need to replace the current physical Book return interaction in this task.
+
 Book return interaction:
 
 - `BookMenuReturnInteractable` lives at `Assets/scripts/Book/BookMenuReturnInteractable.cs`.
@@ -677,9 +699,15 @@ Book return interaction:
 - `hoverEmissionColor`: choose a subtle book-appropriate glow color.
 - `hoverEmissionIntensity`: keep near `0.35` for the current prototype unless tuning the hover readability. `Prototype tuning`.
 - `hoverBaseColorMultiplier`: keep near `1.2` for a small temporary brighten when emission is unavailable or disabled. `Prototype tuning`.
+- `hoverLight`: manually create and position a Light for the existing physical Book, then assign that Light here. Keep the Light intensity at `0` when not hovered. Do not create or configure the Light at runtime.
+- `hoverLightIntensity`: `1.5`. Target intensity reached while the mouse is over the Book. `Prototype tuning`.
+- `hoverLightFadeDuration`: `0.12` seconds. Fade time for both entering and leaving hover; the fade uses unscaled time. `Prototype tuning`.
 - `interactionEnabled`: keep `true` when the Lobby view should allow clicking the Book to return to the Book Menu camera.
+- `EnableInteraction()` allows hover and click handling for Book Menu and Lobby navigation. `LobbyController.ShowLobby()` calls it whenever lobby/menu state is established.
+- `DisableInteraction()` blocks hover and clicks, immediately restores the original material state, and fades `hoverLight` to `0`. `LobbyController` calls it after applying the selected Seat and before starting the ritual.
 - Hover feedback uses `MaterialPropertyBlock` and restores each Renderer to its original property-block state on exit or disable. Shared Materials are not modified.
-- If assigned materials do not support visible emission, the hover effect falls back to `_BaseColor` when available. If neither supported property exists, hover feedback is skipped gracefully and click interaction still works.
+- The optional material hover and `hoverLight` work independently. `highlightRenderers` may be left empty when only the Light effect is wanted, and `hoverLight` may be left unassigned without affecting material hover or click interaction.
+- If assigned materials do not support visible emission, the hover effect falls back to `_BaseColor` when available. If neither supported property exists, material hover feedback is skipped gracefully and click interaction still works.
 
 Guidance:
 

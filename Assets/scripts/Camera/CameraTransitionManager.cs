@@ -12,6 +12,7 @@ public class CameraTransitionManager : MonoBehaviour
 
     private Coroutine transitionRoutine;
 
+    public Camera ActiveCamera => activeCamera;
     public bool IsTransitioning => transitionRoutine != null;
 
     private void OnDisable()
@@ -36,6 +37,18 @@ public class CameraTransitionManager : MonoBehaviour
 
         CancelCurrentTransition();
         activeCamera.transform.SetPositionAndRotation(target.position, target.rotation);
+    }
+
+    public void EnableRendering()
+    {
+        if (ActiveCamera != null)
+            ActiveCamera.enabled = true;
+    }
+
+    public void DisableRendering()
+    {
+        if (ActiveCamera != null)
+            ActiveCamera.enabled = false;
     }
 
     private IEnumerator RunTransition(Transform target)

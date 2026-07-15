@@ -23,6 +23,9 @@ public class LobbyController : MonoBehaviour
     [SerializeField] private CameraTransitionManager cameraTransitionManager;
     [SerializeField] private Transform lobbyCameraTarget;
 
+    [Header("Book Menu Interaction")]
+    [SerializeField] private BookMenuReturnInteractable bookMenuReturnInteractable;
+
     [Header("UI References")]
     [SerializeField] private GameObject lobbyCanvasRoot;
     [SerializeField] private Button startRitualButton;
@@ -85,6 +88,9 @@ public class LobbyController : MonoBehaviour
         Seat selectedLobbySeat = GetSelectedLobbySeat();
         ApplySelectedLobbySeatToLocalPlayer(selectedLobbySeat);
 
+        if (bookMenuReturnInteractable != null)
+            bookMenuReturnInteractable.DisableInteraction();
+
         if (seatManager != null)
             seatManager.SetLobbySeatSelectionEnabled(false);
 
@@ -99,6 +105,15 @@ public class LobbyController : MonoBehaviour
             ritualController.SetPreferredStartingSeat(selectedLobbySeat);
 
         ritualController.StartRitual();
+    }
+
+    public void OpenLobby()
+    {
+        if (bookMenuReturnInteractable != null)
+            bookMenuReturnInteractable.EnableInteraction();
+
+        if (cameraTransitionManager != null && lobbyCameraTarget != null)
+            cameraTransitionManager.MoveTo(lobbyCameraTarget);
     }
 
     public bool TrySelectLobbySeat(Seat seat)
@@ -143,6 +158,9 @@ public class LobbyController : MonoBehaviour
 
         ResolveLocalLobbyPlayer();
 
+        if (bookMenuReturnInteractable != null)
+            bookMenuReturnInteractable.EnableInteraction();
+
         if (seatManager != null)
             seatManager.SetLobbySeatSelectionEnabled(true);
 
@@ -169,6 +187,7 @@ public class LobbyController : MonoBehaviour
     {
         if (cameraTransitionManager != null && lobbyCameraTarget != null)
         {
+            cameraTransitionManager.EnableRendering();
             cameraTransitionManager.MoveTo(lobbyCameraTarget);
         }
         else if (!hasLoggedMissingMenuCameraTransition)
@@ -183,8 +202,12 @@ public class LobbyController : MonoBehaviour
 
     private void ApplyRitualCameraState()
     {
+        if (cameraTransitionManager != null)
+            cameraTransitionManager.DisableRendering();
+
         if (localPlayerCamera != null)
         {
+            localPlayerCamera.gameObject.SetActive(true);
             localPlayerCamera.enabled = true;
             return;
         }
