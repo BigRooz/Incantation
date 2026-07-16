@@ -77,6 +77,12 @@ public class LobbyController : MonoBehaviour
 
     public void StartLobbyRitual()
     {
+        if (!HasSelectedLobbySeat())
+        {
+            Debug.LogWarning("Cannot start ritual: the local player has not selected a seat.", this);
+            return;
+        }
+
         if (ritualController == null)
         {
             Debug.LogWarning($"{nameof(LobbyController)} cannot start the ritual because no {nameof(RitualController)} is assigned.", this);
@@ -105,6 +111,14 @@ public class LobbyController : MonoBehaviour
             ritualController.SetPreferredStartingSeat(selectedLobbySeat);
 
         ritualController.StartRitual();
+    }
+
+    public bool HasSelectedLobbySeat()
+    {
+        ResolveLocalLobbyPlayer();
+        return seatManager != null
+            && localLobbyPlayer != null
+            && seatManager.GetLobbySeatForPlayer(localLobbyPlayer) != null;
     }
 
     public void OpenLobby()

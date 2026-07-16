@@ -10,70 +10,181 @@ using UnityEngine.Events;
 public sealed class BookMenuItem : MonoBehaviour
 {
     [SerializeField] private TextMeshPro text;
+    [SerializeField] private Collider interactionCollider;
     [SerializeField] private Color hoverColor = Color.white;
     [SerializeField, Min(1f)] private float hoverScale = 1.05f;
+    [SerializeField] private bool enableHoverDebugLogs;
     [SerializeField] private UnityEvent onClick = new UnityEvent();
 
-    private Color originalColor;
-    private Vector3 originalScale;
-    private bool hasOriginalState;
+    private Color authoredColor;
+    private Vector3 authoredScale;
+    private bool hasAuthoredBaseline;
+    private bool isHovered;
+    private bool interactionEnabled;
 
-    private void Awake()
+    public void SetOnClickAction(UnityAction action)
     {
-        CaptureOriginalState();
-    }
+        onClick = new UnityEvent();
 
-    private void OnDisable()
-    {
-        RestoreOriginalState();
-    }
-
-    private void OnMouseEnter()
-    {
-        if (!hasOriginalState)
+        if (action != null)
         {
-            CaptureOriginalState();
+            onClick.AddListener(action);
+        }
+    }
+
+    public void SetInteractionEnabled(bool enabled)
+    {
+        interactionEnabled = enabled;
+
+        if (!enabled)
+        {
+            isHovered = false;
+            RestoreAuthoredVisual();
+        }
+        else
+        {
+            RestoreAuthoredVisual();
+
+            if (isHovered)
+            {
+                ApplyHoverVisual();
+            }
         }
 
-        if (!hasOriginalState)
+        if (interactionCollider != null)
         {
-            return;
+            interactionCollider.enabled = enabled;
         }
 
-        text.color = hoverColor;
-        text.transform.localScale = originalScale * hoverScale;
+        LogHoverState($"{nameof(SetInteractionEnabled)}({enabled})");
     }
 
-    private void OnMouseExit()
+    public void RefreshVisualBaseline()
     {
-        RestoreOriginalState();
+        RestoreAuthoredVisual();
+
+        if (isHovered && interactionEnabled)
+        {
+            ApplyHoverVisual();
+        }
+
+        LogHoverState(nameof(RefreshVisualBaseline));
     }
 
-    private void OnMouseDown()
-    {
-        onClick.Invoke();
-    }
-
-    private void CaptureOriginalState()
+    public void CaptureAuthoredBaseline()
     {
         if (text == null)
         {
             return;
         }
 
-        originalColor = text.color;
-        originalScale = text.transform.localScale;
-        hasOriginalState = true;
+        bool wasHovered = isHovered;
+
+        if (wasHovered && hasAuthoredBaseline)
+        {
+            RestoreAuthoredVisual();
+        }
+
+        authoredColor = text.color;
+        authoredScale = text.transform.localScale;
+        hasAuthoredBaseline = true;
+
+        if (wasHovered && interactionEnabled)
+        {
+            ApplyHoverVisual();
+        }
     }
 
-    private void RestoreOriginalState()
+    private void Awake()
     {
-        if (!hasOriginalState || text == null)
+        if (interactionCollider == null)
+        {
+            interactionCollider = GetComponent<Collider>();
+        }
+
+        interactionEnabled = interactionCollider == null || interactionCollider.enabled;
+        CaptureAuthoredBaseline();
+    }
+
+    private void OnDisable()
+    {
+        isHovered = false;
+        RestoreAuthoredVisual();
+    }
+
+    private void OnMouseEnter()
+    {
+        LogHoverState(nameof(OnMouseEnter));
+
+        if (!interactionEnabled)
         {
             return;
         }
 
-        text.color = originalColor;
-        text.transform.localScale = originalScale;
+        if (!hasAuthoredBaseline)
+        {
+            return;
+        }
+
+        isHovered = true;
+        ApplyHoverVisual();
+    }
+
+    private void OnMouseExit()
+    {
+        LogHoverState(nameof(OnMouseExit));
+        isHovered = false;
+        RestoreAuthoredVisual();
+    }
+
+    private void OnMouseDown()
+    {
+        LogHoverState(nameof(OnMouseDown));
+
+        if (!interactionEnabled)
+        {
+            return;
+        }
+
+        onClick.Invoke();
+    }
+
+    private void ApplyHoverVisual()
+    {
+        if (!hasAuthoredBaseline || text == null)
+        {
+            return;
+        }
+
+        text.color = hoverColor;
+        text.transform.localScale = authoredScale * hoverScale;
+    }
+
+    private void RestoreAuthoredVisual()
+    {
+        if (!hasAuthoredBaseline || text == null)
+        {
+            return;
+        }
+
+        text.color = authoredColor;
+        text.transform.localScale = authoredScale;
+    }
+
+    private void LogHoverState(string source)
+    {
+        if (!enableHoverDebugLogs)
+        {
+            return;
+        }
+
+        bool colliderEnabled = interactionCollider != null && interactionCollider.enabled;
+        string currentText = text != null ? text.text : "<unassigned>";
+        Vector3 currentScale = text != null ? text.transform.localScale : Vector3.zero;
+        Color currentColor = text != null ? text.color : Color.clear;
+
+        Debug.Log(
+            $"{nameof(BookMenuItem)}.{source} | GameObject={gameObject.name} | ColliderEnabled={colliderEnabled} | InteractionEnabled={interactionEnabled} | Text=\"{currentText}\" | Scale={currentScale} | Color={currentColor}",
+            this);
     }
 }

@@ -55,12 +55,13 @@ Runtime behavior:
 - While in lobby, chair clicks are routed through `LobbyController.TrySelectLobbySeat(seat)`, which asks `SeatManager.TryLobbySit(...)` to seat or move `localLobbyPlayer`.
 - `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
 - The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
-- `Start Ritual` resolves the selected lobby Seat, keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, immediately calls `bookMenuReturnInteractable.DisableInteraction()`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, calls `cameraTransitionManager.DisableRendering()`, activates the assigned `localPlayerCamera` GameObject, enables that Camera, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- `Start Ritual` requires `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` to return a selected Seat. Without one, it logs `Cannot start ritual: the local player has not selected a seat.` and leaves menu interaction, text, cameras, lobby state, and the ritual unchanged.
+- With a selected Seat, `Start Ritual` keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, immediately calls `bookMenuReturnInteractable.DisableInteraction()`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, calls `cameraTransitionManager.DisableRendering()`, activates the assigned `localPlayerCamera` GameObject, enables that Camera, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
 - `CameraTransitionManager.ActiveCamera`, `EnableRendering()`, and `DisableRendering()` keep menu-camera ownership inside the transition manager. `LobbyController` never searches for or directly identifies `MenuTransitionCamera`.
 - The lobby does not generate incantations, start the hourglass, move the book, duplicate ritual initialization, change elimination logic, or create a separate seating system.
 - `Options` is a placeholder button for this foundation task only.
 - If `localPlayerCamera` is not assigned, `Start Ritual` logs `LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.` and still starts the ritual.
-- If no selected lobby Seat exists when Start Ritual is pressed, the existing ritual seating fallback is used and a warning is logged.
+- `HasSelectedLobbySeat()` is the read-only seat requirement query used by the Living Book and the lobby start flow. It reuses `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` and does not duplicate seat ownership.
 
 ## SeatManager
 
@@ -665,26 +666,95 @@ Camera transition foundation:
 - `transitionCurve`: curve evaluated from 0 to 1 across the move. Use it to shape ease-in, ease-out, or theatrical camera travel without changing target Transforms.
 - `activeCamera`: assign `MenuTransitionCamera`.
 - `MoveTo(target)` and `MoveToImmediate(target)` are the only camera movement API. Menu, lobby, and book interactions pass destination Transforms into this generic mover.
-- Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform, Play requests movement to the `LobbyCamera` Transform, and clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
+- Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform. Book page changes do not move it. `OpenLobby()` requests movement to the `LobbyCamera` Transform, and clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
+
+Book state controller:
+
+- Add `BookStateController` to the existing scene object that coordinates the Living Book. Do not create another Book, Canvas, panel, or TextMeshPro object.
+- The left Book page owns navigation, state choices, and Back actions. The right Book page owns contextual information and contextual actions. Never share TextMeshPro objects, `BookMenuItem` components, or Colliders between the pages.
+- `title`: assign the existing title `TMP_Text` on the Book.
+- `line1` through `line4`: assign the four existing line `TMP_Text` entries in their displayed order.
+- `menuItem1` through `menuItem4`: assign the `BookMenuItem` beside the matching line. The line and item numbers must match.
+- `line5`: assign a separately placed optional fifth left-page `TMP_Text`. Current states clear it; it remains available for future page layouts.
+- `menuItem5`: assign the fifth left-page line's own `BookMenuItem` and Collider. Do not overload another Collider or reuse a right-page component for future fifth-line actions.
+- `bookMenuController`: assign the existing `BookMenuController` that owns menu actions.
+- `rightPageController`: assign the independent `BookRightPageController`. This reference is optional so the left page can still operate while manual right-page setup is incomplete.
+- `characterBookPageController`: assign `CharacterBookPageController` so Character category actions and the default Character right page can be refreshed when entering `CharacterMenu`.
+- On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
+- `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
+- `HostMenu` displays `THE CIRCLE` with `Start Ritual`, `Share Ritual`, `Take Your Seat`, and `Back`. `Start Ritual` calls `BookMenuController.StartRitualFromBook()`, `Share Ritual` keeps its existing placeholder behavior, `Take Your Seat` calls `BookMenuController.OpenLobby()`, and `Back` returns to `PlayMenu`.
+- Empty page lines remain assigned but display an empty string and have no click action. Placeholder lines such as `Share Ritual`, `Enter Seal`, and `Audio` remain visible with no action until their systems are implemented.
+- States are `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `CharacterMenu`, and `OptionsMenu`. Back actions return to either `MainMenu` or `PlayMenu` according to the page hierarchy.
+- Book state changes never move cameras and never invoke gameplay, ritual, lobby creation/joining, or seating logic.
+
+Book right page controller:
+
+- Add `BookRightPageController` to the existing Living Book/menu coordination object. It presents context for the state owned by `BookStateController`; it does not own or change Book state.
+- Manually create and position six right-page TextMeshPro objects: one title and five lines. Assign them to `rightTitle` and `rightLine1` through `rightLine5` in displayed order.
+- Add five new, independent `BookMenuItem` components for the five right-page lines. Assign them to `rightMenuItem1` through `rightMenuItem5` in matching order. Do not reuse `menuItem1` through `menuItem4` from the left page.
+- Give each of the five right-page line objects its own manually sized and positioned `BoxCollider`, paired with its independent `BookMenuItem`. A left-page and right-page entry must never share a Collider. The controller does not create, move, or resize Colliders.
+- On each right-side `BookMenuItem`, assign its matching right-side TextMeshPro component and preserve manually chosen hover color and hover scale values. Remove persistent On Click listeners because actions are supplied by `BookRightPageController` at runtime.
+- Assign the existing `BookMenuController` to `bookMenuController`. Host `Take Your Seat` then routes through the existing `OpenLobby()` camera/lobby action.
+- `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
+- `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
+- `PlayMenu` and `OptionsMenu` clear the right-page text and actions. `HostMenu`, `JoinMenu`, and the Character page flow preserve their existing independent right-page content without changing left-page text or moving a camera.
+- `HostMenu` currently shows placeholder invite, seal, player-count, host-name, and seat content. `Invite a Mage` only logs `Invite a Mage is not implemented yet.`; seal and player data are not connected to networking.
+- `JoinMenu` currently shows placeholder seal, player-count, waiting, and seat content. Its contextual actions remain unimplemented.
+- `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` are presentation-only hooks for future lobby work. They update right-side line 2, line 3, and line 4 respectively and do not implement Steam, networking, lobby codes, matchmaking, or player-list ownership.
+- Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
+
+Character Book page controller:
+
+- Add `CharacterBookPageController` to the existing Living Book/menu coordination object. It owns only the active Character subcategory presentation; `BookStateController` remains the global Book-state owner.
+- `rightPageController`: assign the same `BookRightPageController` used for Host and Join contextual content.
+- `bookMenuController`: assign the existing `BookMenuController`. `CharacterBookPageController.ShowCharacter()` delegates the camera request to `BookMenuController.ShowCharacter()` and does not move a camera directly.
+- Configure `colorOptions` as the active placeholder text array. Its first four entries fill right lines 1 through 4 when `Color` is selected. The dormant horn, hat, and tattoo arrays and methods remain available for future use but do not appear on the current Character page. These strings do not apply cosmetics, check inventory, save data, or network selections.
+- Entering `CharacterMenu` leaves the camera on the Book. The left page displays `Color` on line 1, `Back` on line 2, and clears lines 3 through 5. `Color` uses `menuItem1`; `Back` uses the independently assigned `menuItem2`, so Back remains visible and clickable without reusing a cleared or invisible Collider.
+- The default Character right page displays `CHARACTER`, `Select Color`, and the existing `Show Character` action. Selecting `Color` changes only the independent Character right page to the configured color placeholder texts; right line 5 remains `Show Character`.
+- `Show Character` calls `BookMenuController.ShowCharacter()`, which validates `cameraTransitionManager` and `characterCameraTarget`, then moves the existing active menu camera to the authored Character viewpoint. It does not change Book state or modify player customization.
+- `Color`, `Back`, and every right-side entry keep their own manually placed `BookMenuItem` and `BoxCollider`. Do not duplicate, share, resize, or reposition Colliders through scripts.
+- Returning to `MainMenu` changes only Book state. Camera return remains an explicit action and is not coupled to the Back state transition.
+- Character customization remains placeholder-only: no cosmetic application, player-model changes, inventory, persistence, lobby integration, or networking is implemented.
 
 Book menu controller:
 
 - Add `BookMenuController` to the existing scene object that owns menu coordination. Do not create a second Book, camera, or menu UI object for this component.
+- `bookStateController`: assign the `BookStateController` on the Living Book coordinator.
+- `bookTextModeController`: assign the same `BookTextModeController` used by `BookStateController`.
 - `cameraTransitionManager`: assign the scene `CameraTransitionManager` that owns `MenuTransitionCamera`.
 - `lobbyCameraTarget`: assign the authored Lobby viewpoint Transform.
-- `characterCameraTarget`: assign the authored Character viewpoint Transform when one is available. Character customization is not implemented; this action currently moves the menu camera only. If the target is unassigned, `OpenCharacter()` logs one clear warning.
+- `characterCameraTarget`: assign the authored Character viewpoint Transform. `ShowCharacter()` uses this target; `OpenCharacter()` does not move the camera.
 - `bookMenuCameraTarget`: assign the authored Book Menu viewpoint Transform.
 - `lobbyController`: assign the scene `LobbyController`. `OpenLobby()` asks it to keep the existing Lobby interaction active, then requests the validated camera transition. It does not start the ritual, move the player, or lock seat selection.
-- `OpenOptions()` is a placeholder. It only logs `Book options page is not implemented yet.` and does not create UI or modify `LobbyController`.
-- `ReturnToBookMenu()` only requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.
+- `discordUrl`: optionally assign the full Discord destination URL. `OpenDiscord()` logs `Discord URL is not assigned.` and does nothing when this field is empty; otherwise it passes the assigned value to `Application.OpenURL(...)`. No Discord URL is hardcoded.
+- `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before changing anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a selected Seat, it calls `BookTextModeController.ShowRitualTexts()` and delegates to `LobbyController.StartLobbyRitual()`.
+- `OpenPlayMenu()`, `OpenHostMenu()`, `OpenJoinMenu()`, `ReturnToMainMenu()`, and `ReturnToPlayMenu()` only request the matching state from `BookStateController`.
+- `OpenCharacter()` only displays `CharacterMenu`, keeping the camera on the Book. `ShowCharacter()` is the explicit Character-camera transition. `OpenOptions()` displays `OptionsMenu` without moving a camera.
+- `OpenLeaderboard()` is a placeholder that logs `Leaderboard is not implemented yet.`. `OpenDiscord()` opens only the URL authored in `discordUrl`.
+- `ReturnToBookMenu()` calls `BookTextModeController.ShowMenuTexts()` and requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.
 
-Manual Book menu UnityEvent wiring:
+Book text mode controller:
 
-- `TMP_Play` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenLobby()`.
-- `TMP_Character` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenCharacter()`.
-- `TMP_Options` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.OpenOptions()`.
-- `TMP_Quit` > `BookMenuItem` > `On Click`: drag the `BookMenuController` component into the event target and select `BookMenuController.QuitGame()`.
-- Do not wire a `BookMenuItem` directly to `CameraTransitionManager`. `BookMenuItem` remains a hover/click relay and all Book menu actions route through `BookMenuController`.
+- Add `BookTextModeController` to the existing Living Book/menu coordination object. It only toggles two manually authored text roots; it does not create, move, rename, or restyle TextMeshPro objects.
+- `menuTextRoot`: assign `BookMenuTextRoot`, containing all Living Book menu TMP objects.
+- `ritualTextRoot`: assign `RitualTextRoot`, containing the existing ritual/incantation TMP objects.
+- On `Awake`, the component calls `ShowMenuTexts()` so the authored menu text is the initial mode before other startup behavior runs.
+- `ShowMenuTexts()` activates `menuTextRoot` and deactivates `ritualTextRoot`. This is the startup and return-to-Book-menu mode.
+- `ShowRitualTexts()` deactivates `menuTextRoot` and activates `ritualTextRoot`. This runs only after the local lobby player has selected a Seat and immediately before the existing lobby ritual-start flow.
+- Create or identify the two roots manually in the Inspector and parent the appropriate existing TMP objects manually. Do not use scripts to move existing TMP transforms.
+
+Book menu item wiring:
+
+- Keep one `BookMenuItem` on each of the four already placed line objects and preserve its existing `TextMeshPro`, hover color, hover scale, and Collider setup.
+- `interactionCollider`: assign the line object's existing Collider. When the Collider is on the same GameObject as `BookMenuItem`, the component caches it automatically and no new Inspector assignment is required. Assign this field manually only when the intended interaction Collider is on a different GameObject.
+- `enableHoverDebugLogs`: keep `false` normally. Temporarily enable it on a specific entry to log mouse enter, exit, click, interaction changes, baseline refreshes, Collider state, text, scale, and color.
+- Assign those four components to the matching `menuItem1` through `menuItem4` fields on `BookStateController`.
+- Page actions are replaced at runtime by `BookStateController`; no manual per-page UnityEvent listeners are required. Existing persistent On Click wiring should be removed in the Inspector so the initial serialized setup is unambiguous before Play Mode.
+- Do not wire a `BookMenuItem` directly to `CameraTransitionManager`, lobby gameplay, ritual logic, or seating. `BookMenuItem` remains a hover/click relay and Book actions route through `BookMenuController`.
+- `BookMenuItem` captures one stable authored color and scale during `Awake`. `SetInteractionEnabled` and ordinary Book-state refreshes never overwrite that authored baseline.
+- `SetInteractionEnabled(false)` restores the authored non-hover visual and disables only Collider hit testing for empty entries. `SetInteractionEnabled(true)` restores the authored visual and reapplies hover only when the item is currently hovered.
+- State refreshes call `RefreshVisualBaseline()` for visible left- and right-page entries. Despite its compatibility name, this method now restores the stable authored baseline without recapturing current runtime color or scale.
+- `CaptureAuthoredBaseline()` is the explicit opt-in API for another system that deliberately changes an entry's normal authored style. Do not call it during ordinary page or hover refreshes.
 - `BookMenuController.ReturnToBookMenu()` is exposed for UnityEvents but does not need to replace the current physical Book return interaction in this task.
 
 Book return interaction:
