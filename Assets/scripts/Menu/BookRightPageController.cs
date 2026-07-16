@@ -117,21 +117,17 @@ public sealed class BookRightPageController : MonoBehaviour
         SetEntry(rightLine2, rightMenuItem2, "Seal: ----", null);
         SetEntry(rightLine3, rightMenuItem3, "Players: 1 / 8", null);
         SetEntry(rightLine4, rightMenuItem4, "Host Name", null);
-        SetEntry(
-            rightLine5,
-            rightMenuItem5,
-            "Take Your Seat",
-            bookMenuController != null ? bookMenuController.OpenLobby : null);
+        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
     }
 
     private void ShowJoinPage()
     {
         SetEntry(rightTitle, null, "JOIN THE CIRCLE", null);
-        SetEntry(rightLine1, rightMenuItem1, "Enter Seal", null);
+        SetEntry(rightLine1, rightMenuItem1, string.Empty, null);
         SetEntry(rightLine2, rightMenuItem2, "Seal: ----", null);
         SetEntry(rightLine3, rightMenuItem3, "Players: -- / 8", null);
         SetEntry(rightLine4, rightMenuItem4, "Waiting...", null);
-        SetEntry(rightLine5, rightMenuItem5, "Take Your Seat", null);
+        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
     }
 
     private void LogInvitePlaceholder()
