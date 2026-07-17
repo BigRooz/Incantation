@@ -3,6 +3,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>
+/// Prepares and presents contextual content on the Living Book's right page.
+/// It does not own Book state and delegates animated rewrites to BookTextTransitionController.
+/// </summary>
 public sealed class BookRightPageController : MonoBehaviour
 {
     [Header("Existing Right Page Text")]
@@ -23,36 +27,63 @@ public sealed class BookRightPageController : MonoBehaviour
     [Header("Menu Actions")]
     [SerializeField] private BookMenuController bookMenuController;
 
+    [Header("Page Presentation")]
+    [SerializeField] private BookTextTransitionController textTransitionController;
+
+    private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
+    private readonly List<string> transitionTargets = new List<string>();
+
     public void RefreshForState(BookState state)
+    {
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PrepareForState(state, transitionTexts, transitionTargets);
+        PlayPreparedTransition();
+    }
+
+    public void PrepareForState(
+        BookState state,
+        List<TMP_Text> texts,
+        List<string> targetStrings)
     {
         switch (state)
         {
             case BookState.MainMenu:
-                ShowMainPage();
+                PrepareMainPage(texts, targetStrings);
                 break;
-
             case BookState.HostMenu:
-                ShowHostPage();
+                PrepareHostPage(texts, targetStrings);
                 break;
-
             case BookState.JoinMenu:
-                ShowJoinPage();
+                PrepareJoinPage(texts, targetStrings);
                 break;
-
+            case BookState.CharacterMenu:
+                PrepareContextPage(
+                    texts, targetStrings, "CHARACTER", "Select Color",
+                    string.Empty, string.Empty, string.Empty,
+                    bookMenuController != null ? bookMenuController.ShowCharacter : null);
+                break;
             default:
-                ClearRightPage();
+                PrepareClearPage(texts, targetStrings);
                 break;
         }
     }
 
+    public void CompletePreparedTransition()
+    {
+        SetMenuItemInteraction(rightMenuItem1, rightLine1);
+        SetMenuItemInteraction(rightMenuItem2, rightLine2);
+        SetMenuItemInteraction(rightMenuItem3, rightLine3);
+        SetMenuItemInteraction(rightMenuItem4, rightLine4);
+        SetMenuItemInteraction(rightMenuItem5, rightLine5);
+    }
+
     public void ClearRightPage()
     {
-        SetEntry(rightTitle, null, string.Empty, null);
-        SetEntry(rightLine1, rightMenuItem1, string.Empty, null);
-        SetEntry(rightLine2, rightMenuItem2, string.Empty, null);
-        SetEntry(rightLine3, rightMenuItem3, string.Empty, null);
-        SetEntry(rightLine4, rightMenuItem4, string.Empty, null);
-        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PrepareClearPage(transitionTexts, transitionTargets);
+        PlayPreparedTransition();
     }
 
     public void ShowContextPage(
@@ -63,107 +94,155 @@ public sealed class BookRightPageController : MonoBehaviour
         string line4Text,
         UnityAction showCharacterAction)
     {
-        SetEntry(rightTitle, null, titleText, null);
-        SetEntry(rightLine1, rightMenuItem1, line1Text, null);
-        SetEntry(rightLine2, rightMenuItem2, line2Text, null);
-        SetEntry(rightLine3, rightMenuItem3, line3Text, null);
-        SetEntry(rightLine4, rightMenuItem4, line4Text, null);
-        SetEntry(rightLine5, rightMenuItem5, "Show Character", showCharacterAction);
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PrepareContextPage(
+            transitionTexts, transitionTargets, titleText, line1Text, line2Text,
+            line3Text, line4Text, showCharacterAction);
+        PlayPreparedTransition();
     }
 
     public void SetSealText(string seal)
     {
-        SetText(rightLine2, $"Seal: {seal ?? string.Empty}");
+        PlaySingleEntryTransition(rightLine2, rightMenuItem2, $"Seal: {seal ?? string.Empty}");
     }
 
     public void SetPlayerCount(int currentPlayers, int maxPlayers)
     {
-        SetText(rightLine3, $"Players: {currentPlayers} / {maxPlayers}");
+        PlaySingleEntryTransition(rightLine3, rightMenuItem3, $"Players: {currentPlayers} / {maxPlayers}");
     }
 
     public void SetPlayerNames(IReadOnlyList<string> playerNames)
     {
-        if (playerNames == null || playerNames.Count == 0)
-        {
-            SetText(rightLine4, string.Empty);
-            return;
-        }
-
-        SetText(rightLine4, string.Join("\n", playerNames));
+        string names = playerNames == null || playerNames.Count == 0
+            ? string.Empty
+            : string.Join("\n", playerNames);
+        PlaySingleEntryTransition(rightLine4, rightMenuItem4, names);
     }
 
-    private void ShowMainPage()
+    private void PrepareMainPage(List<TMP_Text> texts, List<string> targets)
     {
-        SetEntry(rightTitle, null, string.Empty, null);
-        SetEntry(
-            rightLine1,
-            rightMenuItem1,
-            "Leaderboard",
+        PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Leaderboard",
             bookMenuController != null ? bookMenuController.OpenLeaderboard : null);
-        SetEntry(
-            rightLine2,
-            rightMenuItem2,
-            "Discord",
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Discord",
             bookMenuController != null ? bookMenuController.OpenDiscord : null);
-        SetEntry(rightLine3, rightMenuItem3, string.Empty, null);
-        SetEntry(rightLine4, rightMenuItem4, string.Empty, null);
-        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
-    private void ShowHostPage()
+    private void PrepareHostPage(List<TMP_Text> texts, List<string> targets)
     {
-        SetEntry(rightTitle, null, "THE CIRCLE", null);
-        SetEntry(rightLine1, rightMenuItem1, "Invite a Mage", LogInvitePlaceholder);
-        SetEntry(rightLine2, rightMenuItem2, "Seal: ----", null);
-        SetEntry(rightLine3, rightMenuItem3, "Players: 1 / 8", null);
-        SetEntry(rightLine4, rightMenuItem4, "Host Name", null);
-        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareEntry(texts, targets, rightTitle, null, "THE CIRCLE", null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Invite a Mage", LogInvitePlaceholder);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal: ----", null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, "Players: 1 / 8", null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, "Host Name", null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
-    private void ShowJoinPage()
+    private void PrepareJoinPage(List<TMP_Text> texts, List<string> targets)
     {
-        SetEntry(rightTitle, null, "JOIN THE CIRCLE", null);
-        SetEntry(rightLine1, rightMenuItem1, string.Empty, null);
-        SetEntry(rightLine2, rightMenuItem2, "Seal: ----", null);
-        SetEntry(rightLine3, rightMenuItem3, "Players: -- / 8", null);
-        SetEntry(rightLine4, rightMenuItem4, "Waiting...", null);
-        SetEntry(rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareEntry(texts, targets, rightTitle, null, "JOIN THE CIRCLE", null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal: ----", null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, "Players: -- / 8", null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, "Waiting...", null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
-    private void LogInvitePlaceholder()
+    private void PrepareClearPage(List<TMP_Text> texts, List<string> targets)
     {
-        Debug.Log("Invite a Mage is not implemented yet.", this);
+        PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
-    private static void SetEntry(
+    private void PrepareContextPage(
+        List<TMP_Text> texts,
+        List<string> targets,
+        string titleText,
+        string line1Text,
+        string line2Text,
+        string line3Text,
+        string line4Text,
+        UnityAction showCharacterAction)
+    {
+        PrepareEntry(texts, targets, rightTitle, null, titleText, null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, line1Text, null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, line2Text, null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, line3Text, null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, line4Text, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, "Show Character", showCharacterAction);
+    }
+
+    private static void PrepareEntry(
+        List<TMP_Text> texts,
+        List<string> targets,
         TMP_Text textEntry,
         BookMenuItem menuItem,
         string value,
         UnityAction action)
     {
-        SetText(textEntry, value);
+        texts.Add(textEntry);
+        targets.Add(value ?? string.Empty);
 
         if (menuItem != null)
         {
             menuItem.SetOnClickAction(action);
+            menuItem.SetInteractionEnabled(false);
+        }
+    }
 
-            if (string.IsNullOrEmpty(value))
+    private void PlayPreparedTransition()
+    {
+        if (textTransitionController != null)
+        {
+            textTransitionController.PlayTransition(transitionTexts, transitionTargets, CompletePreparedTransition);
+            return;
+        }
+
+        ApplyTargetsImmediately(transitionTexts, transitionTargets);
+        CompletePreparedTransition();
+    }
+
+    private void PlaySingleEntryTransition(TMP_Text textEntry, BookMenuItem menuItem, string value)
+    {
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PrepareEntry(transitionTexts, transitionTargets, textEntry, menuItem, value, null);
+        PlayPreparedTransition();
+    }
+
+    private static void ApplyTargetsImmediately(List<TMP_Text> texts, List<string> targets)
+    {
+        for (int i = 0; i < texts.Count; i++)
+        {
+            if (texts[i] != null)
             {
-                menuItem.SetInteractionEnabled(false);
-            }
-            else
-            {
-                menuItem.RefreshVisualBaseline();
-                menuItem.SetInteractionEnabled(true);
+                texts[i].text = targets[i];
+                texts[i].maxVisibleCharacters = int.MaxValue;
             }
         }
     }
 
-    private static void SetText(TMP_Text textEntry, string value)
+    private static void SetMenuItemInteraction(BookMenuItem menuItem, TMP_Text textEntry)
     {
-        if (textEntry != null)
+        if (menuItem == null)
         {
-            textEntry.text = value;
+            return;
         }
+
+        menuItem.RefreshVisualBaseline();
+        menuItem.SetInteractionEnabled(textEntry != null && !string.IsNullOrEmpty(textEntry.text));
+    }
+
+    private void LogInvitePlaceholder()
+    {
+        Debug.Log("Invite a Mage is not implemented yet.", this);
     }
 }

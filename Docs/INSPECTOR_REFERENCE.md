@@ -680,6 +680,7 @@ Book state controller:
 - `bookMenuController`: assign the existing `BookMenuController` that owns menu actions.
 - `rightPageController`: assign the independent `BookRightPageController`. This reference is optional so the left page can still operate while manual right-page setup is incomplete.
 - `characterBookPageController`: assign `CharacterBookPageController` so Character category actions and the default Character right page can be refreshed when entering `CharacterMenu`.
+- `textTransitionController`: assign the shared `BookTextTransitionController` used by both Book pages. `BookStateController` combines left- and right-page targets into one coordinated transition so a state change produces one paper sound, not one sound per page or line.
 - On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
 - `HostMenu` displays `THE CIRCLE` with `Start Ritual`, `Share Ritual`, `Take Your Seat`, and `Back`. `Start Ritual` calls `BookMenuController.StartRitualFromBook()`, `Share Ritual` keeps its existing placeholder behavior, `Take Your Seat` calls `BookMenuController.OpenLobby()`, and `Back` returns to `PlayMenu`.
@@ -695,6 +696,7 @@ Book right page controller:
 - Give each of the five right-page line objects its own manually sized and positioned `BoxCollider`, paired with its independent `BookMenuItem`. A left-page and right-page entry must never share a Collider. The controller does not create, move, or resize Colliders.
 - On each right-side `BookMenuItem`, assign its matching right-side TextMeshPro component and preserve manually chosen hover color and hover scale values. Remove persistent On Click listeners because actions are supplied by `BookRightPageController` at runtime.
 - Assign the existing `BookMenuController` to `bookMenuController` so intentional right-page actions such as `Leaderboard` and `Discord` use the existing menu behavior.
+- `textTransitionController`: assign the same shared `BookTextTransitionController` assigned to `BookStateController`. State-driven updates are coordinated by `BookStateController`; independent contextual right-page updates use this reference directly.
 - `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
 - `PlayMenu` and `OptionsMenu` clear the right-page text and actions. `HostMenu`, `JoinMenu`, and the Character page flow preserve their existing independent right-page content without changing left-page text or moving a camera.
@@ -702,6 +704,20 @@ Book right page controller:
 - `JoinMenu` clears right lines 1 and 5 and displays only contextual placeholder content on right lines 2 through 4: `Seal: ----`, `Players: -- / 8`, and `Waiting...`. `Enter Seal` and `Take Your Seat` appear only on the left page; the contextual entries remain unimplemented.
 - `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` are presentation-only hooks for future lobby work. They update right-side line 2, line 3, and line 4 respectively and do not implement Steam, networking, lobby codes, matchmaking, or player-list ownership.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
+
+Book text transition controller:
+
+- Add one `BookTextTransitionController` to the existing Living Book/menu coordination object. Do not create, move, reparent, or replace any TextMeshPro objects; callers pass the existing manually placed entries into the controller at runtime.
+- `audioSource`: assign one existing, dedicated AudioSource for Book paper transitions. Keep `Play On Awake` disabled and `Loop` disabled. The controller does not create an AudioSource or change its mixer routing, volume, spatial settings, or other authored configuration.
+- `paperTransitionClip`: after manually importing `makigai_maimai-paper-245786.mp3`, assign that clip here. A coordinated Book page transition calls `PlayOneShot` once. Missing AudioSource or clip references suppress only the sound; the text animation still runs.
+- `disappearDuration`: `0.25` seconds. Old text loses visible characters from end to beginning using `TMP_Text.maxVisibleCharacters`. `Prototype tuning`.
+- `delayBetweenPhases`: `0.05` seconds between disappearance and rewrite. `Prototype tuning`.
+- `revealDuration`: `0.9` seconds. New text reveals from beginning to end. `Prototype tuning`.
+- `revealCurve`: use the default linear curve for an even writing pace, or author an easing curve without changing page state logic. The curve affects only the reveal phase. `Prototype tuning`.
+- All timing uses unscaled time, so menu rewriting continues when gameplay time scale is paused.
+- During a transition, affected `BookMenuItem` Colliders are disabled and hover visuals return to their authored baseline. Click actions are prepared before the rewrite but cannot fire until the reveal completes. After completion, non-empty entries become interactive and empty entries remain disabled, preventing invisible Colliders from intercepting input.
+- A newer transition cancels and replaces the active animation. It restores complete visibility before starting the replacement and stops the dedicated transition AudioSource before playing the new clip, preventing stacked animations and overlapping paper sounds.
+- Do not attach `BookTextMagicEffect` to clickable Book menu entries. `BookTextTransitionController` is the only rewrite animation for those entries and preserves their existing `BookMenuItem` hover behavior.
 
 Character Book page controller:
 
