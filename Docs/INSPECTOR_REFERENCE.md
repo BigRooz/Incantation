@@ -654,6 +654,38 @@ Useful defaults:
 - `enableDebugLogs`: `true` while tuning.
 - `logRecognizedPhrases`: `true` while tuning.
 
+## Character Face
+
+Eyelid blink controller:
+
+- Add `EyelidBlinkController` to the character root or an existing character face coordination object. Do not add it separately to either eyelid and do not add an Animator, bones, blend shapes, or `SkinnedMeshRenderer` logic for blinking.
+- `leftEyelid`: assign the Transform of the existing left eyelid GameObject that uses its separate Mesh Filter and Mesh Renderer.
+- `rightEyelid`: assign the Transform of the existing right eyelid GameObject that uses its separate Mesh Filter and Mesh Renderer.
+- `openScaleZ`: `0`. This is the local Z scale restored when the eyes are open.
+- `closedScaleZ`: `-2.2`. This is the local Z scale reached at full closure.
+- `closeDuration`: `0.08` seconds. `Prototype tuning`.
+- `openDuration`: `0.12` seconds. `Prototype tuning`.
+- `minimumBlinkInterval`: `3` seconds. `Prototype tuning`.
+- `maximumBlinkInterval`: `8` seconds. `Prototype tuning`.
+- `blinkOnEnable`: keep disabled for normal random blinking. Enable it only when an immediate blink on component enable is desired for testing.
+- To test manually in Play Mode, open the `EyelidBlinkController` component's context menu in the Inspector and select `Blink`. The same public `Blink()` method is available for future callers. Requests made during an active blink are safely ignored.
+- The controller uses unscaled time and modifies only each assigned eyelid Transform's `localScale.z`. It preserves current local X/Y scale and does not modify position, rotation, renderers, materials, Colliders, or parent Transforms.
+
+Voice lip controller:
+
+- Add `VoiceLipController` from `Assets/scripts/Character/Face/VoiceLipController.cs` to the character root or an existing character face coordination object. It animates the two existing Mesh Renderer lip objects through their Transforms and does not use an Animator, clips, blend shapes, or `SkinnedMeshRenderer` manipulation.
+- `upperLip`: assign the Transform of the existing upper-lip Mesh Renderer object.
+- `lowerLip`: assign the Transform of the existing lower-lip Mesh Renderer object. If either lip is unavailable, the assigned lip still animates; if neither is assigned, the component disables itself.
+- `microphoneRecord`: assign the existing `MicrophoneRecord` used by the current voice path. The lip controller only reads its audio chunk event and never starts, stops, or reconfigures microphone recording. Without this reference, the lips remain closed and the component logs one warning.
+- `closedAngle`: `0` degrees.
+- `upperOpenAngle`: `-20` degrees.
+- `lowerOpenAngle`: `20` degrees.
+- `voiceThreshold`: `0.02`. Levels at or below this RMS amplitude keep the lips closed.
+- `maxVoiceLevel`: `0.25`. Levels at or above this RMS amplitude fully open the lips.
+- `smoothingSpeed`: `15`. Increase it for a faster response or decrease it for softer motion. `Prototype tuning`.
+- `SetOpenAmount(float amount)` clamps the supplied value to `0` through `1` and immediately applies it without reading the microphone. Future NPC, emote, Book-reaction, or debug callers can invoke it each frame for sustained manual control.
+- The controller preserves each assigned lip's original local Y and Z rotation, animates only local X, smoothly returns to the closed angle during silence, and restores the complete original local rotations when disabled.
+
 ## Camera
 
 Camera transition foundation:
