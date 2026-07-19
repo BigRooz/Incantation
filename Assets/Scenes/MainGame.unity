@@ -2117,6 +2117,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 192205743}
+  - component: {fileID: 192205744}
   m_Layer: 0
   m_Name: Book
   m_TagString: Untagged
@@ -2144,6 +2145,21 @@ Transform:
   - {fileID: 1186633639}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &192205744
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 192205742}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b9dd840c19a4a49b84927ddbe44d2e8, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  rotationSpeed: 180
+  frontRotation: 90
+  backRotation: 270
 --- !u!114 &194496535
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2722,6 +2738,7 @@ MonoBehaviour:
   lobbyCameraTarget: {fileID: 1618851345}
   characterCameraTarget: {fileID: 0}
   bookMenuCameraTarget: {fileID: 411057771}
+  bookRotationController: {fileID: 192205744}
   lobbyController: {fileID: 231271043}
   discordUrl: https://discord.gg/4D7RtRMjv
 --- !u!114 &231271047

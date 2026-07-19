@@ -12,6 +12,9 @@ public class BookMenuController : MonoBehaviour
     [SerializeField] private Transform characterCameraTarget;
     [SerializeField] private Transform bookMenuCameraTarget;
 
+    [Header("Book Rotation Reference")]
+    [SerializeField] private BookRotationController bookRotationController;
+
     [Header("Lobby Reference")]
     [SerializeField] private LobbyController lobbyController;
 
@@ -101,6 +104,9 @@ public class BookMenuController : MonoBehaviour
             return;
         }
 
+        if (bookRotationController != null)
+            bookRotationController.RotateToBack();
+
         cameraTransitionManager.MoveTo(characterCameraTarget);
     }
 
@@ -145,6 +151,9 @@ public class BookMenuController : MonoBehaviour
             Debug.LogWarning($"{nameof(BookMenuController)} cannot return to the Book Menu because {nameof(cameraTransitionManager)} or {nameof(bookMenuCameraTarget)} is not assigned.", this);
             return;
         }
+
+        if (bookRotationController != null)
+            bookRotationController.RotateToFront();
 
         cameraTransitionManager.MoveTo(bookMenuCameraTarget);
     }
