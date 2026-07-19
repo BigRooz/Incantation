@@ -49,6 +49,9 @@ public class BookMenuController : MonoBehaviour
 
     public void ReturnToMainMenu()
     {
+        if (bookRotationController != null)
+            bookRotationController.RotateToFront();
+
         bookStateController.SetState(BookState.MainMenu);
     }
 

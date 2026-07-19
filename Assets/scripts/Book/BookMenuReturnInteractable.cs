@@ -9,6 +9,7 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
     [SerializeField] private CameraTransitionManager cameraTransitionManager;
     [SerializeField] private Transform bookMenuTarget;
+    [SerializeField] private BookRotationController bookRotationController;
     [SerializeField] private Renderer[] highlightRenderers;
     [SerializeField] private HoverMode hoverMode = HoverMode.Automatic;
     [SerializeField] private Color hoverEmissionColor = Color.white;
@@ -62,6 +63,9 @@ public class BookMenuReturnInteractable : MonoBehaviour
     {
         if (!interactionEnabled || cameraTransitionManager == null)
             return;
+
+        if (bookRotationController != null)
+            bookRotationController.RotateToFront();
 
         cameraTransitionManager.MoveTo(bookMenuTarget);
     }

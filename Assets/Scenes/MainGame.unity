@@ -19131,6 +19131,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraTransitionManager: {fileID: 231271044}
   bookMenuTarget: {fileID: 411057771}
+  bookRotationController: {fileID: 192205744}
   highlightRenderers:
   - {fileID: 2895304713497403611}
   hoverMode: 2
