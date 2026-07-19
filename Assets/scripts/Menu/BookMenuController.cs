@@ -55,6 +55,12 @@ public class BookMenuController : MonoBehaviour
         bookStateController.SetState(BookState.MainMenu);
     }
 
+    public void ReturnFromCharacterView()
+    {
+        ReturnToMainMenu();
+        ReturnToBookMenu();
+    }
+
     public void ReturnToPlayMenu()
     {
         bookStateController.SetState(BookState.PlayMenu);

@@ -99,7 +99,7 @@ public sealed class BookStateController : MonoBehaviour
                 PreparePage(
                     "CHARACTER",
                     "Color", null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToMainMenu : null,
+                    "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null,
                     string.Empty, null,
                     string.Empty, null);
                 break;
