@@ -203,6 +203,35 @@ Notes:
 - `debugAbsorptionPlayerOverride` is used only if the active Seat cannot provide a real player Transform. A real Seat-bound player is always preferred over this override.
 - Do not assign Unity Dictation or Azure voice services.
 
+## VoiceAmplitudeProvider
+
+Component placement:
+
+- Add one `VoiceAmplitudeProvider` to the local player root (or a dedicated enabled child that shares the local player's lobby lifetime).
+- Keep the component enabled from local lobby entry onward. With `startOnEnable` enabled, microphone amplitude capture starts immediately and does not wait for the ritual.
+- Do not add this provider to remote player characters. Do not create another microphone amplitude session for each consumer.
+
+Voice Settings:
+
+- `inputDevice`: optional preferred microphone name. Leave empty to use Unity's default microphone. `SetInputDevice(...)` is the runtime hook for future Voice Settings UI.
+- `sampleRate`: `16000` by default. The provider warns and does not start when the value is invalid or unsupported by the selected device.
+- `sampleWindow`: `256` by default. Smaller windows react faster but fluctuate more; larger windows are steadier but add response latency. The sample buffer is reused and is not allocated every frame.
+- `silenceThreshold`: `0.02` by default. RMS input at or below this level is exposed as `0`, which prevents room noise from continuously driving character responses. `Prototype tuning`.
+- `smoothingSpeed`: `15` by default. Higher values track changes faster; lower values soften movement. Smoothing uses unscaled frame time. `Prototype tuning`.
+- `startOnEnable`: keep `true` for the local lobby player so recording begins at lobby entry.
+
+Runtime behavior and ownership:
+
+- `CurrentAmplitude` is the continuous smoothed normalized voice level from `0` to `1`.
+- `IsRecording` reports whether this provider owns an active microphone recording session.
+- `CurrentDevice` reports the microphone actually being recorded. `SelectedInputDevice` reports the preferred Inspector/runtime selection.
+- `RefreshDevices()` refreshes the cached device list. If the active microphone disappeared, recording stops safely; a later `RefreshDevices()` automatically retries a previously requested recording after a device becomes available.
+- `VoiceLipController` consumes `CurrentAmplitude` from this provider as its only automatic amplitude source and does not read microphone samples itself.
+- Future Voice Chat may share the selected-device policy and amplitude reading, but networking and audio transport remain separate responsibilities.
+- Future Voice Settings should call `RefreshDevices()` and `SetInputDevice(...)`; it must not create a competing microphone amplitude recorder.
+- Future VU meters and character reactions should read `CurrentAmplitude` and must not access `Microphone` directly.
+- This provider does not recognize speech, validate ritual phrases, integrate Whisper, use `WindowsKeywordRecognizer`, or implement voice chat networking.
+
 ## BookMover
 
 Current `MainGame` setup:
@@ -676,14 +705,13 @@ Voice lip controller:
 - Add `VoiceLipController` from `Assets/scripts/Character/Face/VoiceLipController.cs` to the character root or an existing character face coordination object. It animates the two existing Mesh Renderer lip objects through their Transforms and does not use an Animator, clips, blend shapes, or `SkinnedMeshRenderer` manipulation.
 - `upperLip`: assign the Transform of the existing upper-lip Mesh Renderer object.
 - `lowerLip`: assign the Transform of the existing lower-lip Mesh Renderer object. If either lip is unavailable, the assigned lip still animates; if neither is assigned, the component disables itself.
-- `microphoneRecord`: assign the existing `MicrophoneRecord` used by the current voice path. The lip controller only reads its audio chunk event and never starts, stops, or reconfigures microphone recording. Without this reference, the lips remain closed and the component logs one warning.
+- `voiceAmplitudeProvider`: assign the local player's `VoiceAmplitudeProvider`. The lip controller reads only its normalized `CurrentAmplitude` and never starts, stops, selects, or configures microphone recording. Without this reference, automatic mode keeps the lips closed and logs one warning.
+- `useManualOpenAmount`: keep disabled for automatic voice-driven movement. Enable it when `SetOpenAmount(float amount)` should supply the mouth openness for debugging or a future animation system.
 - `closedAngle`: `0` degrees.
 - `upperOpenAngle`: `-20` degrees.
 - `lowerOpenAngle`: `20` degrees.
-- `voiceThreshold`: `0.02`. Levels at or below this RMS amplitude keep the lips closed.
-- `maxVoiceLevel`: `0.25`. Levels at or above this RMS amplitude fully open the lips.
 - `smoothingSpeed`: `15`. Increase it for a faster response or decrease it for softer motion. `Prototype tuning`.
-- `SetOpenAmount(float amount)` clamps the supplied value to `0` through `1` and immediately applies it without reading the microphone. Future NPC, emote, Book-reaction, or debug callers can invoke it each frame for sustained manual control.
+- `SetOpenAmount(float amount)` clamps the supplied value to `0` through `1` and immediately applies it. With `useManualOpenAmount` enabled, that value remains the smoothed target for debugging and future animation systems.
 - The controller preserves each assigned lip's original local Y and Z rotation, animates only local X, smoothly returns to the closed angle during silence, and restores the complete original local rotations when disabled.
 
 ## Camera
@@ -712,12 +740,13 @@ Book state controller:
 - `bookMenuController`: assign the existing `BookMenuController` that owns menu actions.
 - `rightPageController`: assign the independent `BookRightPageController`. This reference is optional so the left page can still operate while manual right-page setup is incomplete.
 - `characterBookPageController`: assign `CharacterBookPageController` so Character category actions and the default Character right page can be refreshed when entering `CharacterMenu`.
+- `voiceBookPageController`: assign the `VoiceBookPageController` on the same Living Book coordination object. It supplies Voice-page values and controls without owning navigation or page transitions.
 - `textTransitionController`: assign the shared `BookTextTransitionController` used by both Book pages. `BookStateController` combines left- and right-page targets into one coordinated transition so a state change produces one paper sound, not one sound per page or line.
 - On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
 - `HostMenu` displays `THE CIRCLE` with `Start Ritual`, `Share Ritual`, `Take Your Seat`, and `Back`. `Start Ritual` calls `BookMenuController.StartRitualFromBook()`, `Share Ritual` keeps its existing placeholder behavior, `Take Your Seat` calls `BookMenuController.OpenLobby()`, and `Back` returns to `PlayMenu`.
-- Empty page lines remain assigned but display an empty string and have no click action. Placeholder lines such as `Share Ritual`, `Enter Seal`, and `Audio` remain visible with no action until their systems are implemented.
-- States are `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `CharacterMenu`, and `OptionsMenu`. Back actions return to either `MainMenu` or `PlayMenu` according to the page hierarchy.
+- Empty page lines remain assigned but display an empty string and have no click action. Placeholder lines such as `Share Ritual` and `Enter Seal` remain visible with no action until their systems are implemented.
+- States are `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `CharacterMenu`, `OptionsMenu`, and `VoiceMenu`. Voice detail selection stays inside `VoiceMenu` and does not trigger another state transition.
 - Book state changes never move cameras and never invoke gameplay, ritual, lobby creation/joining, or seating logic.
 
 Book right page controller:
@@ -729,6 +758,7 @@ Book right page controller:
 - On each right-side `BookMenuItem`, assign its matching right-side TextMeshPro component and preserve manually chosen hover color and hover scale values. Remove persistent On Click listeners because actions are supplied by `BookRightPageController` at runtime.
 - Assign the existing `BookMenuController` to `bookMenuController` so intentional right-page actions such as `Leaderboard` and `Discord` use the existing menu behavior.
 - `textTransitionController`: assign the same shared `BookTextTransitionController` assigned to `BookStateController`. State-driven updates are coordinated by `BookStateController`; independent contextual right-page updates use this reference directly.
+- `voiceBookPageController`: assign the same `VoiceBookPageController` used by `BookStateController`. In `VoiceMenu`, it prepares the right-page values as part of the existing coordinated transition.
 - `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
 - `PlayMenu` and `OptionsMenu` clear the right-page text and actions. `HostMenu`, `JoinMenu`, and the Character page flow preserve their existing independent right-page content without changing left-page text or moving a camera.
@@ -736,6 +766,27 @@ Book right page controller:
 - `JoinMenu` clears right lines 1 and 5 and displays only contextual placeholder content on right lines 2 through 4: `Seal: ----`, `Players: -- / 8`, and `Waiting...`. `Enter Seal` and `Take Your Seat` appear only on the left page; the contextual entries remain unimplemented.
 - `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` are presentation-only hooks for future lobby work. They update right-side line 2, line 3, and line 4 respectively and do not implement Steam, networking, lobby codes, matchmaking, or player-list ownership.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
+
+Voice Book page controller:
+
+- Add one `VoiceBookPageController` to the existing Living Book/menu coordination object. Do not add a second microphone component or a second page-transition controller.
+- `voiceAmplitudeProvider`: assign the local player's existing `VoiceAmplitudeProvider`. The page reads `CurrentAmplitude`, lists its cached `AvailableDevices`, and calls `SetInputDevice(...)`; it never calls `Microphone.Start` or `Microphone.End` directly.
+- `outputDeviceProvider`: assign the `WindowsAudioOutputDeviceProvider` on the same Living Book coordination object. The Voice controller only requests refreshes and reads `CurrentDeviceName`; Windows endpoint discovery stays outside the menu layer.
+- The Voice left page contains exactly `Input Device`, `Output Device`, `Microphone Test`, and `Back` on lines 1 through 4. The first three entries select their matching right-page detail without changing `BookState`; Back calls the existing `BookMenuController.ReturnToOptions()` navigation action and uses the current Book transition.
+- The right page displays exactly one selected Voice detail at a time. The controller clears every unused right-page text entry, disables its interaction, hides the optional meter GameObject, and then enables only the controls belonging to the selected detail.
+- Input Device detail: keeps the current microphone on `TMP_Right1`, clears `TMP_Right2` and `TMP_Right3`, displays `Previous` on `TMP_Right4`, and displays `Next` on `TMP_Right5`. The two navigation controls call `SelectPreviousInputDevice()` and `SelectNextInputDevice()` and apply the result immediately through `VoiceAmplitudeProvider.SetInputDevice(...)`.
+- Output Device detail: displays `WindowsAudioOutputDeviceProvider.CurrentDeviceName`. It refreshes when the Voice page opens, when Output Device is selected, and when the provider receives `AudioSettings.OnAudioConfigurationChanged`. This panel is display-only and does not change Unity or operating-system audio routing.
+- Microphone Test detail: displays only the live meter text and `microphoneLevelMeter`, when assigned. Both read `VoiceAmplitudeProvider.CurrentAmplitude` every frame only while this detail is selected. Neither starts nor stops recording.
+- Keep the meter GameObject under the existing Living Book UI. `microphoneLevelMeter` is shown only for Microphone Test. Do not create it from code and do not place gameplay scripts on it.
+
+Windows audio output device provider:
+
+- Add one `WindowsAudioOutputDeviceProvider` to the existing Living Book coordination object and assign it to `VoiceBookPageController.outputDeviceProvider`.
+- `CurrentDeviceName` is a public read-only property containing the friendly name of the current Windows default multimedia rendering endpoint, such as `Headphones (SteelSeries Arctis Nova 7)`.
+- On Windows Player and Windows Editor builds, the provider uses the operating system's built-in Core Audio COM interfaces to read the default render endpoint and its `PKEY_Device_FriendlyName` property. No NAudio or other external package is required.
+- The provider subscribes to `AudioSettings.OnAudioConfigurationChanged`, refreshes its cached name after Unity audio configuration changes, and emits `DeviceNameChanged` only when the displayed name actually changes. It does not poll or log warnings every frame.
+- Detection failures and all non-Windows builds safely expose `System Default`. Windows COM declarations are excluded from non-Windows compilation.
+- This provider never selects an endpoint, changes the Windows default, or changes Unity audio routing.
 
 Book text transition controller:
 
@@ -777,7 +828,7 @@ Book menu controller:
 - `discordUrl`: optionally assign the full Discord destination URL. `OpenDiscord()` logs `Discord URL is not assigned.` and does nothing when this field is empty; otherwise it passes the assigned value to `Application.OpenURL(...)`. No Discord URL is hardcoded.
 - `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before changing anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a selected Seat, it calls `BookTextModeController.ShowRitualTexts()` and delegates to `LobbyController.StartLobbyRitual()`.
 - `OpenPlayMenu()`, `OpenHostMenu()`, `OpenJoinMenu()`, `ReturnToMainMenu()`, and `ReturnToPlayMenu()` only request the matching state from `BookStateController`.
-- `OpenCharacter()` only displays `CharacterMenu`, keeping the camera on the Book. `ShowCharacter()` is the explicit Character-camera transition. `OpenOptions()` displays `OptionsMenu` without moving a camera.
+- `OpenCharacter()` only displays `CharacterMenu`, keeping the camera on the Book. `ShowCharacter()` is the explicit Character-camera transition. `OpenOptions()` displays `OptionsMenu`, `OpenVoiceOptions()` displays `VoiceMenu`, and `ReturnToOptions()` returns from Voice to Options without moving a camera.
 - `OpenLeaderboard()` is a placeholder that logs `Leaderboard is not implemented yet.`. `OpenDiscord()` opens only the URL authored in `discordUrl`.
 - `ReturnToBookMenu()` calls `BookTextModeController.ShowMenuTexts()` and requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.
 

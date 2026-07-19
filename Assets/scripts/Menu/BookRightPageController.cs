@@ -30,6 +30,9 @@ public sealed class BookRightPageController : MonoBehaviour
     [Header("Page Presentation")]
     [SerializeField] private BookTextTransitionController textTransitionController;
 
+    [Header("Voice Page")]
+    [SerializeField] private VoiceBookPageController voiceBookPageController;
+
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
 
@@ -62,6 +65,20 @@ public sealed class BookRightPageController : MonoBehaviour
                     texts, targetStrings, "CHARACTER", "Select Color",
                     string.Empty, string.Empty, string.Empty,
                     bookMenuController != null ? bookMenuController.ShowCharacter : null);
+                break;
+            case BookState.VoiceMenu:
+                ClearRightPageActions();
+                if (voiceBookPageController != null)
+                {
+                    voiceBookPageController.PreparePage(
+                        texts, targetStrings,
+                        rightTitle, rightLine1, rightLine2, rightLine3, rightLine4, rightLine5,
+                        rightMenuItem1, rightMenuItem2, rightMenuItem3, rightMenuItem4, rightMenuItem5);
+                }
+                else
+                {
+                    PrepareClearPage(texts, targetStrings);
+                }
                 break;
             default:
                 PrepareClearPage(texts, targetStrings);
@@ -244,5 +261,14 @@ public sealed class BookRightPageController : MonoBehaviour
     private void LogInvitePlaceholder()
     {
         Debug.Log("Invite a Mage is not implemented yet.", this);
+    }
+
+    private void ClearRightPageActions()
+    {
+        if (rightMenuItem1 != null) rightMenuItem1.SetOnClickAction(null);
+        if (rightMenuItem2 != null) rightMenuItem2.SetOnClickAction(null);
+        if (rightMenuItem3 != null) rightMenuItem3.SetOnClickAction(null);
+        if (rightMenuItem4 != null) rightMenuItem4.SetOnClickAction(null);
+        if (rightMenuItem5 != null) rightMenuItem5.SetOnClickAction(null);
     }
 }

@@ -5,5 +5,6 @@ public enum BookState
     HostMenu,
     JoinMenu,
     CharacterMenu,
-    OptionsMenu
+    OptionsMenu,
+    VoiceMenu
 }

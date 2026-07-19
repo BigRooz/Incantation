@@ -98,6 +98,16 @@ public class BookMenuController : MonoBehaviour
         bookStateController.SetState(BookState.OptionsMenu);
     }
 
+    public void OpenVoiceOptions()
+    {
+        bookStateController.SetState(BookState.VoiceMenu);
+    }
+
+    public void ReturnToOptions()
+    {
+        bookStateController.SetState(BookState.OptionsMenu);
+    }
+
     public void OpenLeaderboard()
     {
         Debug.Log("Leaderboard is not implemented yet.", this);

@@ -34,8 +34,12 @@ public sealed class BookStateController : MonoBehaviour
     [Header("Character Page")]
     [SerializeField] private CharacterBookPageController characterBookPageController;
 
+    [Header("Voice Page")]
+    [SerializeField] private VoiceBookPageController voiceBookPageController;
+
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
+    private BookState preparedState;
 
     private void Start()
     {
@@ -44,6 +48,12 @@ public sealed class BookStateController : MonoBehaviour
 
     public void SetState(BookState state)
     {
+        preparedState = state;
+        if (voiceBookPageController != null)
+        {
+            voiceBookPageController.SetPageOpen(false);
+        }
+
         transitionTexts.Clear();
         transitionTargets.Clear();
 
@@ -97,10 +107,19 @@ public sealed class BookStateController : MonoBehaviour
             case BookState.OptionsMenu:
                 PreparePage(
                     "OPTIONS",
-                    "Audio", null,
+                    "Voice", bookMenuController != null ? bookMenuController.OpenVoiceOptions : null,
                     "Graphics", null,
                     "Controls", null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnToMainMenu : null);
+                break;
+
+            case BookState.VoiceMenu:
+                PreparePage(
+                    "VOICE",
+                    "Input Device", voiceBookPageController != null ? voiceBookPageController.ShowInputDevice : null,
+                    "Output Device", voiceBookPageController != null ? voiceBookPageController.ShowOutputDevice : null,
+                    "Microphone Test", voiceBookPageController != null ? voiceBookPageController.ShowMicrophoneTest : null,
+                    "Back", bookMenuController != null ? bookMenuController.ReturnToOptions : null);
                 break;
 
             default:
@@ -143,12 +162,34 @@ public sealed class BookStateController : MonoBehaviour
         string line4Text,
         UnityAction line4Action)
     {
+        PreparePage(
+            titleText,
+            line1Text, line1Action,
+            line2Text, line2Action,
+            line3Text, line3Action,
+            line4Text, line4Action,
+            string.Empty, null);
+    }
+
+    private void PreparePage(
+        string titleText,
+        string line1Text,
+        UnityAction line1Action,
+        string line2Text,
+        UnityAction line2Action,
+        string line3Text,
+        UnityAction line3Action,
+        string line4Text,
+        UnityAction line4Action,
+        string line5Text,
+        UnityAction line5Action)
+    {
         PrepareEntry(title, null, titleText, null);
         PrepareEntry(line1, menuItem1, line1Text, line1Action);
         PrepareEntry(line2, menuItem2, line2Text, line2Action);
         PrepareEntry(line3, menuItem3, line3Text, line3Action);
         PrepareEntry(line4, menuItem4, line4Text, line4Action);
-        PrepareEntry(line5, menuItem5, string.Empty, null);
+        PrepareEntry(line5, menuItem5, line5Text, line5Action);
     }
 
     private void PrepareEntry(TMP_Text textEntry, BookMenuItem menuItem, string value, UnityAction action)
@@ -179,6 +220,11 @@ public sealed class BookStateController : MonoBehaviour
         if (rightPageController != null)
         {
             rightPageController.CompletePreparedTransition();
+        }
+
+        if (voiceBookPageController != null)
+        {
+            voiceBookPageController.SetPageOpen(preparedState == BookState.VoiceMenu);
         }
     }
 
