@@ -179,7 +179,7 @@ public class LobbyController : MonoBehaviour
             seatManager.SetLobbySeatSelectionEnabled(true);
 
         CacheAndDisableGameplayInputBehaviours();
-        ApplyLobbyCameraState();
+        EnableMenuCameraRendering();
         ApplyLobbyCursorState();
 
         if (lobbyCanvasRoot != null)
@@ -209,6 +209,15 @@ public class LobbyController : MonoBehaviour
             Debug.LogWarning($"{nameof(LobbyController)} cannot move to the lobby camera target because {nameof(cameraTransitionManager)} or {nameof(lobbyCameraTarget)} is not assigned.", this);
             hasLoggedMissingMenuCameraTransition = true;
         }
+
+        if (localPlayerCamera != null)
+            localPlayerCamera.enabled = false;
+    }
+
+    private void EnableMenuCameraRendering()
+    {
+        if (cameraTransitionManager != null)
+            cameraTransitionManager.EnableRendering();
 
         if (localPlayerCamera != null)
             localPlayerCamera.enabled = false;

@@ -18,6 +18,17 @@ public class BookMenuController : MonoBehaviour
     [Header("External Links")]
     [SerializeField] private string discordUrl;
 
+    private void Awake()
+    {
+        if (cameraTransitionManager == null || bookMenuCameraTarget == null)
+        {
+            Debug.LogWarning($"{nameof(BookMenuController)} cannot set the startup camera because {nameof(cameraTransitionManager)} or {nameof(bookMenuCameraTarget)} is not assigned.", this);
+            return;
+        }
+
+        cameraTransitionManager.MoveToImmediate(bookMenuCameraTarget);
+    }
+
     public void OpenPlayMenu()
     {
         bookStateController.SetState(BookState.PlayMenu);
