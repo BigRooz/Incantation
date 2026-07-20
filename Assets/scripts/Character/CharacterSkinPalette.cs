@@ -8,10 +8,10 @@ public sealed class CharacterSkinPalette : MonoBehaviour
     private sealed class SkinEntry
     {
         [SerializeField] private string displayName;
-        [SerializeField] private Texture2D texture;
+        [SerializeField] private Material material;
 
         public string DisplayName => displayName ?? string.Empty;
-        public Texture2D Texture => texture;
+        public Material Material => material;
     }
 
     [Header("Skin Renderers")]
@@ -20,17 +20,10 @@ public sealed class CharacterSkinPalette : MonoBehaviour
     [Header("Skin Entries")]
     [SerializeField] private List<SkinEntry> skinEntries = new List<SkinEntry>();
 
-    [Header("Shader")]
-    [SerializeField] private string texturePropertyName = "_BaseMap";
-
     [SerializeField] private int currentIndex;
-
-    private MaterialPropertyBlock propertyBlock;
-    private int texturePropertyId;
 
     private void Awake()
     {
-        RefreshTexturePropertyId();
         ApplySelection();
     }
 
@@ -75,17 +68,12 @@ public sealed class CharacterSkinPalette : MonoBehaviour
             currentIndex = 0;
         }
 
-        if (skinEntries[currentIndex] == null || string.IsNullOrWhiteSpace(texturePropertyName))
+        if (skinEntries[currentIndex] == null)
         {
             return;
         }
 
-        if (propertyBlock == null)
-        {
-            propertyBlock = new MaterialPropertyBlock();
-        }
-
-        Texture2D selectedTexture = skinEntries[currentIndex].Texture;
+        Material selectedMaterial = skinEntries[currentIndex].Material;
 
         for (int i = 0; i < skinRenderers.Count; i++)
         {
@@ -95,20 +83,7 @@ public sealed class CharacterSkinPalette : MonoBehaviour
                 continue;
             }
 
-            skinRenderer.GetPropertyBlock(propertyBlock);
-            propertyBlock.SetTexture(texturePropertyId, selectedTexture);
-            skinRenderer.SetPropertyBlock(propertyBlock);
-            propertyBlock.Clear();
+            skinRenderer.sharedMaterial = selectedMaterial;
         }
-    }
-
-    private void RefreshTexturePropertyId()
-    {
-        texturePropertyId = Shader.PropertyToID(texturePropertyName ?? string.Empty);
-    }
-
-    private void OnValidate()
-    {
-        RefreshTexturePropertyId();
     }
 }
