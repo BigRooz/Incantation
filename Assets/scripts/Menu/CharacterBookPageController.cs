@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
@@ -11,6 +12,7 @@ public sealed class CharacterBookPageController : MonoBehaviour
     [SerializeField] private BookMenuController bookMenuController;
 
     [Header("Selection Groups")]
+    [SerializeField] private CharacterSkinPalette skinPalette;
     [SerializeField] private CharacterSelectionGroup hairSelectionGroup;
     [SerializeField] private CharacterSelectionGroup beardSelectionGroup;
 
@@ -29,6 +31,15 @@ public sealed class CharacterBookPageController : MonoBehaviour
     public void ShowColors()
     {
         ShowOptions("COLORS", colorOptions);
+    }
+
+    public void ShowSkin()
+    {
+        ShowSelectionList(
+            "SKIN",
+            skinPalette != null ? skinPalette.GetEntryCount : null,
+            skinPalette != null ? skinPalette.GetDisplayName : null,
+            skinPalette != null ? skinPalette.Select : null);
     }
 
     public void ShowHair()
@@ -98,6 +109,19 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
     private void ShowSelectionGroup(string title, CharacterSelectionGroup selectionGroup)
     {
+        ShowSelectionList(
+            title,
+            selectionGroup != null ? selectionGroup.GetEntryCount : null,
+            selectionGroup != null ? selectionGroup.GetDisplayName : null,
+            selectionGroup != null ? selectionGroup.Select : null);
+    }
+
+    private void ShowSelectionList(
+        string title,
+        Func<int> getEntryCount,
+        Func<int, string> getDisplayName,
+        Action<int> select)
+    {
         if (rightPageController == null)
         {
             return;
@@ -105,13 +129,13 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
         List<string> names = new List<string>();
         List<UnityAction> actions = new List<UnityAction>();
-        int entryCount = selectionGroup != null ? selectionGroup.GetEntryCount() : 0;
+        int entryCount = getEntryCount != null ? getEntryCount() : 0;
 
         for (int i = 0; i < entryCount; i++)
         {
             int selectionIndex = i;
-            names.Add(selectionGroup.GetDisplayName(selectionIndex));
-            actions.Add(() => selectionGroup.Select(selectionIndex));
+            names.Add(getDisplayName != null ? getDisplayName(selectionIndex) : string.Empty);
+            actions.Add(select != null ? new UnityAction(() => select(selectionIndex)) : null);
         }
 
         rightPageController.ShowSelectionPage(title, names, actions);

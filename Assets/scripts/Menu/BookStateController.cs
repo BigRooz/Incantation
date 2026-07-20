@@ -98,7 +98,8 @@ public sealed class BookStateController : MonoBehaviour
             case BookState.CharacterMenu:
                 PreparePage(
                     "CHARACTER",
-                    "Color", null,
+                    "Skin", characterBookPageController != null ? characterBookPageController.ShowSkin : null,
+                    "Color", characterBookPageController != null ? characterBookPageController.ShowColors : null,
                     "Hair", characterBookPageController != null ? characterBookPageController.ShowHair : null,
                     "Beard", characterBookPageController != null ? characterBookPageController.ShowBeards : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null);
@@ -125,12 +126,6 @@ public sealed class BookStateController : MonoBehaviour
             default:
                 Debug.LogWarning($"{nameof(BookStateController)} cannot display unsupported state {state}.", this);
                 return;
-        }
-
-        if (state == BookState.CharacterMenu && menuItem1 != null)
-        {
-            menuItem1.SetOnClickAction(
-                characterBookPageController != null ? characterBookPageController.ShowColors : null);
         }
 
         if (rightPageController != null)
