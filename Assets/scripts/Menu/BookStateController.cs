@@ -99,9 +99,9 @@ public sealed class BookStateController : MonoBehaviour
                 PreparePage(
                     "CHARACTER",
                     "Color", null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null,
-                    string.Empty, null,
-                    string.Empty, null);
+                    "Hair", characterBookPageController != null ? characterBookPageController.ShowHair : null,
+                    "Beard", null,
+                    "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null);
                 break;
 
             case BookState.OptionsMenu:

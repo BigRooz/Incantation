@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public sealed class CharacterBookPageController : MonoBehaviour
 {
@@ -7,6 +9,9 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
     [Header("Character Action")]
     [SerializeField] private BookMenuController bookMenuController;
+
+    [Header("Selection Groups")]
+    [SerializeField] private CharacterSelectionGroup hairSelectionGroup;
 
     [Header("Color Placeholders")]
     [SerializeField] private string[] colorOptions = { "Color I", "Color II", "Color III", "Color IV" };
@@ -23,6 +28,27 @@ public sealed class CharacterBookPageController : MonoBehaviour
     public void ShowColors()
     {
         ShowOptions("COLORS", colorOptions);
+    }
+
+    public void ShowHair()
+    {
+        if (rightPageController == null)
+        {
+            return;
+        }
+
+        List<string> names = new List<string>();
+        List<UnityAction> actions = new List<UnityAction>();
+        int entryCount = hairSelectionGroup != null ? hairSelectionGroup.GetEntryCount() : 0;
+
+        for (int i = 0; i < entryCount; i++)
+        {
+            int selectionIndex = i;
+            names.Add(hairSelectionGroup.GetDisplayName(selectionIndex));
+            actions.Add(() => hairSelectionGroup.Select(selectionIndex));
+        }
+
+        rightPageController.ShowSelectionPage("HAIR", names, actions);
     }
 
     public void ShowHorns()

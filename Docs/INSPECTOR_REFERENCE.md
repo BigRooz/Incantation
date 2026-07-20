@@ -808,12 +808,20 @@ Character Book page controller:
 - `rightPageController`: assign the same `BookRightPageController` used for Host and Join contextual content.
 - `bookMenuController`: assign the existing `BookMenuController`. `CharacterBookPageController.ShowCharacter()` delegates the camera request to `BookMenuController.ShowCharacter()` and does not move a camera directly.
 - Configure `colorOptions` as the active placeholder text array. Its first four entries fill right lines 1 through 4 when `Color` is selected. The dormant horn, hat, and tattoo arrays and methods remain available for future use but do not appear on the current Character page. These strings do not apply cosmetics, check inventory, save data, or network selections.
-- Entering `CharacterMenu` leaves the camera on the Book. The left page displays `Color` on line 1, `Back` on line 2, and clears lines 3 through 5. `Color` uses `menuItem1`; `Back` uses the independently assigned `menuItem2`, so Back remains visible and clickable without reusing a cleared or invisible Collider.
+- Assign the player character's Hair `CharacterSelectionGroup` to `hairSelectionGroup`. Its ordered entry display names populate all five right-page lines when Hair is selected, and each line immediately calls `Select(index)` on that group.
+- Entering `CharacterMenu` leaves the camera on the Book. The left page displays `Color`, `Hair`, `Beard`, and `Back` on lines 1 through 4. Hair is functional; Beard remains a placeholder with no action.
 - The default Character right page displays `CHARACTER`, `Select Color`, and the existing `Show Character` action. Selecting `Color` changes only the independent Character right page to the configured color placeholder texts; right line 5 remains `Show Character`.
 - `Show Character` calls `BookMenuController.ShowCharacter()`, which validates `cameraTransitionManager` and `characterCameraTarget`, then moves the existing active menu camera to the authored Character viewpoint. It does not change Book state or modify player customization.
 - `Color`, `Back`, and every right-side entry keep their own manually placed `BookMenuItem` and `BoxCollider`. Do not duplicate, share, resize, or reposition Colliders through scripts.
 - Returning to `MainMenu` changes only Book state. Camera return remains an explicit action and is not coupled to the Back state transition.
-- Character customization remains placeholder-only: no cosmetic application, player-model changes, inventory, persistence, lobby integration, or networking is implemented.
+- Hair selection updates the configured local character immediately. Cosmetic inventory, persistence, lobby integration, and networking are not implemented.
+
+Character selection group:
+
+- Attach `CharacterSelectionGroup` to the character that owns the mutually exclusive cosmetic objects.
+- Configure its reorderable `entries` list with a display name and optional target GameObject for each choice. A targetless first entry represents options such as Bald.
+- Keep each group focused on one category. Add separate components later for Beard, Horns, Face Paint, or Scars rather than mixing categories into one list.
+- `Awake()` applies the serialized current selection. `Select(index)` disables every configured target before enabling only the selected target; selecting a targetless entry leaves every target disabled.
 
 Book menu controller:
 

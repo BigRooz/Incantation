@@ -119,6 +119,22 @@ public sealed class BookRightPageController : MonoBehaviour
         PlayPreparedTransition();
     }
 
+    public void ShowSelectionPage(
+        string titleText,
+        IReadOnlyList<string> optionNames,
+        IReadOnlyList<UnityAction> optionActions)
+    {
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PrepareEntry(transitionTexts, transitionTargets, rightTitle, null, titleText, null);
+        PrepareSelectionEntry(0, rightLine1, rightMenuItem1, optionNames, optionActions);
+        PrepareSelectionEntry(1, rightLine2, rightMenuItem2, optionNames, optionActions);
+        PrepareSelectionEntry(2, rightLine3, rightMenuItem3, optionNames, optionActions);
+        PrepareSelectionEntry(3, rightLine4, rightMenuItem4, optionNames, optionActions);
+        PrepareSelectionEntry(4, rightLine5, rightMenuItem5, optionNames, optionActions);
+        PlayPreparedTransition();
+    }
+
     public void SetSealText(string seal)
     {
         PlaySingleEntryTransition(rightLine2, rightMenuItem2, $"Seal: {seal ?? string.Empty}");
@@ -233,6 +249,29 @@ public sealed class BookRightPageController : MonoBehaviour
         transitionTargets.Clear();
         PrepareEntry(transitionTexts, transitionTargets, textEntry, menuItem, value, null);
         PlayPreparedTransition();
+    }
+
+    private void PrepareSelectionEntry(
+        int index,
+        TMP_Text textEntry,
+        BookMenuItem menuItem,
+        IReadOnlyList<string> optionNames,
+        IReadOnlyList<UnityAction> optionActions)
+    {
+        string optionName = optionNames != null && index < optionNames.Count
+            ? optionNames[index]
+            : string.Empty;
+        UnityAction optionAction = optionActions != null && index < optionActions.Count
+            ? optionActions[index]
+            : null;
+
+        PrepareEntry(
+            transitionTexts,
+            transitionTargets,
+            textEntry,
+            menuItem,
+            optionName,
+            optionAction);
     }
 
     private static void ApplyTargetsImmediately(List<TMP_Text> texts, List<string> targets)
