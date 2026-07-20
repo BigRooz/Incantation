@@ -1004,7 +1004,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 11.6443405, y: 1.5612773, z: 8.057383, w: 3.3774927}
+  m_margin: {x: 11.612649, y: 1.5612773, z: 8.037464, w: 3.3774927}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   _SortingLayer: 0
@@ -2755,6 +2755,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rightPageController: {fileID: 231271049}
   bookMenuController: {fileID: 231271046}
+  hairSelectionGroup: {fileID: 3127980340314756994}
   colorOptions:
   - Blue
   - Red
@@ -6427,7 +6428,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 11.6443405, y: 1.327666, z: 8.065595, w: 3.6039126}
+  m_margin: {x: 11.609328, y: 1.327666, z: 8.046095, w: 3.6039126}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   _SortingLayer: 0
@@ -6944,6 +6945,11 @@ Transform:
   m_Children: []
   m_Father: {fileID: 793543957}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &646284916 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2330431572704876482, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
+  m_PrefabInstance: {fileID: 4746183657546555542}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &648434419 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3269529032147110464, guid: 5d165f10e1792ff4ea6f73ecc18646cb, type: 3}
@@ -8113,6 +8119,11 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
+--- !u!1 &761938636 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8313773855013856828, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
+  m_PrefabInstance: {fileID: 4746183657546555542}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &764906931
 GameObject:
   m_ObjectHideFlags: 0
@@ -9288,6 +9299,11 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1877867323}
   m_CullTransparentMesh: 1
+--- !u!1 &942312114 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3339232506113970294, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
+  m_PrefabInstance: {fileID: 4746183657546555542}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &945895086
 GameObject:
   m_ObjectHideFlags: 0
@@ -9482,6 +9498,11 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1743139065}
   m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!1 &997221651 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3072290526047159654, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
+  m_PrefabInstance: {fileID: 4746183657546555542}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1009578567
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -10595,7 +10616,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 11.6443405, y: 1.5032719, z: 8.05949, w: 3.4309685}
+  m_margin: {x: 11.615249, y: 1.5032719, z: 8.045588, w: 3.4309685}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   _SortingLayer: 0
@@ -13087,7 +13108,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 11.6443405, y: 1.4488568, z: 8.0612135, w: 3.482873}
+  m_margin: {x: 11.613797, y: 1.4488568, z: 8.041908, w: 3.482873}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   _SortingLayer: 0
@@ -18462,7 +18483,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 11.6443405, y: 1.3907331, z: 8.06645, w: 3.5418837}
+  m_margin: {x: 11.609247, y: 1.3907331, z: 8.028524, w: 3.5418837}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   _SortingLayer: 0
@@ -19163,6 +19184,30 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 8606647037659022658, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
   m_PrefabInstance: {fileID: 4746183657546555542}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &3127980340314756994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3127980340314756991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e32279a9926f4f3980c715af094f4f61, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  entries:
+  - displayName: Bald
+    target: {fileID: 0}
+  - displayName: Bald-Extension Mix
+    target: {fileID: 646284916}
+  - displayName: The Monk Ring
+    target: {fileID: 942312114}
+  - displayName: Boosted Monk Ring
+    target: {fileID: 997221651}
+  - displayName: Nuts Hair Style
+    target: {fileID: 761938636}
+  currentIndex: 0
 --- !u!1001 &4222270302932574957
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -19506,7 +19551,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8606647037659022658, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3127980340314756994}
   m_SourcePrefab: {fileID: 100100000, guid: be8cbe3f6ba539f4084a9d3f8d0ef8eb, type: 3}
 --- !u!20 &5051538547926498992 stripped
 Camera:
