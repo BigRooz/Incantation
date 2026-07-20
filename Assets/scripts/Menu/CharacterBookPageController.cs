@@ -16,9 +16,6 @@ public sealed class CharacterBookPageController : MonoBehaviour
     [SerializeField] private CharacterSelectionGroup hairSelectionGroup;
     [SerializeField] private CharacterSelectionGroup beardSelectionGroup;
 
-    [Header("Color Placeholders")]
-    [SerializeField] private string[] colorOptions = { "Color I", "Color II", "Color III", "Color IV" };
-
     [Header("Horn Placeholders")]
     [SerializeField] private string[] hornOptions = { "Horns I", "Horns II", "Horns III", "Horns IV" };
 
@@ -27,11 +24,6 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
     [Header("Tattoo Placeholders")]
     [SerializeField] private string[] tattooOptions = { "Tattoo I", "Tattoo II", "Tattoo III", "Tattoo IV" };
-
-    public void ShowColors()
-    {
-        ShowOptions("COLORS", colorOptions);
-    }
 
     public void ShowSkin()
     {
@@ -83,8 +75,8 @@ public sealed class CharacterBookPageController : MonoBehaviour
         }
 
         rightPageController.ShowContextPage(
-            "CHARACTER",
-            "Select Color",
+            string.Empty,
+            string.Empty,
             string.Empty,
             string.Empty,
             string.Empty,

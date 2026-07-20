@@ -62,7 +62,7 @@ public sealed class BookRightPageController : MonoBehaviour
                 break;
             case BookState.CharacterMenu:
                 PrepareContextPage(
-                    texts, targetStrings, "CHARACTER", "Select Color",
+                    texts, targetStrings, string.Empty, string.Empty,
                     string.Empty, string.Empty, string.Empty,
                     bookMenuController != null ? bookMenuController.ShowCharacter : null);
                 break;

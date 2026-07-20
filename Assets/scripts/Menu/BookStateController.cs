@@ -99,7 +99,6 @@ public sealed class BookStateController : MonoBehaviour
                 PreparePage(
                     "CHARACTER",
                     "Skin", characterBookPageController != null ? characterBookPageController.ShowSkin : null,
-                    "Color", characterBookPageController != null ? characterBookPageController.ShowColors : null,
                     "Hair", characterBookPageController != null ? characterBookPageController.ShowHair : null,
                     "Beard", characterBookPageController != null ? characterBookPageController.ShowBeards : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null);
