@@ -100,7 +100,7 @@ public sealed class BookStateController : MonoBehaviour
                     "CHARACTER",
                     "Color", null,
                     "Hair", characterBookPageController != null ? characterBookPageController.ShowHair : null,
-                    "Beard", null,
+                    "Beard", characterBookPageController != null ? characterBookPageController.ShowBeards : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnFromCharacterView : null);
                 break;
 

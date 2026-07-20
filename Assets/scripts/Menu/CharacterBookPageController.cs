@@ -12,6 +12,7 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
     [Header("Selection Groups")]
     [SerializeField] private CharacterSelectionGroup hairSelectionGroup;
+    [SerializeField] private CharacterSelectionGroup beardSelectionGroup;
 
     [Header("Color Placeholders")]
     [SerializeField] private string[] colorOptions = { "Color I", "Color II", "Color III", "Color IV" };
@@ -32,23 +33,12 @@ public sealed class CharacterBookPageController : MonoBehaviour
 
     public void ShowHair()
     {
-        if (rightPageController == null)
-        {
-            return;
-        }
+        ShowSelectionGroup("HAIR", hairSelectionGroup);
+    }
 
-        List<string> names = new List<string>();
-        List<UnityAction> actions = new List<UnityAction>();
-        int entryCount = hairSelectionGroup != null ? hairSelectionGroup.GetEntryCount() : 0;
-
-        for (int i = 0; i < entryCount; i++)
-        {
-            int selectionIndex = i;
-            names.Add(hairSelectionGroup.GetDisplayName(selectionIndex));
-            actions.Add(() => hairSelectionGroup.Select(selectionIndex));
-        }
-
-        rightPageController.ShowSelectionPage("HAIR", names, actions);
+    public void ShowBeards()
+    {
+        ShowSelectionGroup("BEARD", beardSelectionGroup);
     }
 
     public void ShowHorns()
@@ -104,6 +94,27 @@ public sealed class CharacterBookPageController : MonoBehaviour
             GetOption(options, 2),
             GetOption(options, 3),
             ShowCharacter);
+    }
+
+    private void ShowSelectionGroup(string title, CharacterSelectionGroup selectionGroup)
+    {
+        if (rightPageController == null)
+        {
+            return;
+        }
+
+        List<string> names = new List<string>();
+        List<UnityAction> actions = new List<UnityAction>();
+        int entryCount = selectionGroup != null ? selectionGroup.GetEntryCount() : 0;
+
+        for (int i = 0; i < entryCount; i++)
+        {
+            int selectionIndex = i;
+            names.Add(selectionGroup.GetDisplayName(selectionIndex));
+            actions.Add(() => selectionGroup.Select(selectionIndex));
+        }
+
+        rightPageController.ShowSelectionPage(title, names, actions);
     }
 
     private static string GetOption(string[] options, int index)
