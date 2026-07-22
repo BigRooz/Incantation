@@ -199,6 +199,17 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 - `Assets/Scripts/player/HeadIdleMotion.cs`, `HeadEffect.cs`, `BodyMotion.cs`
   - Seated character motion and visual feel.
 
+### Spell Hand Presentation
+
+- `Assets/Scripts/SpellHand/SpellHandController.cs`
+  - Owns exactly three authored card views and their hidden, table, raised, selected, and consumed visual states.
+  - Uses only Inspector-assigned table, raised, and inspect poses.
+  - Has no dependency on ritual, book, incantation, timer, seat, spell execution, or networking systems.
+- `Assets/Scripts/SpellHand/SpellCardView.cs`
+  - Holds the mesh, TMP text, glow Renderer, and Canvas references for one card.
+  - Is visual-only and contains no spell data or gameplay behavior.
+- The Spell Hand currently has no automatic game-flow connection. `ShowHand()`, `HideHand()`, `OpenHand()`, `CloseHand()`, `SelectCard(int)`, and `ConsumeSelectedCard()` are explicit presentation calls; optional debug keys exist only for Play Mode validation.
+
 ### Paused Or Legacy Areas
 
 - `Assets/Scripts/Notebook`

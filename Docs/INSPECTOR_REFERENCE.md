@@ -892,6 +892,28 @@ Guidance:
 - Do not add camera behavior that implies characters walk around.
 - Mark future camera values here once intentionally tuned.
 
+## Spell Hand Visual Foundation
+
+Add one `SpellHand` child beneath each authored Player that needs the local presentation prototype. Create three table slot Transforms, three raised pose Transforms, and one inspect pose Transform. Add `SpellHandController` to the `SpellHand` root.
+
+- `cardViews`: assign exactly three authored child cards in left, center, right order. Each card requires `SpellCardView`.
+- `cardSlots`: assign exactly three table resting poses in the same order.
+- `raisedPoses`: assign exactly three reading poses in the same order. These poses provide the base fan layout.
+- `inspectPose`: assign the shared close-reading pose. If omitted, selection offsets from that card's raised pose.
+- `animationDuration`: `0.35` seconds. `Prototype tuning`.
+- `cardLiftHeight`: `0.05` world units added above each raised pose. `Prototype tuning`.
+- `fanAngle`: `6` degrees between adjacent cards. `Prototype tuning`.
+- `selectionOffset`: `(0, 0, 0.08)` in inspect/raised-pose local space. Confirm the sign points toward the seated player's camera for the authored pose orientation. `Prototype tuning`.
+- `selectionScale`: `1.08`. `Prototype tuning`.
+- `openCurve`, `closeCurve`, `consumeCurve`: author smooth Inspector curves; defaults are ease-in/ease-out.
+- `consumeDuration`: `0.2` seconds. `Prototype tuning`.
+- `visibleOnAwake`, `openOnAwake`: leave disabled for lobby-first setup; invoke the public presentation methods explicitly later.
+- `enableDebugInput`: enables temporary `H` visibility, `E` open/close, `1`/`2`/`3` selection, and `Space` consume controls. Disable when production input owns these calls.
+
+On each `SpellCardView`, assign the card mesh Renderer, name/description/incantation TMP components, optional glow Renderer, and world-space Canvas. The view only toggles authored visuals; it does not populate text or define a spell.
+
+This foundation must remain independent from `RitualController`, `BookMover`, `IncantationManager`, `Timer`, `SeatManager`, spell effects, and networking.
+
 ## Audio
 
 Current documentation gap:

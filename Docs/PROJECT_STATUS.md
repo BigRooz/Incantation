@@ -52,6 +52,7 @@ The current prototype includes:
 8. `FullPhrase` validation as an optional strict mode.
 9. `WindowsKeywordVoiceRecognizer` for immediate realtime keyword validation.
 10. Whisper retained for full-phrase or experimental recognition paths.
+11. Isolated three-card Spell Hand visual foundation with hidden, table, raised, selected, and consumed presentation states.
 11. Realtime visual word absorption.
 12. Wrong word rejection feedback.
 13. Hourglass timer pressure.
@@ -80,6 +81,7 @@ The current prototype includes:
 - Networking.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
+- Spell Hand gameplay, spell execution, card generation, replacement, and networking (the visual presentation foundation only is present).
 - Demon reactions.
 - Campaign objectives.
 
