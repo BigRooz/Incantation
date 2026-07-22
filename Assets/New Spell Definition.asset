@@ -18,7 +18,7 @@ MonoBehaviour:
   description: 
   rarity: 0
   cardArtwork: {fileID: 0}
-  overrideRarityGlowColor: 0
-  rarityGlowColor: {r: 1, g: 1, b: 1, a: 1}
+  overrideRarityGlowColor: 1
+  rarityGlowColor: {r: 0.9716981, g: 0.0779192, b: 0.0779192, a: 1}
   audioClip: {fileID: 0}
   visualPrefab: {fileID: 0}

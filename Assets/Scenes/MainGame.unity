@@ -12808,9 +12808,37 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 2935360955210153875, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: flickerAmount
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2935360955210153875, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: fadeInDuration
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 2935360955210153875, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: fadeOutDuration
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2935360955210153875, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: selectedLightIntensity
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3080590973016248158, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
       propertyPath: m_Intensity
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4656985894789374616, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: m_Color.b
+      value: 0.0779192
+      objectReference: {fileID: 0}
+    - target: {fileID: 4656985894789374616, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: m_Color.g
+      value: 0.0779192
+      objectReference: {fileID: 0}
+    - target: {fileID: 4656985894789374616, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: m_Color.r
+      value: 0.9716981
       objectReference: {fileID: 0}
     - target: {fileID: 4980306122693529208, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
       propertyPath: m_Name
@@ -12819,6 +12847,18 @@ PrefabInstance:
     - target: {fileID: 5983211399165131153, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
       propertyPath: m_IsActive
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5986076249302538364, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: flickerAmount
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5986076249302538364, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: fadeInDuration
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 5986076249302538364, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
+      propertyPath: fadeOutDuration
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: 7488736169289890363, guid: 5d94f66f1df8baa49a930f2f4c733e7e, type: 3}
       propertyPath: m_LocalPosition.x
