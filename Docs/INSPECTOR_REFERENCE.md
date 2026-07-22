@@ -910,9 +910,36 @@ Add one `SpellHand` child beneath each authored Player that needs the local pres
 - `visibleOnAwake`, `openOnAwake`: leave disabled for lobby-first setup; invoke the public presentation methods explicitly later.
 - `enableDebugInput`: enables temporary `H` visibility, `E` open/close, `1`/`2`/`3` selection, and `Space` consume controls. Disable when production input owns these calls.
 
-On each `SpellCardView`, assign the card mesh Renderer, name/description/incantation TMP components, optional glow Renderer, and world-space Canvas. The view only toggles authored visuals; it does not populate text or define a spell.
+Create card data through `Assets > Create > Incantation > Spell Definition`:
 
-This foundation must remain independent from `RitualController`, `BookMover`, `IncantationManager`, `Timer`, `SeatManager`, spell effects, and networking.
+- `stableIdentifier`: enter a durable lowercase identifier such as `petit_fantome`; keep it separate from the asset filename and display name.
+- `displayName`, `spokenIncantation`, `description`: enter designer-approved player-facing content. Do not invent unfinished incantations.
+- `rarity`: presentation-only `Common`, `Uncommon`, `Rare`, `Epic`, or `UltraRare`.
+- `cardArtwork`, `audioClip`, `visualPrefab`: optional references. Audio and visual prefabs are stored only and are not played or instantiated.
+- `overrideRarityGlowColor`: disabled uses the default white, green, blue, purple, or bright-red rarity color. Enable it to author a per-definition override.
+
+On each `SpellCardView`:
+
+- `definition`: assign a `SpellDefinition` directly for Inspector testing. Future hand management may call `SetDefinition(SpellDefinition)` without changing this view.
+- Assign the card mesh Renderer and name/description/incantation TMP components where available.
+- Assign either `artworkImage` for Canvas UI artwork or `artworkRenderer` for a SpriteRenderer target. Both are optional and safely hide when the definition has no artwork.
+- `glowLight`: assign a real Unity Light parented to or positioned with the physical card. Leave the Light disabled in the authored setup; `SpellCardView` controls it.
+- `selectedLightIntensity`: author the selected-card illumination strength for the scene and render pipeline.
+- `selectedLightRange`: author a range large enough to reach the seated player's face, table, nearby objects, and Book without washing out the full room.
+- `fadeInDuration`: start at `0.25` seconds for a smooth magical awakening. The fade begins from the Light's current intensity. `Prototype tuning`.
+- `fadeOutDuration`: start at `0.15` seconds for a quicker release after deselection or hand close. The Light disables only after reaching zero. `Prototype tuning`.
+- `fadeInCurve`, `fadeOutCurve`: use the default ease-in/ease-out curves, then tune the response without changing selection logic.
+- `enableSelectedFlicker`: disabled by default. Enable only when a subtle living-light effect improves the selected card.
+- `flickerAmount`: start near `0.05` intensity units. Keep this restrained. `Prototype tuning`.
+- `flickerSpeed`: start near `1.5`. Flicker uses layered deterministic sine waves and begins only after fade-in completes. `Prototype tuning`.
+- The assigned definition's rarity glow color drives `glowLight.color`. A visible defined card fades toward full intensity when selected and fades to zero when deselected or the hand closes.
+- Consumption, hand hiding, component disable, inactive GameObjects, null definitions, and missing Light references cancel transitions and shut down immediately. Each card owns at most one Light transition coroutine, and replacements continue from current intensity.
+- Assign the optional world-space Canvas.
+- Missing optional visual references are supported. A null definition clears card text/artwork and disables the rarity Light without affecting the hand animation.
+
+The approved card names do not all have finalized spoken incantations, so no production `SpellDefinition` assets are created automatically by this task. Designers can create and assign definitions after approving their text.
+
+This foundation and its definition data must remain independent from `RitualController`, `BookMover`, `IncantationManager`, `Timer`, `SeatManager`, spell effects, voice activation, inventory, drawing, and networking.
 
 ## Audio
 

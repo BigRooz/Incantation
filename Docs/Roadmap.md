@@ -73,7 +73,7 @@ For detailed future milestone scope, known limitations, technical debt, and prod
 ## Paused
 
 - Notebook.
-- Cards.
+- Card gameplay and interference effects. The explicitly scoped Spell Hand data-and-presentation foundation is active, but drawing, inventory, activation, effects, and networking remain paused.
 - Lore delivery.
 - Demon reactions.
 - Campaign objectives.

@@ -53,16 +53,17 @@ The current prototype includes:
 9. `WindowsKeywordVoiceRecognizer` for immediate realtime keyword validation.
 10. Whisper retained for full-phrase or experimental recognition paths.
 11. Isolated three-card Spell Hand visual foundation with hidden, table, raised, selected, and consumed presentation states.
-11. Realtime visual word absorption.
-12. Wrong word rejection feedback.
-13. Hourglass timer pressure.
-14. Book movement after ritual acceptance.
-15. Failed-seat elimination after the absorption, book aftermath, and Book Prison handoff completes.
-16. Automatic ritual continuation with the remaining alive occupied seats.
-17. Ambient audio.
-18. Fire flicker.
-19. Hourglass light possession effect.
-20. Room veil and dark cabin ambience.
+12. `SpellDefinition` ScriptableObject data for card identity, text, rarity, and optional presentation references.
+13. Realtime visual word absorption.
+14. Wrong word rejection feedback.
+15. Hourglass timer pressure.
+16. Book movement after ritual acceptance.
+17. Failed-seat elimination after the absorption, book aftermath, and Book Prison handoff completes.
+18. Automatic ritual continuation with the remaining alive occupied seats.
+19. Ambient audio.
+20. Fire flicker.
+21. Hourglass light possession effect.
+22. Room veil and dark cabin ambience.
 
 ## Experimental Or Incomplete Systems
 
@@ -81,7 +82,7 @@ The current prototype includes:
 - Networking.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
-- Spell Hand gameplay, spell execution, card generation, replacement, and networking (the visual presentation foundation only is present).
+- Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
 - Demon reactions.
 - Campaign objectives.
 

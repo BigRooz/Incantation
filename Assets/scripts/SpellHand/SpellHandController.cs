@@ -52,6 +52,9 @@ public sealed class SpellHandController : MonoBehaviour
     private readonly CardVisualState[] cardStates = new CardVisualState[CardCount];
     private readonly Coroutine[] cardAnimations = new Coroutine[CardCount];
     private readonly Vector3[] authoredScales = new Vector3[CardCount];
+    private readonly Vector3[] tableLocalPositions = new Vector3[CardCount];
+    private readonly Quaternion[] tableLocalRotations = new Quaternion[CardCount];
+    private readonly bool[] hasCachedTablePose = new bool[CardCount];
 
     private bool isVisible;
     private bool isOpen;
@@ -64,6 +67,7 @@ public sealed class SpellHandController : MonoBehaviour
     private void Awake()
     {
         CacheAuthoredScales();
+        CacheTablePoses();
         SnapCardsToTable();
 
         if (visibleOnAwake)
@@ -111,21 +115,28 @@ public sealed class SpellHandController : MonoBehaviour
     public void ShowHand()
     {
         isVisible = true;
+        isOpen = false;
+        selectedIndex = -1;
 
         for (int index = 0; index < CardCount; index++)
         {
             if (!HasCard(index) || cardStates[index] == CardVisualState.Consumed)
                 continue;
 
+            StopCardAnimation(index);
+            SnapCardToTable(index);
             cardViews[index].SetVisible(true);
-            cardStates[index] = isOpen ? CardVisualState.Raised : CardVisualState.OnTable;
+            cardStates[index] = CardVisualState.OnTable;
         }
     }
 
     /// <summary>Disables the visual hand without changing which cards have been consumed.</summary>
     public void HideHand()
     {
+        ClearSelectedCardPresentation();
         isVisible = false;
+        isOpen = false;
+        selectedIndex = -1;
 
         for (int index = 0; index < CardCount; index++)
         {
@@ -134,21 +145,25 @@ public sealed class SpellHandController : MonoBehaviour
             if (!HasCard(index))
                 continue;
 
-            cardViews[index].SetVisible(false);
+            if (cardStates[index] == CardVisualState.Consumed)
+                continue;
 
-            if (cardStates[index] != CardVisualState.Consumed)
-                cardStates[index] = CardVisualState.Hidden;
+            SnapCardToTable(index);
+            cardViews[index].SetVisible(false);
+            cardStates[index] = CardVisualState.Hidden;
         }
     }
 
     /// <summary>Animates all available cards from their current poses to the raised fan.</summary>
     public void OpenHand()
     {
-        isOpen = true;
-        selectedIndex = -1;
+        ClearSelectedCardPresentation();
 
         if (!isVisible)
             ShowHand();
+
+        isOpen = true;
+        selectedIndex = -1;
 
         for (int index = 0; index < CardCount; index++)
         {
@@ -163,6 +178,7 @@ public sealed class SpellHandController : MonoBehaviour
     /// <summary>Animates all available cards back to their authored table slots.</summary>
     public void CloseHand()
     {
+        ClearSelectedCardPresentation();
         isOpen = false;
         selectedIndex = -1;
 
@@ -171,11 +187,17 @@ public sealed class SpellHandController : MonoBehaviour
 
         for (int index = 0; index < CardCount; index++)
         {
-            if (!CanPresentCard(index) || !HasPose(cardSlots, index))
+            if (!CanPresentCard(index) || !hasCachedTablePose[index])
                 continue;
 
-            Transform tablePose = cardSlots[index];
-            StartCardAnimation(index, tablePose.position, tablePose.rotation, authoredScales[index], animationDuration, closeCurve, CardVisualState.OnTable);
+            StartCardAnimation(
+                index,
+                transform.TransformPoint(tableLocalPositions[index]),
+                transform.rotation * tableLocalRotations[index],
+                authoredScales[index],
+                animationDuration,
+                closeCurve,
+                CardVisualState.OnTable);
         }
     }
 
@@ -190,10 +212,12 @@ public sealed class SpellHandController : MonoBehaviour
 
         if (previousSelection >= 0 && previousSelection != index && CanPresentCard(previousSelection))
         {
+            cardViews[previousSelection].SetSelected(false);
             Pose previousTarget = GetRaisedPose(previousSelection);
             StartCardAnimation(previousSelection, previousTarget.position, previousTarget.rotation, authoredScales[previousSelection], animationDuration, openCurve, CardVisualState.Raised);
         }
 
+        cardViews[index].SetSelected(true);
         Pose selectedPose = GetSelectedPose(index);
         StartCardAnimation(index, selectedPose.position, selectedPose.rotation, authoredScales[index] * selectionScale, animationDuration, openCurve, CardVisualState.Selected);
     }
@@ -206,6 +230,7 @@ public sealed class SpellHandController : MonoBehaviour
 
         int consumedIndex = selectedIndex;
         selectedIndex = -1;
+        cardViews[consumedIndex].DisableGlowLightImmediately();
         StopCardAnimation(consumedIndex);
         cardStates[consumedIndex] = CardVisualState.Consumed;
         cardAnimations[consumedIndex] = StartCoroutine(ConsumeCardRoutine(consumedIndex));
@@ -222,17 +247,35 @@ public sealed class SpellHandController : MonoBehaviour
             authoredScales[index] = HasCard(index) ? cardViews[index].transform.localScale : Vector3.one;
     }
 
-    private void SnapCardsToTable()
+    private void CacheTablePoses()
     {
         for (int index = 0; index < CardCount; index++)
         {
-            if (!HasCard(index) || !HasPose(cardSlots, index))
+            if (!HasPose(cardSlots, index))
                 continue;
 
-            cardViews[index].transform.SetPositionAndRotation(cardSlots[index].position, cardSlots[index].rotation);
-            cardViews[index].transform.localScale = authoredScales[index];
-            cardStates[index] = CardVisualState.OnTable;
+            tableLocalPositions[index] = transform.InverseTransformPoint(cardSlots[index].position);
+            tableLocalRotations[index] = Quaternion.Inverse(transform.rotation) * cardSlots[index].rotation;
+            hasCachedTablePose[index] = true;
         }
+    }
+
+    private void SnapCardsToTable()
+    {
+        for (int index = 0; index < CardCount; index++)
+            SnapCardToTable(index);
+    }
+
+    private void SnapCardToTable(int index)
+    {
+        if (!HasCard(index) || !hasCachedTablePose[index])
+            return;
+
+        cardViews[index].transform.SetPositionAndRotation(
+            transform.TransformPoint(tableLocalPositions[index]),
+            transform.rotation * tableLocalRotations[index]);
+        cardViews[index].transform.localScale = authoredScales[index];
+        cardStates[index] = CardVisualState.OnTable;
     }
 
     private Pose GetRaisedPose(int index)
@@ -320,6 +363,12 @@ public sealed class SpellHandController : MonoBehaviour
 
         StopCoroutine(cardAnimations[index]);
         cardAnimations[index] = null;
+    }
+
+    private void ClearSelectedCardPresentation()
+    {
+        if (selectedIndex >= 0 && HasCard(selectedIndex))
+            cardViews[selectedIndex].SetSelected(false);
     }
 
     private bool CanPresentCard(int index)

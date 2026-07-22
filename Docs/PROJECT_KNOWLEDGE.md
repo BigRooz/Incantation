@@ -206,8 +206,15 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Uses only Inspector-assigned table, raised, and inspect poses.
   - Has no dependency on ritual, book, incantation, timer, seat, spell execution, or networking systems.
 - `Assets/Scripts/SpellHand/SpellCardView.cs`
-  - Holds the mesh, TMP text, glow Renderer, and Canvas references for one card.
-  - Is visual-only and contains no spell data or gameplay behavior.
+  - Presents one Inspector-assigned `SpellDefinition` through optional TMP text, Sprite artwork, a physical rarity Light, and Canvas references.
+  - Supports runtime presentation reassignment through `SetDefinition(SpellDefinition)`.
+  - Applies rarity color to its Inspector-assigned `GlowLight`; selection fades from current intensity to the configured selected intensity, while normal deselection and hand close fade to zero.
+  - One replaceable transition coroutine prevents overlapping fades during rapid selection changes. Optional post-fade flicker uses deterministic layered sine waves.
+  - Hiding, disabling, consuming, clearing the definition, or losing the Light reference cancels the transition and shuts the Light down immediately.
+  - Remains visual-only and contains no spell execution or gameplay behavior.
+- `Assets/Scripts/SpellHand/SpellDefinition.cs` and `SpellRarity.cs`
+  - Store stable identity, player-facing text, presentation rarity, and optional artwork, glow, audio, and visual-prefab references.
+  - Rarity colors are presentation defaults only. No probability, drawing, inventory, ownership, activation, or effect logic exists.
 - The Spell Hand currently has no automatic game-flow connection. `ShowHand()`, `HideHand()`, `OpenHand()`, `CloseHand()`, `SelectCard(int)`, and `ConsumeSelectedCard()` are explicit presentation calls; optional debug keys exist only for Play Mode validation.
 
 ### Paused Or Legacy Areas
@@ -297,7 +304,7 @@ This does not change the current default: `WordByWordRealtime` with `WindowsKeyw
 - Do not force Whisper as the only validation path.
 - Do not reintroduce Unity Dictation.
 - Do not add Azure voice services.
-- Do not add cards, demon reactions, campaign objectives, or networking polish before the core loop is dependable.
+- Do not add card gameplay, demon reactions, campaign objectives, or networking polish before the core loop is dependable unless a focused task explicitly scopes that work. The current Spell Hand data and presentation track does not activate spell gameplay.
 
 ## Current Manual Validation Expectations
 
