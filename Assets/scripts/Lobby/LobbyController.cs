@@ -14,10 +14,12 @@ public class LobbyController : MonoBehaviour
     [Header("Core References")]
     [SerializeField] private RitualController ritualController;
     [SerializeField] private SeatManager seatManager;
+    [SerializeField] private LobbyPlayerStateController lobbyPlayerStateController;
 
     [Header("Player References")]
     [SerializeField] private GameObject localLobbyPlayer;
     [SerializeField] private Camera localPlayerCamera;
+    [SerializeField] private Transform lobbyWaitingPosition;
 
     [Header("Camera References")]
     [SerializeField] private CameraTransitionManager cameraTransitionManager;
@@ -149,7 +151,34 @@ public class LobbyController : MonoBehaviour
             return false;
         }
 
-        return seatManager.TryLobbySit(seat, localLobbyPlayer);
+        if (!seatManager.TryLobbySit(seat, localLobbyPlayer))
+            return false;
+
+        if (lobbyPlayerStateController != null)
+            lobbyPlayerStateController.TryTakeSeat();
+
+        return true;
+    }
+
+    public bool TryLeaveLobbySeat()
+    {
+        ResolveLocalLobbyPlayer();
+
+        if (seatManager == null ||
+            lobbyPlayerStateController == null ||
+            localLobbyPlayer == null ||
+            lobbyWaitingPosition == null)
+        {
+            Debug.LogWarning(
+                $"{nameof(LobbyController)} cannot leave the lobby seat because the SeatManager, lobby player state, local lobby player, or lobby waiting position is not assigned.",
+                this);
+            return false;
+        }
+
+        if (!seatManager.LeaveLobbySeat(localLobbyPlayer, lobbyWaitingPosition))
+            return false;
+
+        return lobbyPlayerStateController.TryLeaveSeat();
     }
 
     public void OpenOptions()

@@ -21,6 +21,8 @@ public class BookMenuController : MonoBehaviour
     [Header("External Links")]
     [SerializeField] private string discordUrl;
 
+    private BookState characterReturnState = BookState.MainMenu;
+
     private void Awake()
     {
         if (cameraTransitionManager == null || bookMenuCameraTarget == null)
@@ -39,7 +41,7 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenHostMenu()
     {
-        bookStateController.SetState(BookState.HostMenu);
+        bookStateController.SetState(BookState.Lobby);
     }
 
     public void OpenJoinMenu()
@@ -57,7 +59,7 @@ public class BookMenuController : MonoBehaviour
 
     public void ReturnFromCharacterView()
     {
-        ReturnToMainMenu();
+        bookStateController.SetState(characterReturnState);
         ReturnToBookMenu();
     }
 
@@ -97,11 +99,41 @@ public class BookMenuController : MonoBehaviour
         if (lobbyController != null)
             lobbyController.OpenLobby();
 
+        if (bookStateController != null && bookStateController.CurrentState != BookState.Lobby)
+            bookStateController.SetState(BookState.Lobby);
+
         cameraTransitionManager.MoveTo(lobbyCameraTarget);
+    }
+
+    public void EditPriestName()
+    {
+        Debug.Log("Priest Name editing is not implemented yet.", this);
+    }
+
+    public void LeaveLobbyRitual()
+    {
+        ReturnToPlayMenu();
+    }
+
+    public void InvitePriest()
+    {
+        Debug.Log("Invite a Priest is not implemented yet.", this);
+    }
+
+    public bool TryLeaveLobbySeat()
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogWarning($"{nameof(BookMenuController)} cannot leave the lobby seat because no {nameof(LobbyController)} is assigned.", this);
+            return false;
+        }
+
+        return lobbyController.TryLeaveLobbySeat();
     }
 
     public void OpenCharacter()
     {
+        characterReturnState = bookStateController.CurrentState;
         bookStateController.SetState(BookState.CharacterMenu);
     }
 

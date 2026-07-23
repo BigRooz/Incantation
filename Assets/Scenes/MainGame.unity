@@ -2572,6 +2572,7 @@ GameObject:
   - component: {fileID: 231271052}
   - component: {fileID: 231271053}
   - component: {fileID: 231271054}
+  - component: {fileID: 231271055}
   m_Layer: 0
   m_Name: Managers
   m_TagString: Untagged
@@ -2654,8 +2655,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ritualController: {fileID: 231271042}
   seatManager: {fileID: 1463970286}
+  lobbyPlayerStateController: {fileID: 231271055}
   localLobbyPlayer: {fileID: 2133729651}
   localPlayerCamera: {fileID: 173171772}
+  lobbyWaitingPosition: {fileID: 912454918}
   cameraTransitionManager: {fileID: 231271044}
   lobbyCameraTarget: {fileID: 1618851345}
   bookMenuReturnInteractable: {fileID: 2895304713497403614}
@@ -2819,6 +2822,19 @@ MonoBehaviour:
   bookMenuController: {fileID: 231271046}
   textTransitionController: {fileID: 231271051}
   voiceBookPageController: {fileID: 231271052}
+--- !u!114 &231271055
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 231271040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58e1f2b9434a42a1904d85baab88e40e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  currentState: 0
 --- !u!114 &231271050
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2843,6 +2859,9 @@ MonoBehaviour:
   menuItem4: {fileID: 1484276936}
   menuItem5: {fileID: 0}
   bookMenuController: {fileID: 231271046}
+  lobbyPlayerStateController: {fileID: 231271055}
+  currentLobbyPlayerCount: 1
+  maxLobbyPlayers: 8
   textTransitionController: {fileID: 231271051}
   rightPageController: {fileID: 231271049}
   characterBookPageController: {fileID: 231271047}

@@ -27,6 +27,11 @@ public sealed class BookStateController : MonoBehaviour
     [Header("Menu Actions")]
     [SerializeField] private BookMenuController bookMenuController;
 
+    [Header("Lobby")]
+    [SerializeField] private LobbyPlayerStateController lobbyPlayerStateController;
+    [SerializeField, Min(1)] private int currentLobbyPlayerCount = 1;
+    [SerializeField, Min(1)] private int maxLobbyPlayers = 8;
+
     [Header("Page Presentation")]
     [SerializeField] private BookTextTransitionController textTransitionController;
     [SerializeField] private BookRightPageController rightPageController;
@@ -40,6 +45,24 @@ public sealed class BookStateController : MonoBehaviour
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
     private BookState preparedState;
+
+    public BookState CurrentState => preparedState;
+
+    private void OnEnable()
+    {
+        if (lobbyPlayerStateController != null)
+        {
+            lobbyPlayerStateController.StateChanged += HandleLobbyPlayerStateChanged;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (lobbyPlayerStateController != null)
+        {
+            lobbyPlayerStateController.StateChanged -= HandleLobbyPlayerStateChanged;
+        }
+    }
 
     private void Start()
     {
@@ -95,6 +118,12 @@ public sealed class BookStateController : MonoBehaviour
                     string.Empty, null);
                 break;
 
+            case BookState.Lobby:
+                PrepareLobbyPage(lobbyPlayerStateController != null
+                    ? lobbyPlayerStateController.CurrentState
+                    : LobbyPlayerState.NotSeated);
+                break;
+
             case BookState.CharacterMenu:
                 PreparePage(
                     "CHARACTER",
@@ -127,7 +156,7 @@ public sealed class BookStateController : MonoBehaviour
                 return;
         }
 
-        if (rightPageController != null)
+        if (rightPageController != null && state != BookState.Lobby)
         {
             rightPageController.PrepareForState(state, transitionTexts, transitionTargets);
         }
@@ -142,6 +171,106 @@ public sealed class BookStateController : MonoBehaviour
         {
             ApplyTargetsImmediately();
             CompletePageTransition();
+        }
+    }
+
+    private void PrepareLobbyPage(LobbyPlayerState lobbyPlayerState)
+    {
+        int readyPlayerCount = lobbyPlayerState == LobbyPlayerState.Ready ? 1 : 0;
+        string rightLine1Text;
+        string rightLine2Text;
+        string rightLine3Text;
+        UnityAction rightLine3Action = null;
+
+        switch (lobbyPlayerState)
+        {
+            case LobbyPlayerState.NotSeated:
+                PreparePage(
+                    "THE CIRCLE",
+                    "Priest Name", bookMenuController != null ? bookMenuController.EditPriestName : null,
+                    "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
+                    "Take Your Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
+                    "Leave Ritual", bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);
+                rightLine1Text = "High Priest";
+                rightLine2Text = $"Players ({currentLobbyPlayerCount} / {maxLobbyPlayers})";
+                rightLine3Text = "Invite a Priest";
+                rightLine3Action = bookMenuController != null ? bookMenuController.InvitePriest : null;
+                break;
+
+            case LobbyPlayerState.Seated:
+                PreparePage(
+                    "THE CIRCLE",
+                    "Ready", lobbyPlayerStateController != null ? ReadyLobbyPlayer : null,
+                    "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
+                    string.Empty, null,
+                    string.Empty, null);
+                rightLine1Text = $"Priests Ready ({readyPlayerCount} / {maxLobbyPlayers})";
+                rightLine2Text = "Waiting for High Priest to Start the Ritual";
+                rightLine3Text = string.Empty;
+                break;
+
+            case LobbyPlayerState.Ready:
+                PreparePage(
+                    "THE CIRCLE",
+                    "Unready", lobbyPlayerStateController != null ? UnreadyLobbyPlayer : null,
+                    "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
+                    string.Empty, null,
+                    string.Empty, null);
+                rightLine1Text = $"Priests Ready ({readyPlayerCount} / {maxLobbyPlayers})";
+                rightLine2Text = "Waiting for High Priest to Start the Ritual";
+                rightLine3Text = string.Empty;
+                break;
+
+            default:
+                Debug.LogWarning($"{nameof(BookStateController)} cannot display unsupported lobby state {lobbyPlayerState}.", this);
+                return;
+        }
+
+        if (rightPageController != null)
+        {
+            rightPageController.PrepareLobbyPage(
+                transitionTexts,
+                transitionTargets,
+                rightLine1Text,
+                rightLine2Text,
+                rightLine3Text,
+                rightLine3Action);
+        }
+    }
+
+    private void TakeLobbySeat()
+    {
+        if (bookMenuController != null)
+        {
+            bookMenuController.OpenLobby();
+        }
+    }
+
+    private void LeaveLobbySeat()
+    {
+        if (bookMenuController != null)
+        {
+            bookMenuController.TryLeaveLobbySeat();
+        }
+    }
+
+    private void ReadyLobbyPlayer()
+    {
+        lobbyPlayerStateController.TryReady();
+    }
+
+    private void UnreadyLobbyPlayer()
+    {
+        lobbyPlayerStateController.TryUnready();
+    }
+
+    private void HandleLobbyPlayerStateChanged(
+        LobbyPlayerState previousState,
+        LobbyPlayerState currentState)
+    {
+        if (preparedState == BookState.Lobby)
+        {
+            SetState(BookState.Lobby);
         }
     }
 

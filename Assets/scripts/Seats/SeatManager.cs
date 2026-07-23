@@ -261,6 +261,15 @@ public class SeatManager : MonoBehaviour
         return leftSeat;
     }
 
+    public bool LeaveLobbySeat(GameObject player, Transform waitingPosition)
+    {
+        if (!LeaveLobbySeat(player))
+            return false;
+
+        MovePlayerToPosition(player, waitingPosition);
+        return true;
+    }
+
     public bool IsLobbySeatAvailable(Seat seat)
     {
         return lobbySeatSelectionEnabled &&
@@ -387,8 +396,16 @@ public class SeatManager : MonoBehaviour
         if (player == null || seat == null || seat.playerSpawn == null)
             return;
 
+        MovePlayerToPosition(player, seat.playerSpawn);
+    }
+
+    private static void MovePlayerToPosition(GameObject player, Transform destination)
+    {
+        if (player == null || destination == null)
+            return;
+
         player.SetActive(true);
-        player.transform.SetPositionAndRotation(seat.playerSpawn.position, seat.playerSpawn.rotation);
+        player.transform.SetPositionAndRotation(destination.position, destination.rotation);
     }
 
     private void RefreshLobbySeatVisuals()

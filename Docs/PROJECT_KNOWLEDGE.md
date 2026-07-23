@@ -79,7 +79,13 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Defines the UI-independent `NotSeated`, `Seated`, and `Ready` player states.
 - `Assets/Scripts/Lobby/LobbyPlayerStateController.cs`
   - Owns one local lobby player's current state, guarded transitions, availability queries, and state-change notification.
-  - Does not own Book UI, physical Seat assignment, networking, or ritual flow.
+  - Does not own Book presentation, physical Seat assignment, networking, or ritual flow.
+- `Assets/Scripts/Menu/BookStateController.cs`
+  - Observes `LobbyPlayerStateController.StateChanged` while presenting the lobby and centralizes the `NotSeated`, `Seated`, and `Ready` Book page mappings.
+  - Reuses the existing Book text-transition and menu-item systems; it does not create a second lobby UI.
+- `Assets/Scripts/Lobby/LobbyController.cs`
+  - Coordinates physical lobby Seat selection and release with guarded `LobbyPlayerStateController` transitions.
+  - A successful chair selection changes `NotSeated` to `Seated`; leaving releases the occupied Seat, restores the local player to the configured lobby waiting position, and returns `Seated` or `Ready` to `NotSeated`.
 
 ### Ritual
 

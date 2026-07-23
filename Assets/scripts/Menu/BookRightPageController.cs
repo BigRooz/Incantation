@@ -95,6 +95,22 @@ public sealed class BookRightPageController : MonoBehaviour
         SetMenuItemInteraction(rightMenuItem5, rightLine5);
     }
 
+    public void PrepareLobbyPage(
+        List<TMP_Text> texts,
+        List<string> targets,
+        string line1Text,
+        string line2Text,
+        string line3Text,
+        UnityAction line3Action)
+    {
+        PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, line1Text, null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, line2Text, null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, line3Text, line3Action);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+    }
+
     public void ClearRightPage()
     {
         transitionTexts.Clear();
