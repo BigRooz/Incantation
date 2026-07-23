@@ -303,6 +303,466 @@ Prefer semantic state and events over continuous transform traffic:
 - Define timeouts for Steam lobby operations, network connection, scene readiness, and reconnect attempts.
 - Return structured disconnect/failure reasons that the Living Book UI can explain.
 
+## TASK-037 Repository Audit
+
+Audit date: 2026-07-23.
+
+The current project is a Unity `6000.0.56f1` local prototype. `MainGame.unity` currently contains the menu/lobby presentation, logical Seats, player objects, one real book, ritual orchestration, voice recognition, hourglass, lighting, ambience, and aftermath presentation. There are no FishNet, Steamworks.NET, Steam transport, or voice-chat packages in `Packages/manifest.json`. There are also no game-owned assembly definitions, so all game scripts currently compile into Unity's default runtime assembly.
+
+The local lobby foundation currently calls directly into `SeatManager`, moves the local player GameObject, and starts `RitualController`. That is valid prototype behavior but is not a network boundary. The first integration must preserve the local loop while placing platform, connection, lobby, seating, and ritual authority behind application-level services.
+
+The audit identifies five distinct kinds of existing behavior:
+
+1. **Local:** machine-specific input, camera, UI, recognizers, debug tools, ambience, and purely cosmetic effects.
+2. **Networked:** state or events that every connected machine must receive.
+3. **Host authoritative:** shared gameplay truth decided by the server running on the host.
+4. **Owner authoritative:** bounded presentation or intent originating from the client that owns its player object. The host still validates gameplay-changing requests.
+5. **Observer only:** consumes replicated state to render feedback and never decides gameplay.
+
+These labels can overlap. For example, the hourglass is networked and host authoritative, while its sand animation is local and observer only.
+
+## Required Packages And Version Policy
+
+The first installation task should add only the following package roles:
+
+| Package role | Recommendation | Required for first connection spike | Policy |
+| --- | --- | --- | --- |
+| Networking framework | FishNet | Yes | Install a pinned stable release. Do not follow an unpinned Git branch. |
+| Steam API wrapper | Steamworks.NET | Yes | Use the Unity Package Manager form with an exact release tag. Do not mix UPM, `.unitypackage`, and manual installation methods. |
+| FishNet Steam transport | FishySteamworks, if its current pinned release supports the selected FishNet and Steamworks.NET versions | Yes for Steam test; no for the initial local transport smoke test | Treat the transport, FishNet, and Steamworks.NET as one compatibility set. |
+| Local diagnostic transport | FishNet's included Tugboat transport | Yes | Keep it for editor/LAN diagnostics and automated smoke tests; it is not the production Steam transport. |
+| Steamworks SDK redistributables | Supplied/required by Steamworks.NET and the Steam build process | Yes for Steam builds | Verify Windows x64 and IL2CPP placement in a built player. |
+| Voice chat package | None in the first FishNet integration | No | Select and integrate separately after the session shell. Do not route microphone audio through FishNet. |
+
+Transport recommendation:
+
+- Use **FishySteamworks over current Steam Networking APIs** for production host-client traffic only after the compatibility spike proves its exact package combination.
+- Keep **Tugboat** configured as a diagnostic alternative for same-machine, LAN, and non-Steam lifecycle testing.
+- Do not use the deprecated `ISteamNetworking` API.
+- Prefer a transport path that uses Steam relay-capable networking so player IP addresses are not exposed.
+- Do not configure Multipass in the first milestone. Add runtime transport selection only after each transport works independently and the session adapter has an explicit selection policy.
+
+Exact version numbers are deliberately not recorded by TASK-037. Versions must be selected, pinned, license-checked, and recorded by the installation spike because FishNet, FishySteamworks, Steamworks.NET, Unity 6, and IL2CPP compatibility changes independently.
+
+## Planned Folder And Assembly Structure
+
+Do not move or rename existing systems during the first integration. Add networking beside them:
+
+```text
+Assets/
+  Prefabs/
+    Networking/
+      IncantationNetworkManager.prefab
+      NetworkPlayer.prefab
+      NetworkSessionState.prefab
+  Scripts/
+    Networking/
+      Application/
+        LobbySession.cs
+        NetworkSessionCoordinator.cs
+        SessionContracts.cs
+      FishNet/
+        FishNetSessionAdapter.cs
+        FishNetConnectionAuthenticator.cs
+        NetworkPlayer.cs
+        NetworkSessionState.cs
+        NetworkRitualAuthority.cs
+      Steam/
+        SteamPlatformAdapter.cs
+        SteamLobbyAdapter.cs
+        SteamInviteAdapter.cs
+        SealDirectory.cs
+      Seating/
+        NetworkSeatingCoordinator.cs
+        SeatAssignmentSnapshot.cs
+      Ritual/
+        RitualSnapshot.cs
+        RitualCommand.cs
+        RitualResult.cs
+      Presentation/
+        NetworkPlayerPresentation.cs
+      Voice/
+        NetworkRecognitionCandidate.cs
+  Tests/
+    EditMode/
+      Networking/
+    PlayMode/
+      Networking/
+```
+
+Before adding those scripts, introduce game-owned runtime and test assembly definitions in a dedicated task. Keep FishNet-dependent code in a networking assembly and keep plain session/ritual contracts in a framework-independent assembly. Existing gameplay code should consume interfaces and snapshots, not import `FishNet.*` or `Steamworks.*` namespaces.
+
+Do not create a second parallel `Assets/Scripts` versus `Assets/scripts` hierarchy as part of networking. The repository currently contains mixed path casing; choose the existing canonical path on disk and normalize casing only in a separate, reviewed cleanup task because Windows can hide case-only conflicts.
+
+## Scene Setup Plan
+
+The first integration should use two scene roles:
+
+1. **Bootstrap/session scene**
+   - Contains the one persistent `IncantationNetworkManager`.
+   - Contains platform bootstrap and `LobbySession` composition.
+   - Starts offline and does not auto-start server or client.
+   - Has no ritual gameplay objects.
+   - Survives transition into the gameplay scene through a global spawned network object or another FishNet-supported persistent object strategy.
+
+2. **MainGame gameplay scene**
+   - Retains the table, logical Seats, one real scene book, hourglass, ritual presentation, lobby/menu presentation, characters, ambience, and lighting.
+   - Is loaded for all connected peers through FishNet scene management.
+   - Contains scene references and scene network identities only where shared scene state requires them.
+   - Does not contain another `NetworkManager`.
+
+This is the production direction, not permission to create or edit scenes in TASK-037. The first implementation may temporarily test FishNet lifecycle in an isolated test scene before introducing the bootstrap scene.
+
+Scene setup rules:
+
+- There must be exactly one active FishNet `NetworkManager`.
+- Do not use the FishNet demo HUD in production. A diagnostic HUD is acceptable only in the isolated spike scene.
+- Configure `ObserverManager`, `ServerManager`, `ClientManager`, `TransportManager`, `TimeManager`, and FishNet `SceneManager` on the manager prefab using the defaults proven by the spike.
+- Disable automatic host/client start. `LobbySession` and the session adapter initiate lifecycle explicitly.
+- Load `MainGame` through FishNet's scene manager after connection approval; do not allow each client to call Unity scene loading independently.
+- Require a scene-loaded/readiness acknowledgement before the host assigns ritual-ready state.
+- Treat scene object IDs and spawned prefab IDs as serialization details, never as stable player or Seat identity.
+- Keep `Room`, lighting, ambience, cameras, menu pages, `BookGhost`, and Seat target transforms non-networked unless later evidence proves a network identity is necessary.
+
+## NetworkManager Setup Plan
+
+Create one project-owned `IncantationNetworkManager` prefab based on a clean FishNet manager configuration, not a modified demo prefab.
+
+Its composition should be:
+
+| Component/service | Responsibility |
+| --- | --- |
+| FishNet `NetworkManager` and manager components | Network lifecycle, connections, time, object spawning, observers, and synchronized scene loading. |
+| Production Steam transport | FishNet packet transport selected only after Steam initialization and lobby resolution. |
+| Diagnostic Tugboat transport | Local/LAN validation in development builds or the isolated spike. |
+| `FishNetSessionAdapter` | Converts application intents into FishNet start/stop operations and converts FishNet callbacks into application events. |
+| `FishNetConnectionAuthenticator` | Validates protocol/build, Steam identity, Steam lobby membership, capacity, and duplicate identity before player spawn. |
+| `NetworkSessionCoordinator` | Owns orderly create/join/start/leave/shutdown sequencing and failure recovery. |
+| `NetworkSessionState` | Server-owned replicated roster, session phase, ready states, and start barrier. |
+
+Do not put ritual rules, Seat traversal, phrase generation, voice recognition, book animation, UI transitions, or Steam lobby calls directly on the `NetworkManager` object.
+
+Shutdown order must be explicit: stop ritual input, publish/record disconnect reason, stop FishNet client, stop FishNet server when hosting, leave the Steam lobby, release callbacks, and return application state to offline. Test repeated host/create/leave and client/join/leave cycles without restarting the application.
+
+## Network Prefab Strategy
+
+Only three network prefab roles are expected for the first implementation:
+
+| Prefab/object | Spawned by | Ownership | Purpose |
+| --- | --- | --- | --- |
+| `NetworkPlayer` | Server after connection approval | Owning client | Stable player/session identity, ready intent, validated character choice, connection status, and bounded presentation input. |
+| `NetworkSessionState` | Server once per session, preferably global/persistent | Server | Replicated roster, session phase, compatibility state, start barrier, and authoritative lobby snapshot. |
+| `NetworkRitualAuthority` | Server when entering the ritual, or a server-owned scene object if the spike proves scene identity is more reliable | Server | Replicated ritual snapshot, turn commands, validation results, timer timestamps, and end state. |
+
+The following are not separate spawned network prefabs in the first implementation:
+
+- The cursed book.
+- Each Seat.
+- The hourglass.
+- Phrase UI.
+- Book page/menu UI.
+- Cameras.
+- `BookGhost` or `BookTarget`.
+- Voice recognizers.
+- Lighting and ambience.
+
+Those scene objects observe `NetworkRitualAuthority` and animate locally. If a network identity is later required for the one real book, add it to the single scene book; never register or spawn one book per player.
+
+## Player Prefab Strategy
+
+Use one owner-assigned `NetworkPlayer` root per connection. Separate identity/state from the visible priest:
+
+- The network root persists for the session and owns `PlayerId`, Steam ID reference, display name, connection state, ready intent, validated character/skin selection, and assigned Seat ID.
+- The visual priest is a scene/presentation child or an instantiated presentation bound to that network root.
+- The host validates character choice, seat requests, ready requests, and every ritual command.
+- The owner may generate bounded head, eyes, hands, mouth-activity, and cosmetic intents.
+- Remote peers interpolate presentation and never run another player's camera, input, microphone, or ritual recognizer.
+- Enable the local camera, AudioListener, input actions, microphone capture, and ritual recognizer only for the owner.
+- Do not add walking/network transform gameplay. Players remain seated. `PlayerMovement` is local prototype behavior and should be disabled for the network ritual.
+- Do not make the visible character the source of stable identity or Seat order.
+
+## Authority By Domain
+
+### Book Authority
+
+The host owns the book phase, movement sequence ID, source Seat ID, target Seat ID, movement start network time, arrival, and whether interaction is allowed. Clients render the one scene book's path locally using the semantic movement command. The host alone advances the active turn after confirmed arrival or a defined authoritative transition.
+
+`BookMover`, `BookController`, rotation, text effects, aftermath, prison/spectator, absorption, and feedback components remain presentation consumers unless a specific rule is extracted into `NetworkRitualAuthority`. No client sends book transforms. Late joiners receive the latest semantic state and snap/catch up safely.
+
+### Seat Authority
+
+`SeatManager` remains local scene authority for the configured physical Seat order and references. The host-owned seating coordinator owns the replicated mapping of stable `PlayerId` to stable Seat ID and active/eliminated status.
+
+Clients may request an available Seat before ready, but the host accepts or rejects the request atomically. Clients apply the resulting snapshot to their local Seat scene objects. `Seat.currentPlayer`, lobby dictionaries, click zones, GameObject names, and FishNet connection IDs must not be transmitted as authority.
+
+Seat IDs must be serialized explicitly and validated as unique. The current physical order remains `Seat1`, `Seat5`, `Seat3`, `Seat6`, `Seat2`, `Seat7`, `Seat4`, `Seat8`; traversal uses `SeatManager`'s configured order, never lexical or numeric sorting.
+
+### Lobby Authority
+
+Steam owns lobby membership and lobby-owner identity at the platform layer. The FishNet host verifies Steam membership and owns playable roster, readiness, character acceptance, capacity, session phase, and start permission. `LobbySession` exposes the resulting state to `LobbyController` and book-menu presentation.
+
+The current `LobbyController` must eventually become a presentation/input adapter. It must not directly move remote players, mutate shared Seat occupancy, or call `RitualController.StartRitual()` without a host-approved start snapshot and scene readiness barrier.
+
+### Ritual Authority
+
+The host owns:
+
+- Ritual phase and monotonically increasing ritual/turn sequence IDs.
+- Active Seat and traversal direction.
+- Phrase seed or explicit word list, phrase version, and accepted-word index.
+- Turn start/end network timestamps.
+- Acceptance, rejection, retry, timeout, elimination, rotation completion, phrase growth, and end state.
+- The rule that the phrase starts at one word and gains exactly one word after a full active table rotation.
+
+Clients submit intents/candidates tagged with the current sequence and render authoritative results. The host does not trust a client-reported completion flag or timer.
+
+`CoreRitualLoop`, `TurnManager`, `GrowingIncantationManager`, `IncantationManager`, `RitualController`, and bridge components currently contain overlapping local orchestration. Before network implementation, designate one host-side ritual facade as the only writer and make the other components event-driven collaborators. Do not network both orchestration paths independently.
+
+### Voice Separation
+
+Keep three voice paths separate:
+
+1. **Ritual microphone capture and recognition:** local to the active owner. Windows keyword recognition remains the default realtime path; Whisper remains optional for full phrase.
+2. **Ritual candidate command:** small normalized data sent through FishNet to the host with player, ritual, turn, phrase, and expected-word sequence IDs. The host validates active ownership, timing, sequence, and expected phrase.
+3. **Social voice chat:** a future encoded media service using Steam voice/networking or another selected voice solution. It must not feed ritual validation.
+
+Raw microphone audio, Whisper buffers, recognition models, learned aliases, and local audio-device selection are never synchronized by FishNet. Remote lip activity is observer presentation and can be derived from received chat audio or a small owner-generated activity signal.
+
+### Steamworks Interaction
+
+Steamworks is initialized before any Steam lobby or Steam transport action. The Steam adapter owns callbacks and converts `CSteamID` values into project contracts at its boundary.
+
+Create flow:
+
+1. Initialize Steam and confirm the logged-in user and App ID.
+2. Create a private/friends Steam lobby with capacity eight.
+3. Publish protocol, build/content version, mode, phase, host identity/endpoint, and Seal metadata.
+4. Select the Steam transport and start FishNet server, then the host's local client.
+5. Approve and spawn the host player through the same authentication path used for remote clients.
+
+Join flow:
+
+1. Resolve a Seal or Steam invitation to one lobby ID.
+2. Join the Steam lobby and read authoritative metadata.
+3. Reject obvious version/capacity mismatch locally.
+4. Configure the transport with the lobby owner's connection identity and start FishNet client.
+5. Let the host authenticator verify Steam identity, membership, protocol, capacity, and duplicates.
+6. Spawn the owner-assigned player only after approval.
+
+Steam lobby chat/metadata is discovery and preconnection coordination, not the authoritative gameplay channel. After FishNet connects, lobby/ready/ritual state is replicated through FishNet while the Steam lobby remains available for invitations and membership verification.
+
+## Existing System Networking Matrix
+
+This matrix covers every current runtime script family. “Host authoritative” means its gameplay decision must run on or be accepted by the host. “Observer only” means the existing component should render replicated state and must not become a network writer.
+
+| Existing system/components | Classification | FishNet integration boundary |
+| --- | --- | --- |
+| Lobby: `LobbyController`, `LobbyPlayerStateController`, `LobbyPlayerState` | Networked; host authoritative shared state; owner-authoritative requests; local UI | Convert controllers to consume `LobbySession` snapshots. Owner requests seat/ready/character; host publishes accepted state and start. |
+| Menu/book UI: `BookMenuController`, `BookMenuItem`, `BookRightPageController`, `BookStateController`, `BookState`, text/page/character/voice controllers, menu return interactable | Local; observer only | Display session state and send intents. Page state, transitions, cursor, and camera remain local. |
+| Seats: `SeatManager`, `Seat` | Networked mapping; host authoritative assignment; local physical-order/reference registry | Host replicates `PlayerId` to Seat ID. Clients bind visuals to their local scene Seats. |
+| Seat input/debug: `ChairClick`, `DebugSeatFlowSimulator` | Owner-authoritative request for clicks; debug simulator local only | Click submits a request. Simulator is disabled outside offline/test mode and never networked. |
+| Ritual orchestration: `RitualController`, `CoreRitualLoop`, `CoreRitualLoopBridge`, `TurnManager` | Networked; host authoritative | One host facade writes ritual state. Clients receive snapshots/events; bridges may invoke presentation only. |
+| Ritual debug: `CoreRitualLoopTestHarness` | Local only | Never present/enabled in production network sessions. |
+| Phrase growth/data: `GrowingIncantationManager`, `IncantationManager`, `IncantationWord`, `IncantationWordLibrary`, `PhraseValidator`, validation result structs | Networked results; host authoritative validation/state; libraries and pure validation local on host | Host selects phrase/seed and validates candidates. Replicate plain words/version/progress, not MonoBehaviour or ScriptableObject references. |
+| Incantation display: `IncantationTextDisplay` | Local; observer only | Renders authoritative phrase version, expected word, acceptance, and rejection. |
+| Voice interfaces/recognizers: `IVoiceInput`, `IVoiceRecognizer`, processing status, `WindowsKeywordVoiceRecognizer`, `WhisperVoiceRecognizer`, `WhisperController`, `MockVoiceRecognizer`, `VoicePhraseNormalizer` | Local owner authority for capture/candidate; host authority for acceptance | Only active owner listens. Submit normalized, sequenced candidates. Mock stays test-only. |
+| Voice sandbox: `WhisperSandboxUI` | Local only | Never enabled or synchronized in production sessions. |
+| Hourglass rules: `HourglassController`, legacy `Timer` | Networked; host authoritative | Host owns start/end network time and timeout. Consolidate duplicate timer truth before ritual networking. |
+| Hourglass presentation: `HourglassVisualController`, `HourglassWarningAudio`, `HourglassLightPossessionController` | Local; observer only | Render from authoritative timestamps and outcomes; do not send frame-by-frame state. |
+| Book movement/control: `BookMover`, `BookController`, `BookRotationController`, `BookOrbitAroundTable` | Networked semantic state; host authoritative; client observer animation | Host sends phase/target/sequence/start time. One scene book animates locally on every peer. |
+| Book feedback and text: `BookFeedbackController`, `BookTextMagicEffect` | Local; observer only | React to authoritative validation/book events. |
+| Book aftermath: `BookAftermathController`, `BookPrisonSpectatorController`, `DeathVisionVignetteController`, `DemonHandController`, `PlayerAbsorptionController`, `RitualFailureAbsorptionBridge` | Networked outcome trigger; host authoritative outcome; local observer presentation | Host decides failure/elimination/winner. Each client plays appropriate local presentation from reason-coded events. |
+| Player identity/character selection: `CharacterSelectionGroup`, `CharacterSkinPalette` | Networked selection; owner request; host authoritative acceptance; observer presentation | Store approved character/skin on `NetworkPlayer`; instantiate/apply locally for all observers. |
+| Seated body/head: `BodyMotion`, `HeadEffect`, `HeadIdleMotion` | Local or owner-authoritative bounded presentation; remote observer only | Prefer deterministic/local idle. Replicate only deliberate pose inputs at a modest rate if required. |
+| `PlayerMovement` | Local prototype only; disabled in network ritual | Do not network walking. Owner camera/input setup must enforce seated play. |
+| Face/lip/audio activity: `EyelidBlinkController`, `VoiceLipController`, `VoiceAmplitudeProvider`, `WindowsAudioOutputDeviceProvider` | Local owner presentation; remote observer only | Blink may run locally. Lip activity derives from local/received audio or a small bounded signal; audio devices remain local. |
+| Camera: `CameraTransitionManager`, `RitualCameraEffects` | Local only; observer presentation | Never replicate cameras or transitions. Trigger local effects from authoritative events when needed. |
+| Lighting/fog: `FireLightFlicker`, `RitualLightingController`, `RoomVeilPreset`, `TableFogPreset`, `WallFogPanelPreset` | Local; observer only | Ambient effects run locally. Discrete ritual lighting cues may observe authoritative events. |
+| Ambient audio: `AmbientRandomSoundPlayer` | Local only | Do not network random ambient clips in the first integration. Add a shared seed/event later only if synchronized timing is a design requirement. |
+| Notebook: `NotebookController`, `NotebookInput`, `NotebookSpellPage` | Local and paused | No FishNet integration until explicitly re-enabled. |
+| Spell/card systems: `SpellHandController`, `SpellCardView`, `SpellDefinition`, `SpellRarity`, `SpellPhrase`, `SpellPhraseLibrary`, `SpellPhraseRarity` | Paused; currently local data/presentation | No FishNet integration in the first milestone. Future card play must be owner request plus host-authoritative resolution. Keep spell phrases separate from ritual words. |
+
+## Spawn And Start Flow
+
+### Connection And Player Spawn
+
+1. Application boots into offline session state; no server/client autostarts.
+2. Platform adapter initializes Steam or selects diagnostic offline transport.
+3. Host creates Steam lobby and starts FishNet server plus local client; client resolves and joins a Steam lobby, then starts FishNet client.
+4. Client sends authentication payload containing protocol/build/content versions and verifiable Steam identity context.
+5. Host validates identity, Steam lobby membership, capacity, duplicates, and compatibility.
+6. On approval, server spawns exactly one owner-assigned `NetworkPlayer`.
+7. Server adds its stable `PlayerId` to `NetworkSessionState`.
+8. Client receives a full lobby snapshot before UI enables seat, character, or ready actions.
+
+### Lobby To Ritual Spawn
+
+1. Owners submit character, Seat, and ready intents; host validates and replicates each result.
+2. Host alone requests start after all 2–8 connected compatible players are ready.
+3. Host locks the roster and Seat assignments and publishes a start barrier.
+4. FishNet loads `MainGame` for all peers or confirms it is loaded through the approved scene strategy.
+5. Every client binds its local scene registry (`SeatManager`, book, hourglass, ritual presentation) and acknowledges readiness.
+6. Server spawns or activates one `NetworkRitualAuthority`.
+7. Server publishes a complete initial snapshot: roster, Seat map, traversal, phrase seed/list/version, accepted index, active Seat, turn sequence, timer start/end, book phase, and ritual phase.
+8. Clients bind `NetworkPlayer` presentation to assigned Seat spawns and enable only the owner's camera/input/recognizer.
+9. After required acknowledgements, host begins the first turn at a future network timestamp.
+
+Do not let Unity `Awake`/`Start` order implicitly begin the ritual. Network startup requires the explicit barrier above.
+
+## Host And Client Runtime Flows
+
+### Host Flow
+
+1. Initialize Steam and create the Steam lobby.
+2. Start FishNet server, then local client, through `NetworkSessionCoordinator`.
+3. Authenticate and spawn the host player through the normal connection path.
+4. Validate every member action and publish lobby snapshots.
+5. Lock roster, assign Seats, coordinate scene readiness, and create ritual authority.
+6. Run ritual decisions, timer truth, phrase growth, book destination, failure, and elimination.
+7. Replicate semantic state/events and periodic full snapshots where recovery requires them.
+8. On remote disconnect, apply the current phase policy and publish the reason.
+9. On host exit, end the session for all clients; host migration is not part of the first integration.
+
+### Client Flow
+
+1. Initialize Steam, resolve invitation/Seal, join the Steam lobby, and inspect compatibility metadata.
+2. Start only the FishNet client using the resolved host identity.
+3. Authenticate, wait for owned `NetworkPlayer`, then wait for the authoritative lobby snapshot.
+4. Send only permitted owner intents; never mutate shared lobby, Seat, ritual, book, timer, or elimination state locally.
+5. Load the network-directed gameplay scene and acknowledge scene binding.
+6. Render the authoritative ritual snapshot and enable local microphone recognition only when this owned player is active.
+7. Submit sequenced recognition candidates; keep retry UI responsive while awaiting results, but never predict success.
+8. Interpolate presentation and book movement from semantic commands.
+9. On disconnect or host loss, stop local input/recognition, display the structured reason, leave the Steam lobby, and return to offline/menu state.
+
+## Architectural Risks Before Installation
+
+| Risk | Evidence in current project | Mitigation/gate |
+| --- | --- | --- |
+| Local lobby is gameplay authority | `LobbyController` directly selects Seats, moves the local player, and starts `RitualController`. | Introduce `LobbySession` snapshots/intents first; keep UI as presentation. |
+| Multiple ritual writers | `RitualController`, `CoreRitualLoop`, bridges, turn, growing phrase, and incantation managers overlap. | Name one host ritual facade and document each collaborator's write boundary before adding RPCs. |
+| Duplicate timer truth | Both legacy `Timer` and `HourglassController` exist. | Select one authoritative timeout source before synchronizing timestamps. |
+| Scene-order coupling | Many scripts rely on serialized scene references and lifecycle callbacks. | Use an explicit scene binding/readiness barrier and full initial snapshot. |
+| Local GameObject identity in Seats | Current occupancy uses `GameObject` references and local dictionaries. | Serialize stable Seat ID and `PlayerId`; bind to scene objects locally. |
+| Runtime-created UI and broad object lookup | Lobby can create UI and find player movement at runtime; several systems use fallback searches. | Production network composition uses serialized interfaces/registries; avoid race-prone discovery after scene load. |
+| No game assembly boundaries | Game scripts compile in the default assembly. | Add framework-independent and FishNet-specific asmdefs before integration to prevent dependency leakage. |
+| Mixed path casing/duplicate-looking folders | Repository has both `Assets/scripts` and `Assets/Scripts` references on Windows. | Avoid case-only moves during networking; audit GUIDs and normalize separately. |
+| Package compatibility triangle | FishNet, FishySteamworks, and Steamworks.NET evolve independently. | Pin a proven trio and retain a rollback commit; test editor, Mono development build, and Windows x64 IL2CPP. |
+| Steam cannot be tested with one identity | Lobby membership, invites, relay, and authentication require real Steam conditions. | Require two Steam accounts and two machines for the compatibility gate. |
+| Host advantage and trust | Host validates locally recognized candidates; remote clients report recognition text. | Accept for party-game v1, log reason-coded decisions, sequence every command, and never claim anti-cheat security. |
+| Host loss | Listen-server owner is session authority. | First milestone ends session cleanly; do not promise migration. |
+| Voice cross-talk | Social chat and ritual microphone capture can hear the same speech/playback. | Separate services, push-to-talk/mute policy, headphones guidance, and echo/capture testing. |
+| Late/stale messages | Word-by-word input is rapid and turns change under timer pressure. | Include ritual, turn, phrase, and word sequence IDs plus server-time window validation. |
+| Transform over-networking | Book and seated avatar visuals may tempt continuous reliable sync. | Replicate semantic book events/timestamps and modest unreliable pose samples only when needed. |
+| Scene book duplication | Spawned-prefab thinking could create one book per connection or duplicate the scene book. | Keep one scene book and one server-owned ritual authority; assert uniqueness in validation. |
+| Steam Seal assumptions | Lobby search is asynchronous, distance-filtered, and can return collisions. | Treat Seal as locator, handle 0/multiple results, set explicit filters/timeouts, and keep external directory fallback isolated. |
+
+## Step-By-Step First FishNet Implementation Roadmap
+
+Each step is a separate small task with documentation, compile/build validation, review, commit, and push. Do not combine package installation with gameplay conversion.
+
+### Phase 0 — Approval And Baseline
+
+1. Finish and commit all current unrelated lobby/scene/script work before starting networking.
+2. Record a clean Unity compile, local lobby flow, Seat selection, ritual start, word-by-word acceptance/rejection, timeout, and book movement baseline.
+3. Back up the exact `Packages/manifest.json`, package lock, Unity version, build target, scripting backend, and API compatibility settings.
+
+Exit gate: clean worktree, known-good local prototype, and rollback point.
+
+### Phase 1 — Isolated Package Compatibility Spike
+
+1. Create an isolated branch and test scene.
+2. Select and record exact FishNet, FishySteamworks, and Steamworks.NET releases plus licenses and source URLs.
+3. Install FishNet and prove host/client lifecycle with Tugboat without changing gameplay.
+4. Install Steamworks.NET and prove initialization/shutdown with the development App ID.
+5. Install FishySteamworks and prove two-machine Steam host/client connect, disconnect, reconnect, and clean application shutdown.
+6. Produce a Windows x64 IL2CPP build and repeat the two-account test.
+
+Exit gate: a pinned, reproducible compatibility set or a documented failure that triggers the Mirror/FizzySteamworks fallback review.
+
+### Phase 2 — Assembly And Contract Boundary
+
+1. Add game-owned runtime/test assembly definitions.
+2. Add plain `PlayerId`, Seat ID, lobby snapshot, connection result, and session phase contracts with no FishNet or Steam types.
+3. Define `INetworkSession`, `IPlatformLobby`, and session event interfaces.
+4. Add edit-mode tests for compatibility checks, state transitions, stable identity, and invalid transitions.
+
+Exit gate: existing local gameplay still compiles and framework types cannot leak into core contracts.
+
+### Phase 3 — Persistent Session Shell
+
+1. Create the project-owned network manager prefab and bootstrap/test composition.
+2. Implement explicit start server, start client, start host, stop, failure, and repeated lifecycle behavior behind `FishNetSessionAdapter`.
+3. Add structured disconnect reasons and deterministic shutdown order.
+4. Keep Tugboat as the initial validation transport.
+
+Exit gate: repeated host/client connect and leave works without ritual integration or stale objects.
+
+### Phase 4 — Steam Lobby And Connection Approval
+
+1. Implement Steam create/join/leave, invitation, cold-launch invite, lobby metadata, and Seal resolution adapters.
+2. Converge invite and Seal joins into one join intent.
+3. Authenticate FishNet connections against Steam lobby membership, versions, capacity, and duplicate identity.
+4. Switch to FishySteamworks only after Steam lobby resolution.
+
+Exit gate: two machines can create, discover/invite, join, reject version mismatch, leave, and reconnect.
+
+### Phase 5 — Network Player And Lobby State
+
+1. Add one owner-assigned `NetworkPlayer` per approved connection.
+2. Add one server-owned `NetworkSessionState`.
+3. Replicate roster, names, validated character choice, connection state, Seat requests, ready state, and host role.
+4. Adapt the existing lobby/book UI to snapshots and intents while preserving its visual behavior.
+
+Exit gate: 2–8 simulated/real clients see the same lobby and only the host can start.
+
+### Phase 6 — Authoritative Seating And Scene Barrier
+
+1. Add stable Seat IDs without changing configured physical traversal.
+2. Implement host seating coordinator and atomic Seat assignment.
+3. Load/bind `MainGame` through FishNet scene management.
+4. Spawn/bind player presentation at assigned Seat and enable only owner-local camera/input.
+5. Require all client readiness acknowledgements before ritual start.
+
+Exit gate: all peers show the same occupants in the same physical Seats; reconnect/leave does not corrupt occupancy.
+
+### Phase 7 — Read-Only Ritual Snapshot
+
+1. Add server-owned `NetworkRitualAuthority` and a complete ritual snapshot contract.
+2. Replicate fixed test state for active Seat, phrase, accepted index, timer timestamps, and book semantic state.
+3. Bind current UI, hourglass visuals, and book movement as observer-only consumers.
+4. Test a late client snapshot in the diagnostic environment without enabling gameplay commands.
+
+Exit gate: clients render identical ritual state while only the server changes the test snapshot.
+
+### Phase 8 — Host-Authoritative Ritual Commands
+
+1. Designate one ritual facade as the host writer.
+2. Route turn progression, phrase growth, retry, timeout, and book arrival through it.
+3. Add ritual/turn/phrase/word sequence validation and reason-coded results.
+4. Preserve exactly one phrase word added after one full active table rotation.
+
+Exit gate: host plus remote client complete multiple rotations with identical state and one real book.
+
+### Phase 9 — Ritual Voice Candidate Path
+
+1. Enable the recognizer only for the active owning player.
+2. Submit normalized word/full-phrase candidates to the host with sequence metadata.
+3. Validate active sender, timing, expected phrase, duplicates, and stale candidates on the host.
+4. Replicate acceptance/rejection and drive current absorption/rejection feedback locally.
+5. Test retries until authoritative timeout under latency and packet loss.
+
+Exit gate: both host and remote clients can take voice turns; social voice remains absent/separate.
+
+### Phase 10 — Hardening
+
+1. Test 2–8 players, rapid ready toggles, Seat contention, scene load failure, client timeout, host loss, duplicate Steam identity, stale RPCs, version mismatch, and repeated sessions.
+2. Test Windows x64 IL2CPP on two machines and two Steam accounts.
+3. Profile bandwidth and eliminate unnecessary transform/state updates.
+4. Update `PROJECT_STATUS`, `PROJECT_KNOWLEDGE`, Inspector/scene references, and this document to describe the implemented truth.
+
+Exit gate: the multiplayer lobby-to-ritual vertical slice is compiling, built, tested, documented, committed, and pushed.
+
 ## Implementation Milestones
 
 Do not implement all networking at once.
@@ -341,10 +801,14 @@ Primary sources reviewed for this decision:
 - [Unity: Netcode for GameObjects Unity 6 tutorial and host/client setup](https://learn.unity.com/tutorial/668810b4edbc2a501c5c6d13?version=6.0)
 - [Unity: Netcode for GameObjects ownership and authority](https://docs-multiplayer.unity3d.com/netcode/current/basics/ownership/)
 - [FishNet: overview, server authority, host operation, and licensing position](https://fish-networking.gitbook.io/docs)
+- [FishNet: installation methods and Git package path](https://fish-networking.gitbook.io/docs/tutorials/getting-started/installing-fish-networking)
 - [FishNet: Unity compatibility](https://fish-networking.gitbook.io/docs/overview/readme/features/unity-compatibility)
 - [FishNet: ownership](https://fish-networking.gitbook.io/docs/guides/features/ownership)
 - [FishNet: transport abstraction](https://fish-networking.gitbook.io/docs/fishnet-building-blocks/transports)
+- [FishNet: synchronized scene management](https://fish-networking.gitbook.io/docs/guides/features/scene-management)
+- [FishNet: persistent and global network objects](https://fish-networking.gitbook.io/docs/guides/features/scene-management/persisting-networkobjects)
 - [FishNet: official repository and releases](https://github.com/FirstGearGames/FishNet)
+- [Steamworks.NET: Unity installation and pinned UPM release guidance](https://steamworks.github.io/installation/)
 - [Mirror: host-server model](https://mirror-networking.gitbook.io/docs/manual/general)
 - [Mirror: authority](https://mirror-networking.gitbook.io/docs/manual/guides/authority)
 - [Mirror: FizzySteamworks transport](https://mirror-networking.gitbook.io/docs/manual/transports/fizzysteamworks-transport)
@@ -352,6 +816,7 @@ Primary sources reviewed for this decision:
 - [Photon Fusion: Unity 6 requirements and current SDK](https://doc.photonengine.com/fusion/v2/getting-started/sdk-download)
 - [Photon: current CCU pricing and licensing](https://doc.photonengine.com/photon/current/pricing)
 - [Steamworks: matchmaking, lobbies, metadata, invitations, authentication, and voice boundary](https://partner.steamgames.com/doc/features/multiplayer/matchmaking)
+- [Steamworks: current networking APIs and Steam Datagram Relay](https://partner.steamgames.com/doc/features/multiplayer/networking)
 
 ## Status
 
