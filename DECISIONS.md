@@ -195,6 +195,20 @@ Implication:
 
 Next work should focus on lobby entry, ready check, automatic seating, and handoff into the existing ritual loop.
 
+## Multiplayer Framework
+
+Decision:
+
+Use FishNet for future realtime multiplayer replication, with Steamworks responsible for Steam lobby, identity, invitations, and platform connectivity. Use a host-client topology in which the host is authoritative over shared ritual state.
+
+Why:
+
+FishNet's server-authoritative model, host operation, transport abstraction, Unity 6 support, performance headroom, and lack of CCU dependency fit a 2–8 player Steam party game. Unity Netcode for GameObjects is the strongest first-party alternative, Mirror is the fallback if the FishNet Steam transport spike fails, and Photon Fusion adds cloud and simulation complexity the seated ritual does not currently need.
+
+Implication:
+
+Keep FishNet and Steamworks behind adapters. The host owns seating assignments, the shared phrase, turn flow, hourglass truth, the one book, and outcomes. Player clients own only bounded personal input and presentation. Voice chat remains separate from ritual recognition. Do not install packages until a focused compatibility spike validates exact versions, Windows IL2CPP, Steam transport, two-machine connectivity, and licensing. See `Docs/Networking.md`.
+
 ## Task Discipline
 
 Decision:
