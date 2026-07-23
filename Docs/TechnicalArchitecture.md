@@ -35,6 +35,12 @@ The current prototype is a local playable ritual slice. Lobby is the next major 
 
 ## Current Prototype Systems
 
+### Lobby Player State
+
+`LobbyPlayerStateController` is the local, UI-independent source of truth for one lobby player's state. It owns the guarded `NotSeated`, `Seated`, and `Ready` transitions and exposes availability queries plus a state-change event for future Book UI consumers.
+
+The component does not select a physical Seat, render UI, start the ritual, or implement networking. Those integrations remain separate future responsibilities.
+
 The current v0.1 prototype includes:
 
 - `RitualController` as the current prototype ritual orchestration surface.

@@ -73,6 +73,14 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 
 ## Important Code Map
 
+### Lobby
+
+- `Assets/Scripts/Lobby/LobbyPlayerState.cs`
+  - Defines the UI-independent `NotSeated`, `Seated`, and `Ready` player states.
+- `Assets/Scripts/Lobby/LobbyPlayerStateController.cs`
+  - Owns one local lobby player's current state, guarded transitions, availability queries, and state-change notification.
+  - Does not own Book UI, physical Seat assignment, networking, or ritual flow.
+
 ### Ritual
 
 - `Assets/Scripts/Ritual/RitualController.cs`

@@ -67,6 +67,7 @@ The current prototype includes:
 
 ## Experimental Or Incomplete Systems
 
+- A UI-independent local lobby player state component models `NotSeated`, `Seated`, and `Ready`, including guarded transitions and future UI-facing availability queries. It is not yet connected to Book UI, physical seating, ritual handoff, or networking.
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
@@ -163,4 +164,4 @@ The immediate objective is the first lobby flow: lobby entry, ready state, autom
 
 ## Last Reviewed
 
-2026-07-04 during DOCS-004 documentation governance work.
+2026-07-23 during TASK-034 lobby player state work.
