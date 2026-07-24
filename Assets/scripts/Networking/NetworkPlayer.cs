@@ -12,14 +12,15 @@ namespace Incantation.Networking
     /// FishNet owns its connection and object ownership; future lobby, Seat, character,
     /// Book, ritual, voice, and cosmetic systems consume this component through its
     /// read-only properties, mutation APIs, and events.
-    /// TODO: Synchronize SeatId and CharacterCustomizationId only when their dedicated
-    /// authoritative systems are implemented.
+    /// SeatId is the single authoritative network Seat assignment. Character customization
+    /// remains a future synchronized boundary.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayer : NetworkBehaviour
     {
         public const int UnassignedSeatId = -1;
+        public const int MaximumSeatId = 7;
         public const int DefaultCharacterCustomizationId = 0;
 
         private const int MaximumPriestNameLength = 32;
@@ -30,12 +31,14 @@ namespace Incantation.Networking
         private readonly SyncVar<string> priestName = new(string.Empty);
         private readonly SyncVar<LobbyPlayerState> lobbyPlayerState = new(LobbyPlayerState.NotSeated);
         private readonly SyncVar<ReadyState> readyState = new(ReadyState.NotReady);
+        private readonly SyncVar<int> seatId = new(UnassignedSeatId);
 
-        private int seatId = UnassignedSeatId;
         private int characterCustomizationId = DefaultCharacterCustomizationId;
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
+        public static event Action<NetworkPlayer> ActivePlayerAdded;
+        public static event Action<NetworkPlayer> ActivePlayerRemoved;
 
         public NetworkConnection Connection => Owner;
         public bool IsLocalPlayer => IsOwner;
@@ -43,9 +46,9 @@ namespace Incantation.Networking
         public string PriestName => priestName.Value;
         public LobbyPlayerState LobbyPlayerState => lobbyPlayerState.Value;
         public ReadyState ReadyState => readyState.Value;
-        public int SeatId => seatId;
+        public int SeatId => seatId.Value;
         public int CharacterCustomizationId => characterCustomizationId;
-        public bool HasAssignedSeat => seatId != UnassignedSeatId;
+        public bool HasAssignedSeat => seatId.Value != UnassignedSeatId;
 
         public event Action<bool, bool> HighPriestChanged;
         public event Action<string, string> PriestNameChanged;
@@ -62,6 +65,7 @@ namespace Incantation.Networking
             if (!activePlayers.Contains(this))
             {
                 activePlayers.Add(this);
+                ActivePlayerAdded?.Invoke(this);
             }
         }
 
@@ -80,7 +84,10 @@ namespace Incantation.Networking
         public override void OnStopNetwork()
         {
             UnsubscribeFromReplicatedState();
-            activePlayers.Remove(this);
+            if (activePlayers.Remove(this))
+            {
+                ActivePlayerRemoved?.Invoke(this);
+            }
 
             if (LocalPlayer == this)
             {
@@ -155,25 +162,88 @@ namespace Incantation.Networking
         }
 
         /// <summary>
-        /// Stores the future authoritative Seat assignment without synchronizing it.
-        /// This method is a data boundary only and does not reserve, release, or move a Seat.
+        /// Requests a Seat assignment for the owning player. The server validates that the
+        /// Seat is not already assigned before changing the replicated authoritative value.
         /// </summary>
-        public bool TrySetSeatId(int value)
+        public bool RequestSeatId(int value)
         {
-            if (!CanMutateServerOwnedState() || value < UnassignedSeatId)
+            if (!IsValidSeatId(value) || !IsOwner)
             {
                 return false;
             }
 
-            int previousValue = seatId;
-            if (previousValue == value)
+            if (IsServerInitialized)
             {
-                return true;
+                return TrySetSeatId(value);
             }
 
-            seatId = value;
-            SeatIdChanged?.Invoke(previousValue, seatId);
+            RequestSeatIdServerRpc(value);
             return true;
+        }
+
+        /// <summary>
+        /// Changes the synchronized Seat assignment. Only the initialized server may mutate
+        /// this value, and an assigned Seat ID may belong to only one active NetworkPlayer.
+        /// </summary>
+        public bool TrySetSeatId(int value)
+        {
+            if (!CanMutateReplicatedState() || !IsValidSeatId(value))
+            {
+                return false;
+            }
+
+            if (value != UnassignedSeatId && IsSeatIdAssignedToAnotherPlayer(value))
+            {
+                return false;
+            }
+
+            seatId.Value = value;
+            return true;
+        }
+
+        /// <summary>
+        /// Returns the active NetworkPlayer assigned to the supplied Seat ID, if any.
+        /// </summary>
+        public static NetworkPlayer FindBySeatId(int value)
+        {
+            if (value == UnassignedSeatId)
+            {
+                return null;
+            }
+
+            foreach (NetworkPlayer player in activePlayers)
+            {
+                if (player != null && player.SeatId == value)
+                {
+                    return player;
+                }
+            }
+
+            return null;
+        }
+
+        [ServerRpc]
+        private void RequestSeatIdServerRpc(int value)
+        {
+            TrySetSeatId(value);
+        }
+
+        private bool IsSeatIdAssignedToAnotherPlayer(int value)
+        {
+            foreach (NetworkPlayer player in activePlayers)
+            {
+                if (player != null && player != this && player.SeatId == value)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsValidSeatId(int value)
+        {
+            return value >= UnassignedSeatId && value <= MaximumSeatId;
         }
 
         /// <summary>
@@ -214,6 +284,7 @@ namespace Incantation.Networking
             priestName.OnChange += HandlePriestNameChanged;
             lobbyPlayerState.OnChange += HandleLobbyPlayerStateChanged;
             readyState.OnChange += HandleReadyStateChanged;
+            seatId.OnChange += HandleSeatIdChanged;
         }
 
         private void UnsubscribeFromReplicatedState()
@@ -222,6 +293,7 @@ namespace Incantation.Networking
             priestName.OnChange -= HandlePriestNameChanged;
             lobbyPlayerState.OnChange -= HandleLobbyPlayerStateChanged;
             readyState.OnChange -= HandleReadyStateChanged;
+            seatId.OnChange -= HandleSeatIdChanged;
         }
 
         private void HandleHighPriestChanged(bool previousValue, bool currentValue, bool asServer)
@@ -256,6 +328,14 @@ namespace Incantation.Networking
             if (ShouldPublishChange(asServer))
             {
                 ReadyStateChanged?.Invoke(previousValue, currentValue);
+            }
+        }
+
+        private void HandleSeatIdChanged(int previousValue, int currentValue, bool asServer)
+        {
+            if (ShouldPublishChange(asServer))
+            {
+                SeatIdChanged?.Invoke(previousValue, currentValue);
             }
         }
 

@@ -37,7 +37,15 @@ The current prototype is a local playable ritual slice. Lobby is the next major 
 
 ### Lobby Player State
 
-`NetworkPlayer` is the permanent per-connection source of player identity and shared player state. FishNet supplies its `Connection`, `Owner`, and local ownership status. The component replicates high-priest role, priest name, lobby lifecycle state, and ready state; it exposes change events and server-only mutation APIs. Seat and character customization IDs are present as unsynchronized data boundaries until their authoritative systems receive focused networking tasks.
+`NetworkPlayer` is the permanent per-connection source of player identity and shared player state. FishNet supplies its `Connection`, `Owner`, and local ownership status. The component replicates high-priest role, priest name, lobby lifecycle state, ready state, and Seat ID; it exposes change events and server-only mutation APIs. Character customization ID remains an unsynchronized data boundary until its focused networking task.
+
+`NetworkPlayer.SeatId` is the single authoritative multiplayer Seat assignment. Owners submit
+Seat requests to the server; the server rejects an ID already assigned to another active
+player and replicates accepted changes. `SeatManager` derives stable zero-based IDs from the
+configured clockwise physical Seat list, resolves a Seat occupant through active
+`NetworkPlayer` instances, and refreshes existing local presentation. `Seat.currentPlayer`
+and `Seat.isOccupied` remain only as backward-compatible offline/debug presentation state.
+They must not be used as a second network occupancy authority.
 
 `LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 

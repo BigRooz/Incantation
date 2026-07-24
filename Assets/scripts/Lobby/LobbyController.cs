@@ -56,17 +56,26 @@ public class LobbyController : MonoBehaviour
             EnsureLobbyUi();
 
         ShowLobby();
+
+        if (seatManager != null && seatManager.UsesNetworkSeatAuthority)
+            HandleLocalNetworkSeatChanged(seatManager.GetLobbySeatForPlayer(localLobbyPlayer));
     }
 
     private void OnEnable()
     {
         AddButtonListeners();
+
+        if (seatManager != null)
+            seatManager.LocalNetworkSeatChanged += HandleLocalNetworkSeatChanged;
     }
 
     private void OnDisable()
     {
         RemoveButtonListeners();
         RestoreGameplayInputBehaviours();
+
+        if (seatManager != null)
+            seatManager.LocalNetworkSeatChanged -= HandleLocalNetworkSeatChanged;
     }
 
     private void LateUpdate()
@@ -154,7 +163,7 @@ public class LobbyController : MonoBehaviour
         if (!seatManager.TryLobbySit(seat, localLobbyPlayer))
             return false;
 
-        if (lobbyPlayerStateController != null)
+        if (lobbyPlayerStateController != null && !seatManager.UsesNetworkSeatAuthority)
             lobbyPlayerStateController.TryTakeSeat();
 
         return true;
@@ -175,10 +184,11 @@ public class LobbyController : MonoBehaviour
             return false;
         }
 
+        bool usesNetworkSeatAuthority = seatManager.UsesNetworkSeatAuthority;
         if (!seatManager.LeaveLobbySeat(localLobbyPlayer, lobbyWaitingPosition))
             return false;
 
-        return lobbyPlayerStateController.TryLeaveSeat();
+        return usesNetworkSeatAuthority || lobbyPlayerStateController.TryLeaveSeat();
     }
 
     public void OpenOptions()
@@ -317,16 +327,8 @@ public class LobbyController : MonoBehaviour
             Debug.Log($"Moved local player to lobby seat spawn: {GetHierarchyPath(selectedSeat.playerSpawn)}");
         }
 
-        if (seatManager != null)
-        {
-            foreach (Seat seat in seatManager.seats)
-            {
-                if (seat != null && seat != selectedSeat && seat.currentPlayer == localLobbyPlayer)
-                    seat.Free();
-            }
-        }
-
-        selectedSeat.Occupy(localLobbyPlayer);
+        if (seatManager != null && seatManager.GetNetworkPlayerForSeat(selectedSeat) == null)
+            selectedSeat.Occupy(localLobbyPlayer);
     }
 
     private static string GetHierarchyPath(Transform transform)
@@ -350,6 +352,22 @@ public class LobbyController : MonoBehaviour
     {
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+    }
+
+    private void HandleLocalNetworkSeatChanged(Seat currentSeat)
+    {
+        if (lobbyPlayerStateController == null)
+            return;
+
+        if (currentSeat != null)
+        {
+            if (lobbyPlayerStateController.CurrentState == LobbyPlayerState.NotSeated)
+                lobbyPlayerStateController.TryTakeSeat();
+
+            return;
+        }
+
+        lobbyPlayerStateController.TryLeaveSeat();
     }
 
     private void ApplyRitualCursorState()

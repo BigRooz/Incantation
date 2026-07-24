@@ -73,6 +73,7 @@ The current prototype includes:
 29. One persistent, owner-assigned `NetworkPlayer` for every connected player.
 30. `NetworkPlayer` as the networking identity of every connected player.
 31. Replicated `NetworkPlayer` state for Priest Name, Lobby Player State, Ready State, and High Priest.
+32. Replicated, server-authoritative `NetworkPlayer.SeatId` assignment with one player per Seat.
 
 ## Networking Foundation
 
@@ -97,8 +98,12 @@ The replicated state currently includes:
 - Lobby Player State.
 - Ready State.
 - High Priest.
+- Seat assignment.
 
-Seat assignment and character selection are the next planned lobby-state migrations and are not yet synchronized.
+`NetworkPlayer.SeatId` is the single authoritative multiplayer Seat assignment. `SeatManager`
+maps the configured clockwise physical order to stable zero-based Seat IDs and resolves
+occupancy by reading active `NetworkPlayer` instances. Character selection is the next
+planned lobby-state migration and is not yet synchronized.
 
 ## Runtime Validation
 
@@ -125,7 +130,6 @@ The following networking behaviors have been successfully validated:
 
 ## Known Missing Product Systems
 
-- Synchronized Seat assignment.
 - Synchronized Character selection.
 - Synchronized Lobby UI.
 - Removal of duplicated local lobby state.
@@ -187,6 +191,10 @@ Counter-clockwise order is the exact reverse.
 
 Debug occupants are for local testing only.
 
+For connected players, `NetworkPlayer.SeatId` owns Seat assignment. `Seat` occupant fields
+remain only for offline/debug compatibility and presentation binding; they are not a second
+network Seat authority.
+
 ## Phrase State
 
 The phrase starts with 1 word.
@@ -211,8 +219,8 @@ The phrase does not grow after every player.
 
 Read `Docs/NEXT_TASK.md`.
 
-Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state. The planned sequence is synchronized Seat assignment, Character selection, Lobby UI, removal of duplicated local lobby state, and transition of Book systems to read `NetworkPlayer`.
+Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state. Synchronized Seat assignment is complete; the remaining sequence is Character selection, Lobby UI, removal of duplicated local lobby state, and transition of Book systems to read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-24 during TASK-039.6 networking documentation synchronization.
+2026-07-24 during TASK-040 NetworkPlayer Seat authority migration.

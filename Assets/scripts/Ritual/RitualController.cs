@@ -642,7 +642,9 @@ public class RitualController : MonoBehaviour
 
     private bool IsSeatOccupied(Seat seat)
     {
-        return seat != null && (seatManager == null || !seatManager.IsSeatEliminated(seat)) && !seat.IsFree();
+        return seat != null &&
+            (seatManager == null || !seatManager.IsSeatEliminated(seat)) &&
+            (seatManager != null ? seatManager.IsSeatOccupied(seat) : !seat.IsFree());
     }
 
     private void LogWaitingForOccupiedSeat()

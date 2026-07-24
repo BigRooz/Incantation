@@ -28,11 +28,10 @@ Using `NetworkPlayer` as the shared authority keeps each connected player's iden
 
 ## Next Planned Milestones
 
-1. Synchronize Seat assignment.
-2. Synchronize Character selection.
-3. Synchronize Lobby UI.
-4. Remove duplicated local lobby state.
-5. Transition Book systems to read `NetworkPlayer`.
+1. Synchronize Character selection.
+2. Synchronize Lobby UI.
+3. Remove duplicated local lobby state.
+4. Transition Book systems to read `NetworkPlayer`.
 
 ## Out Of Scope
 

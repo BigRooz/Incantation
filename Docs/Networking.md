@@ -519,9 +519,15 @@ The host owns the book phase, movement sequence ID, source Seat ID, target Seat 
 
 ### Seat Authority
 
-`SeatManager` remains local scene authority for the configured physical Seat order and references. The host-owned seating coordinator owns the replicated mapping of stable `PlayerId` to stable Seat ID and active/eliminated status.
+`SeatManager` remains local scene authority for the configured physical Seat order and
+references. Each server-owned `NetworkPlayer.SeatId` is the replicated assignment for that
+player. Together, the active `NetworkPlayer` collection is the authoritative player-to-Seat
+mapping; `SeatManager` only resolves and presents that mapping.
 
-Clients may request an available Seat before ready, but the host accepts or rejects the request atomically. Clients apply the resulting snapshot to their local Seat scene objects. `Seat.currentPlayer`, lobby dictionaries, click zones, GameObject names, and FishNet connection IDs must not be transmitted as authority.
+Clients may request an available Seat before ready, but the host accepts or rejects the
+request atomically. Clients apply replicated `SeatId` changes to their local Seat
+presentation. `Seat.currentPlayer`, `Seat.isOccupied`, lobby dictionaries, click zones,
+GameObject names, and FishNet connection IDs are not transmitted as authority.
 
 Seat IDs must be serialized explicitly and validated as unique. The current physical order remains `Seat1`, `Seat5`, `Seat3`, `Seat6`, `Seat2`, `Seat7`, `Seat4`, `Seat8`; traversal uses `SeatManager`'s configured order, never lexical or numeric sorting.
 
@@ -671,7 +677,7 @@ Do not let Unity `Awake`/`Start` order implicitly begin the ritual. Network star
 | Multiple ritual writers | `RitualController`, `CoreRitualLoop`, bridges, turn, growing phrase, and incantation managers overlap. | Name one host ritual facade and document each collaborator's write boundary before adding RPCs. |
 | Duplicate timer truth | Both legacy `Timer` and `HourglassController` exist. | Select one authoritative timeout source before synchronizing timestamps. |
 | Scene-order coupling | Many scripts rely on serialized scene references and lifecycle callbacks. | Use an explicit scene binding/readiness barrier and full initial snapshot. |
-| Local GameObject identity in Seats | Current occupancy uses `GameObject` references and local dictionaries. | Serialize stable Seat ID and `PlayerId`; bind to scene objects locally. |
+| Legacy local Seat presentation | Offline/debug occupancy and visible-player binding still use `Seat.currentPlayer`. | Keep it out of network authority; resolve connected occupancy exclusively through `NetworkPlayer.SeatId`. |
 | Runtime-created UI and broad object lookup | Lobby can create UI and find player movement at runtime; several systems use fallback searches. | Production network composition uses serialized interfaces/registries; avoid race-prone discovery after scene load. |
 | No game assembly boundaries | Game scripts compile in the default assembly. | Add framework-independent and FishNet-specific asmdefs before integration to prevent dependency leakage. |
 | Mixed path casing/duplicate-looking folders | Repository has both `Assets/scripts` and `Assets/Scripts` references on Windows. | Avoid case-only moves during networking; audit GUIDs and normalize separately. |
@@ -857,7 +863,13 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - `PlayerSpawner` creates one owner-assigned `NetworkPlayer` prefab for each connection.
 - `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and character customization ID.
 - High-priest role, priest name, lobby state, and ready state use FishNet `SyncVar` storage and expose change events plus server-only mutation APIs.
-- Seat ID and character customization ID are intentionally not synchronized until their dedicated authoritative systems are implemented.
+- Seat ID uses FishNet `SyncVar` storage. Owner requests are validated by the server,
+  duplicate active Seat assignments are rejected, and every observer resolves occupancy
+  from `NetworkPlayer.SeatId`.
+- `SeatManager` maps Seat IDs from the configured clockwise physical order without storing a
+  second Seat ID on `Seat`. Legacy `Seat` occupant state remains only for offline/debug
+  compatibility and player presentation.
+- Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
 - Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System;
+using Incantation.Networking;
 using UnityEngine;
 
 public enum SeatTraversalDirection
@@ -9,6 +11,10 @@ public enum SeatTraversalDirection
 
 public class SeatManager : MonoBehaviour
 {
+    public event Action<Seat> LocalNetworkSeatChanged;
+
+    public bool UsesNetworkSeatAuthority => NetworkPlayer.LocalPlayer != null;
+
     [Header("Sièges détectés")]
     public List<Seat> seats = new List<Seat>();
 
@@ -39,6 +45,26 @@ public class SeatManager : MonoBehaviour
     private void Awake()
     {
         FindSeats();
+    }
+
+    private void OnEnable()
+    {
+        NetworkPlayer.ActivePlayerAdded += HandleNetworkPlayerAdded;
+        NetworkPlayer.ActivePlayerRemoved += HandleNetworkPlayerRemoved;
+
+        foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
+            SubscribeToNetworkPlayer(player);
+
+        RefreshLobbySeatVisuals();
+    }
+
+    private void OnDisable()
+    {
+        NetworkPlayer.ActivePlayerAdded -= HandleNetworkPlayerAdded;
+        NetworkPlayer.ActivePlayerRemoved -= HandleNetworkPlayerRemoved;
+
+        foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
+            UnsubscribeFromNetworkPlayer(player);
     }
 
     private void Update()
@@ -230,6 +256,16 @@ public class SeatManager : MonoBehaviour
             return false;
         }
 
+        NetworkPlayer networkPlayer = NetworkPlayer.LocalPlayer;
+        if (networkPlayer != null)
+        {
+            int seatId = GetSeatId(seat);
+            if (seatId == NetworkPlayer.UnassignedSeatId || !networkPlayer.RequestSeatId(seatId))
+                return false;
+
+            return true;
+        }
+
         LeaveLobbySeat(player);
         MovePlayerToSeat(player, seat);
         seat.Occupy(player);
@@ -243,6 +279,16 @@ public class SeatManager : MonoBehaviour
     {
         if (player == null)
             return false;
+
+        NetworkPlayer networkPlayer = NetworkPlayer.LocalPlayer;
+        if (networkPlayer != null && networkPlayer.HasAssignedSeat)
+        {
+            bool requested = networkPlayer.RequestSeatId(NetworkPlayer.UnassignedSeatId);
+            if (requested)
+                RefreshLobbySeatVisuals();
+
+            return requested;
+        }
 
         bool leftSeat = false;
 
@@ -275,13 +321,17 @@ public class SeatManager : MonoBehaviour
         return lobbySeatSelectionEnabled &&
             seat != null &&
             !IsSeatEliminated(seat) &&
-            seat.IsFree();
+            !IsSeatOccupied(seat);
     }
 
     public Seat GetLobbySeatForPlayer(GameObject player)
     {
         if (player == null)
             return null;
+
+        NetworkPlayer networkPlayer = NetworkPlayer.LocalPlayer;
+        if (networkPlayer != null && player == localLobbyPlayer)
+            return GetSeatById(networkPlayer.SeatId);
 
         foreach (Seat seat in seats)
         {
@@ -290,6 +340,35 @@ public class SeatManager : MonoBehaviour
         }
 
         return null;
+    }
+
+    public NetworkPlayer GetNetworkPlayerForSeat(Seat seat)
+    {
+        int seatId = GetSeatId(seat);
+        return seatId == NetworkPlayer.UnassignedSeatId
+            ? null
+            : NetworkPlayer.FindBySeatId(seatId);
+    }
+
+    public int GetSeatId(Seat seat)
+    {
+        if (seat == null || clockwisePhysicalSeatOrder == null)
+            return NetworkPlayer.UnassignedSeatId;
+
+        int seatIndex = clockwisePhysicalSeatOrder.IndexOf(seat);
+        return seatIndex >= 0 ? seatIndex : NetworkPlayer.UnassignedSeatId;
+    }
+
+    public Seat GetSeatById(int seatId)
+    {
+        if (seatId < 0 ||
+            clockwisePhysicalSeatOrder == null ||
+            seatId >= clockwisePhysicalSeatOrder.Count)
+        {
+            return null;
+        }
+
+        return clockwisePhysicalSeatOrder[seatId];
     }
 
     public void MoveBookToSeat(Seat seat)
@@ -386,9 +465,11 @@ public class SeatManager : MonoBehaviour
         return occupiedSeats[nextIndex];
     }
 
-    private bool IsSeatOccupied(Seat seat)
+    public bool IsSeatOccupied(Seat seat)
     {
-        return seat != null && !IsSeatEliminated(seat) && !seat.IsFree();
+        return seat != null &&
+            !IsSeatEliminated(seat) &&
+            (GetNetworkPlayerForSeat(seat) != null || !seat.IsFree());
     }
 
     private static void MovePlayerToSeat(GameObject player, Seat seat)
@@ -421,7 +502,7 @@ public class SeatManager : MonoBehaviour
             if (seat == null)
                 continue;
 
-            bool shouldShowMarker = lobbySeatSelectionEnabled && !seat.IsFree();
+            bool shouldShowMarker = lobbySeatSelectionEnabled && IsSeatOccupied(seat);
             SetLobbyOccupiedMarkerVisible(seat, shouldShowMarker);
         }
     }
@@ -562,6 +643,48 @@ public class SeatManager : MonoBehaviour
             Destroy(debugOccupant);
         else
             DestroyImmediate(debugOccupant);
+    }
+
+    private void HandleNetworkPlayerAdded(NetworkPlayer player)
+    {
+        SubscribeToNetworkPlayer(player);
+        RefreshLobbySeatVisuals();
+    }
+
+    private void HandleNetworkPlayerRemoved(NetworkPlayer player)
+    {
+        UnsubscribeFromNetworkPlayer(player);
+        RefreshLobbySeatVisuals();
+    }
+
+    private void SubscribeToNetworkPlayer(NetworkPlayer player)
+    {
+        if (player == null)
+            return;
+
+        player.SeatIdChanged -= HandleNetworkSeatIdChanged;
+        player.SeatIdChanged += HandleNetworkSeatIdChanged;
+    }
+
+    private void UnsubscribeFromNetworkPlayer(NetworkPlayer player)
+    {
+        if (player != null)
+            player.SeatIdChanged -= HandleNetworkSeatIdChanged;
+    }
+
+    private void HandleNetworkSeatIdChanged(int previousSeatId, int currentSeatId)
+    {
+        if (NetworkPlayer.LocalPlayer != null && localLobbyPlayer != null)
+        {
+            Seat currentSeat = GetSeatById(currentSeatId);
+            if (currentSeat != null)
+                MovePlayerToSeat(localLobbyPlayer, currentSeat);
+        }
+
+        LocalNetworkSeatChanged?.Invoke(GetSeatById(NetworkPlayer.LocalPlayer != null
+            ? NetworkPlayer.LocalPlayer.SeatId
+            : NetworkPlayer.UnassignedSeatId));
+        RefreshLobbySeatVisuals();
     }
 
     private void LogDebug(string message)
