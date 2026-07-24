@@ -872,6 +872,9 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
+- Bootstrap is a launcher only. The first successful server start requests `MainGame` once
+  as a FishNet global scene with `ReplaceOption.All`; the host client and remote clients
+  automatically follow, including clients authenticated after the initial load.
 - Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.
 
 No lobby command flow or Seat, Book, ritual, voice, cosmetic, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.

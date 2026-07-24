@@ -100,6 +100,15 @@ The project is in an incremental migration, not a completed rewrite.
 
 Do not assume newer core-loop scripts have replaced the current prototype runtime. Prefer incremental migration that keeps Play Mode working.
 
+## Network Scene Startup
+
+`Assets/Scenes/Bootstrap.unity` is a networking launcher, not a gameplay scene. The
+persistent `IncantationNetworkManager` starts FishNet there. On the first server Started
+event of a network lifecycle, `FishNetFoundationController` loads `MainGame` as a FishNet
+global scene with `ReplaceOption.All`. FishNet synchronizes that scene to the host client,
+current remote clients, and later joiners. The one-request guard resets only when the server
+stops. Gameplay code must not manually load `MainGame` with Unity's `SceneManager`.
+
 For a detailed code map and known migration tensions, read `Docs/PROJECT_KNOWLEDGE.md`.
 
 ## Physical Seat Order

@@ -74,6 +74,7 @@ The current prototype includes:
 30. `NetworkPlayer` as the networking identity of every connected player.
 31. Replicated `NetworkPlayer` state for Priest Name, Lobby Player State, Ready State, and High Priest.
 32. Replicated, server-authoritative `NetworkPlayer.SeatId` assignment with one player per Seat.
+33. Automatic FishNet global-scene transition from Bootstrap into `MainGame`.
 
 ## Networking Foundation
 
@@ -116,6 +117,15 @@ The following networking behaviors have been successfully validated:
 - Remote player replication.
 - Disconnect.
 - Shutdown.
+
+## Network Startup Scene Flow
+
+`Bootstrap` is the dedicated networking launcher. When the server reaches FishNet's Started
+state, `FishNetFoundationController` requests one global `MainGame` load through FishNet's
+scene manager with `ReplaceOption.All`. The host and server leave Bootstrap, the persistent
+network manager survives, and connected or later-authenticated clients automatically follow
+the server into the same `MainGame` scene. No gameplay scene transition uses Unity's
+`SceneManager` directly.
 
 ## Experimental Or Incomplete Systems
 
@@ -223,4 +233,4 @@ Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative so
 
 ## Last Reviewed
 
-2026-07-24 during TASK-040 NetworkPlayer Seat authority migration.
+2026-07-24 during TASK-040.5 automatic network scene loading.

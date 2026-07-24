@@ -1,5 +1,6 @@
 using System;
 using FishNet.Managing;
+using FishNet.Managing.Scened;
 using FishNet.Transporting;
 using UnityEngine;
 
@@ -16,6 +17,7 @@ namespace Incantation.Networking
     {
         private const string PortUnavailableMessage =
             "Server failed to start. Another server instance may already be using the configured port.";
+        private const string GameplaySceneName = "MainGame";
 
         private NetworkManager networkManager;
         private LocalConnectionState serverState = LocalConnectionState.Stopped;
@@ -24,6 +26,7 @@ namespace Incantation.Networking
         private bool serverStartPending;
         private bool clientStartPending;
         private bool clientWasConnected;
+        private bool gameplaySceneLoadRequested;
         private string serverFailureStatus = string.Empty;
 
         public LocalConnectionState ServerState =>
@@ -78,6 +81,11 @@ namespace Incantation.Networking
             RefreshInitialState();
             networkManager.ServerManager.OnServerConnectionState += HandleServerConnectionState;
             networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
+
+            if (serverState == LocalConnectionState.Started)
+            {
+                LoadGameplayScene();
+            }
         }
 
         private void OnDisable()
@@ -207,6 +215,7 @@ namespace Incantation.Networking
                     serverStartPending = false;
                     Debug.Log("Server started.");
                     StartPendingHostClient();
+                    LoadGameplayScene();
                     break;
 
                 case LocalConnectionState.Stopped:
@@ -216,6 +225,7 @@ namespace Incantation.Networking
 
                     serverStartPending = false;
                     hostStartPending = false;
+                    gameplaySceneLoadRequested = false;
 
                     if (failedToStart)
                     {
@@ -274,6 +284,24 @@ namespace Incantation.Networking
                 clientStartPending = false;
                 Debug.LogWarning("Start Host rejected: FishNet did not accept the local client connection request.");
             }
+        }
+
+        private void LoadGameplayScene()
+        {
+            if (gameplaySceneLoadRequested || !networkManager.ServerManager.Started)
+            {
+                return;
+            }
+
+            gameplaySceneLoadRequested = true;
+
+            SceneLoadData sceneLoadData = new(GameplaySceneName)
+            {
+                ReplaceScenes = ReplaceOption.All
+            };
+
+            networkManager.SceneManager.LoadGlobalScenes(sceneLoadData);
+            Debug.Log($"FishNet synchronized gameplay scene load requested: {GameplaySceneName}.");
         }
 
         private void HandleImmediateServerStartFailure()
