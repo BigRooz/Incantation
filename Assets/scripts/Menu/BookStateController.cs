@@ -136,21 +136,18 @@ public sealed class BookStateController : MonoBehaviour
                 PreparePage(
                     "JOIN RITUAL",
                     "Enter Ritual Seal", bookMenuController != null ? bookMenuController.BeginSealEntry : null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
                     string.Empty, null,
-                    string.Empty, null);
+                    string.Empty, null,
+                    "Back", bookMenuController != null ? bookMenuController.CancelJoinRitual : null);
                 break;
 
             case BookState.JoinSealEntry:
-                string enteredSeal = bookMenuController != null ? bookMenuController.EnteredSeal : string.Empty;
-                string joinStatus = RitualSealService.Instance != null ? RitualSealService.Instance.StatusMessage : string.Empty;
                 PreparePage(
-                    "ENTER SEAL",
-                    string.IsNullOrEmpty(enteredSeal) ? "_ _ _ _" : enteredSeal,
-                    null,
-                    "Validate", bookMenuController != null ? bookMenuController.SubmitSeal : null,
-                    joinStatus, null,
-                    "Back", bookMenuController != null ? bookMenuController.OpenJoinMenu : null);
+                    "JOIN RITUAL",
+                    "Enter Ritual Seal", bookMenuController != null ? bookMenuController.BeginSealEntry : null,
+                    string.Empty, null,
+                    string.Empty, null,
+                    "Back", bookMenuController != null ? bookMenuController.CancelJoinRitual : null);
                 break;
 
             case BookState.RitualCreated:

@@ -50,6 +50,8 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenJoinMenu()
     {
+        RitualSealService.Instance?.CancelJoin();
+        enteredSeal = string.Empty;
         bookStateController.SetState(BookState.JoinMenu);
     }
 
@@ -68,13 +70,22 @@ public class BookMenuController : MonoBehaviour
     public void BeginSealEntry()
     {
         enteredSeal = string.Empty;
+        RitualSealService.Instance?.BeginJoinEntry();
         bookStateController.SetState(BookState.JoinSealEntry);
+    }
+
+    public void CancelJoinRitual()
+    {
+        enteredSeal = string.Empty;
+        bookStateController.SetState(BookState.PlayMenu);
+        RitualSealService.Instance?.CancelJoin();
     }
 
     public void SubmitSeal()
     {
         RitualSealService service = RitualSealService.Instance;
-        if (service != null && service.JoinRitual(enteredSeal))
+        if (service != null && !service.IsJoining &&
+            service.JoinStatus != RitualJoinStatus.Joining && service.JoinRitual(enteredSeal))
         {
             bookStateController.SetState(BookState.JoinSealEntry);
         }

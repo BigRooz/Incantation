@@ -6,6 +6,14 @@ using UnityEngine;
 
 namespace Incantation.Networking
 {
+    public enum RitualJoinStatus
+    {
+        None,
+        Waiting,
+        Joining,
+        CantJoin
+    }
+
     /// <summary>
     /// Resolves a human-readable Ritual Seal to a LAN host without exposing transport
     /// details to the Book UI. FishNet remains responsible for the actual connection.
@@ -32,6 +40,8 @@ namespace Incantation.Networking
         public bool HasActiveRitual => !string.IsNullOrEmpty(ActiveSeal);
         public bool IsJoining => !string.IsNullOrEmpty(pendingJoinSeal);
         public bool IsHostingRitual => HasActiveRitual && foundationController != null && foundationController.IsHostRunning;
+        public RitualJoinStatus JoinStatus { get; private set; }
+        public string JoinFailureReason { get; private set; } = string.Empty;
 
         public event Action Changed;
 
@@ -42,6 +52,22 @@ namespace Incantation.Networking
             OpenDirectorySocket();
         }
 
+        private void OnEnable()
+        {
+            if (foundationController != null)
+            {
+                foundationController.StateChanged += HandleFoundationStateChanged;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (foundationController != null)
+            {
+                foundationController.StateChanged -= HandleFoundationStateChanged;
+            }
+        }
+
         private void Update()
         {
             ReceiveDirectoryMessages();
@@ -49,14 +75,14 @@ namespace Incantation.Networking
             if (HasActiveRitual && foundationController != null && foundationController.IsHostRunning &&
                 Time.unscaledTime >= nextAnnouncementTime)
             {
-                Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+                BroadcastAvailability();
                 nextAnnouncementTime = Time.unscaledTime + AnnouncementInterval;
             }
 
             if (IsJoining && Time.unscaledTime >= joinDeadline)
             {
                 pendingJoinSeal = string.Empty;
-                SetStatus("No active ritual bears that Seal.");
+                SetJoinStatus(RitualJoinStatus.CantJoin, "Ritual not found");
             }
         }
 
@@ -95,15 +121,35 @@ namespace Incantation.Networking
             string normalizedSeal = NormalizeSeal(seal);
             if (normalizedSeal.Length != 4 || foundationController == null)
             {
-                SetStatus("Enter a valid four-character Ritual Seal.");
+                SetJoinStatus(RitualJoinStatus.CantJoin, "Enter four characters");
+                return false;
+            }
+
+            if (JoinStatus == RitualJoinStatus.Joining || IsJoining)
+            {
                 return false;
             }
 
             pendingJoinSeal = normalizedSeal;
             joinDeadline = Time.unscaledTime + JoinTimeout;
-            SetStatus("Seeking ritual...");
+            SetJoinStatus(RitualJoinStatus.Joining);
             Broadcast($"QUERY|{pendingJoinSeal}");
             return true;
+        }
+
+        public void BeginJoinEntry()
+        {
+            pendingJoinSeal = string.Empty;
+            SetJoinStatus(RitualJoinStatus.Waiting);
+        }
+
+        public void CancelJoin()
+        {
+            pendingJoinSeal = string.Empty;
+            JoinStatus = RitualJoinStatus.None;
+            JoinFailureReason = string.Empty;
+            StatusMessage = string.Empty;
+            Changed?.Invoke();
         }
 
         public static string NormalizeSeal(string seal)
@@ -169,22 +215,33 @@ namespace Incantation.Networking
                 if (parts[1] == "QUERY" && HasActiveRitual && parts[2] == ActiveSeal &&
                     foundationController != null && foundationController.IsHostRunning)
                 {
-                    Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+                    BroadcastAvailability();
                 }
                 else if (parts[1] == "ANNOUNCE" && IsJoining && parts[2] == pendingJoinSeal &&
                          parts.Length >= 5 && parts[4] != instanceId && ushort.TryParse(parts[3], out ushort port))
                 {
                     string joinedSeal = pendingJoinSeal;
                     pendingJoinSeal = string.Empty;
-                    if (foundationController.StartClient(sender.Address.ToString(), port))
+                    if (foundationController.IsClientConnected || foundationController.IsClientConnecting)
                     {
                         ActiveSeal = joinedSeal;
-                        SetStatus("Joining ritual...");
+                        SetJoinStatus(RitualJoinStatus.Joining);
+                    }
+                    else if (foundationController.StartClient(sender.Address.ToString(), port))
+                    {
+                        ActiveSeal = joinedSeal;
+                        SetJoinStatus(RitualJoinStatus.Joining);
                     }
                     else
                     {
-                        SetStatus("The ritual connection was rejected.");
+                        SetJoinStatus(RitualJoinStatus.CantJoin, "Connection rejected");
                     }
+                }
+                else if (parts[1] == "FULL" && IsJoining && parts[2] == pendingJoinSeal &&
+                         parts.Length >= 4 && parts[3] != instanceId)
+                {
+                    pendingJoinSeal = string.Empty;
+                    SetJoinStatus(RitualJoinStatus.CantJoin, "Ritual is full");
                 }
                 else if (parts[1] == "ANNOUNCE" && HasActiveRitual && parts[2] == ActiveSeal &&
                          parts.Length >= 5 && parts[4] != instanceId && foundationController != null &&
@@ -213,6 +270,14 @@ namespace Incantation.Networking
             Send(IPAddress.Broadcast, payload);
         }
 
+        private void BroadcastAvailability()
+        {
+            bool isFull = NetworkPlayer.ActivePlayers.Count >= 8;
+            Broadcast(isFull
+                ? $"FULL|{ActiveSeal}|{instanceId}"
+                : $"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+        }
+
         private void Send(IPAddress address, string payload)
         {
             if (directorySocket == null)
@@ -228,6 +293,39 @@ namespace Incantation.Networking
         {
             StatusMessage = value;
             Changed?.Invoke();
+        }
+
+        private void SetJoinStatus(RitualJoinStatus status, string reason = "")
+        {
+            JoinStatus = status;
+            JoinFailureReason = reason;
+            StatusMessage = status switch
+            {
+                RitualJoinStatus.Waiting => "Waiting...",
+                RitualJoinStatus.Joining => "Joining...",
+                RitualJoinStatus.CantJoin => "Can't Join",
+                _ => string.Empty
+            };
+            Changed?.Invoke();
+        }
+
+        private void HandleFoundationStateChanged()
+        {
+            if (JoinStatus != RitualJoinStatus.Joining || foundationController == null)
+            {
+                return;
+            }
+
+            if (foundationController.IsClientConnected)
+            {
+                pendingJoinSeal = string.Empty;
+                Changed?.Invoke();
+            }
+            else if (!foundationController.IsClientConnecting && !string.IsNullOrEmpty(ActiveSeal))
+            {
+                ActiveSeal = string.Empty;
+                SetJoinStatus(RitualJoinStatus.CantJoin, "Connection rejected");
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using Incantation.Networking;
 
 /// <summary>
 /// Prepares and presents contextual content on the Living Book's right page.
@@ -35,6 +36,18 @@ public sealed class BookRightPageController : MonoBehaviour
 
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
+    private TextAlignmentOptions originalRightLine2Alignment;
+    private TextAlignmentOptions originalRightLine3Alignment;
+    private TextAlignmentOptions originalRightLine4Alignment;
+    private TextAlignmentOptions originalRightLine5Alignment;
+
+    private void Awake()
+    {
+        if (rightLine2 != null) originalRightLine2Alignment = rightLine2.alignment;
+        if (rightLine3 != null) originalRightLine3Alignment = rightLine3.alignment;
+        if (rightLine4 != null) originalRightLine4Alignment = rightLine4.alignment;
+        if (rightLine5 != null) originalRightLine5Alignment = rightLine5.alignment;
+    }
 
     public void RefreshForState(BookState state)
     {
@@ -49,6 +62,8 @@ public sealed class BookRightPageController : MonoBehaviour
         List<TMP_Text> texts,
         List<string> targetStrings)
     {
+        RestoreDefaultAlignment();
+
         switch (state)
         {
             case BookState.MainMenu:
@@ -58,7 +73,10 @@ public sealed class BookRightPageController : MonoBehaviour
                 PrepareHostPage(texts, targetStrings);
                 break;
             case BookState.JoinMenu:
-                PrepareJoinPage(texts, targetStrings);
+                PrepareClearPage(texts, targetStrings);
+                break;
+            case BookState.JoinSealEntry:
+                PrepareJoinSealPage(texts, targetStrings);
                 break;
             case BookState.CharacterMenu:
                 PrepareContextPage(
@@ -191,14 +209,34 @@ public sealed class BookRightPageController : MonoBehaviour
         PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
-    private void PrepareJoinPage(List<TMP_Text> texts, List<string> targets)
+    private void PrepareJoinSealPage(List<TMP_Text> texts, List<string> targets)
     {
-        PrepareEntry(texts, targets, rightTitle, null, "JOIN THE CIRCLE", null);
+        RitualSealService service = RitualSealService.Instance;
+        string seal = bookMenuController != null ? bookMenuController.EnteredSeal : string.Empty;
+        string paddedSeal = (seal ?? string.Empty).PadRight(4, '_');
+        string centeredSeal = string.Join(" ", paddedSeal.ToCharArray());
+        string status = service != null ? service.StatusMessage : "Waiting...";
+        string reason = service != null ? service.JoinFailureReason : string.Empty;
+
+        if (rightLine2 != null) rightLine2.alignment = TextAlignmentOptions.Center;
+        if (rightLine3 != null) rightLine3.alignment = TextAlignmentOptions.Center;
+        if (rightLine4 != null) rightLine4.alignment = TextAlignmentOptions.Center;
+        if (rightLine5 != null) rightLine5.alignment = TextAlignmentOptions.Center;
+
+        PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
         PrepareEntry(texts, targets, rightLine1, rightMenuItem1, string.Empty, null);
-        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal: ----", null);
-        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, "Players: -- / 8", null);
-        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, "Waiting...", null);
-        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal", null);
+        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, $"[ {centeredSeal} ]", null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, status, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, reason, null);
+    }
+
+    private void RestoreDefaultAlignment()
+    {
+        if (rightLine2 != null) rightLine2.alignment = originalRightLine2Alignment;
+        if (rightLine3 != null) rightLine3.alignment = originalRightLine3Alignment;
+        if (rightLine4 != null) rightLine4.alignment = originalRightLine4Alignment;
+        if (rightLine5 != null) rightLine5.alignment = originalRightLine5Alignment;
     }
 
     private void PrepareClearPage(List<TMP_Text> texts, List<string> targets)

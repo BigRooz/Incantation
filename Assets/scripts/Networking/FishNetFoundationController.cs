@@ -40,6 +40,9 @@ namespace Incantation.Networking
         public bool IsHostRunning =>
             serverState == LocalConnectionState.Started &&
             clientState == LocalConnectionState.Started;
+        public bool IsClientConnected => clientState == LocalConnectionState.Started;
+        public bool IsClientConnecting =>
+            clientState == LocalConnectionState.Starting || clientStartPending;
         public bool CanStartHost =>
             serverState == LocalConnectionState.Stopped &&
             clientState == LocalConnectionState.Stopped &&

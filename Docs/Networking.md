@@ -41,6 +41,15 @@ The LAN Seal is a locator, never an identity, password, connection ID, or gamepl
 It is intentionally isolated so the future Steam lobby metadata or external directory can
 replace only lookup. No IP address or transport detail is displayed by the Book.
 
+The TASK-042.1 join flow distinguishes Seal lookup from FishNet connection lifecycle. A lookup
+first returns `ANNOUNCE`, `FULL`, or times out. `ANNOUNCE` starts a stopped client exactly once,
+or adopts an already starting/connected diagnostic client without issuing a duplicate start.
+The earlier TASK-042 implementation treated the lifecycle guard's synchronous `false` as a
+remote host rejection; no authenticator rejected the connection. The Book now reports
+`Joining...` while FishNet starts, `Can't Join / Ritual not found` on lookup timeout,
+`Can't Join / Ritual is full` on capacity response, and `Can't Join / Connection rejected`
+only when the client lifecycle actually fails.
+
 `NetworkPlayer` is the permanent networking identity of every connected player. Its replicated state currently includes Priest Name, Lobby Player State, Ready State, and High Priest.
 
 Future systems should use `NetworkPlayer` as the authoritative multiplayer source whenever possible. Avoid creating duplicated lobby state outside `NetworkPlayer`; presentation components should observe or adapt its state instead of becoming competing authorities.
