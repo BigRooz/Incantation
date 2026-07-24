@@ -20,6 +20,8 @@ Read next: `Docs/PROJECT_STATUS.md` for current reality, then `Docs/Roadmap.md` 
 
 Add the first lobby flow that can hand ready local players into the existing seated ritual loop.
 
+The FishNet connection foundation now exists, but this objective remains local-first. Do not synchronize lobby or gameplay state as part of this task.
+
 ## Why This Is Next
 
 The current prototype uses local debug occupants for Play Mode testing. That proves the ritual loop, but it is not the production player entry flow.
@@ -41,7 +43,7 @@ The first lobby task should focus on:
 
 Do not include:
 
-- Production networking flow.
+- Production networking flow beyond the installed FishNet localhost foundation.
 - Networked player seating.
 - Interference cards.
 - Demon reactions.

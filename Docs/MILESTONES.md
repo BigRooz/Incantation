@@ -12,6 +12,12 @@ This document does not contain the current status snapshot, immediate task hando
 
 Read next: `Docs/PROJECT_STATUS.md` for today's state and `Docs/NEXT_TASK.md` for the immediate objective.
 
+## Completed Foundation: TASK-038 FishNet Installation
+
+FishNet `4.7.2` is pinned and operational with its included Tugboat transport. A dedicated Bootstrap scene owns one persistent project NetworkManager, a localhost diagnostic HUD, and a separate minimal network test player. Host start, local client connection, and clean disconnect passed in Play Mode.
+
+No gameplay synchronization was introduced.
+
 ## Completed Prototype Milestone: v0.1 Local Ritual
 
 The v0.1 prototype proves the core table ritual can function locally.
