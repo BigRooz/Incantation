@@ -75,11 +75,18 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 
 ### Lobby
 
+- `Assets/Scripts/Networking/NetworkPlayer.cs`
+  - Permanent FishNet `NetworkBehaviour` and single source of truth for one connected player's identity and shared state.
+  - Exposes the FishNet connection/owner, local-player status, active-player registry, replicated high-priest/name/lobby/ready values, unsynchronized Seat/customization IDs, server-only mutation APIs, and value-change events.
+  - Contains no UI, Book, Seat, character presentation, ritual, voice, or gameplay behavior.
+- `Assets/Scripts/Networking/ReadyState.cs`
+  - Defines the independent `NotReady` and `Ready` network-player value. Lobby transition rules remain outside the data component.
 - `Assets/Scripts/Lobby/LobbyPlayerState.cs`
   - Defines the UI-independent `NotSeated`, `Seated`, and `Ready` player states.
 - `Assets/Scripts/Lobby/LobbyPlayerStateController.cs`
   - Owns one local lobby player's current state, guarded transitions, availability queries, and state-change notification.
   - Does not own Book presentation, physical Seat assignment, networking, or ritual flow.
+  - Temporary migration boundary: the existing lobby still uses it, but future lobby networking must adapt it to `NetworkPlayer` instead of creating another player-state store.
 - `Assets/Scripts/Menu/BookStateController.cs`
   - Observes `LobbyPlayerStateController.StateChanged` while presenting the lobby and centralizes the `NotSeated`, `Seated`, and `Ready` Book page mappings.
   - Reuses the existing Book text-transition and menu-item systems; it does not create a second lobby UI.

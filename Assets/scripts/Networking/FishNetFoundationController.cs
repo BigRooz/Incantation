@@ -1,19 +1,71 @@
+using System;
 using FishNet.Managing;
 using FishNet.Transporting;
 using UnityEngine;
 
 namespace Incantation.Networking
 {
+    /// <summary>
+    /// Provides guarded developer-only controls and diagnostics for the FishNet foundation.
+    /// It observes FishNet's local server/client states and prevents duplicate lifecycle requests.
+    /// It does not own production session flow, player authority, lobby state, or gameplay.
+    /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkManager))]
     public sealed class FishNetFoundationController : MonoBehaviour
     {
+        private const string PortUnavailableMessage =
+            "Server failed to start. Another server instance may already be using the configured port.";
+
         private NetworkManager networkManager;
+        private LocalConnectionState serverState = LocalConnectionState.Stopped;
+        private LocalConnectionState clientState = LocalConnectionState.Stopped;
+        private bool hostStartPending;
+        private bool serverStartPending;
+        private bool clientStartPending;
         private bool clientWasConnected;
+        private string serverFailureStatus = string.Empty;
+
+        public LocalConnectionState ServerState =>
+            serverStartPending && serverState == LocalConnectionState.Stopped
+                ? LocalConnectionState.Starting
+                : serverState;
+        public LocalConnectionState ClientState =>
+            clientStartPending && clientState == LocalConnectionState.Stopped
+                ? LocalConnectionState.Starting
+                : clientState;
+        public bool IsHostRunning =>
+            serverState == LocalConnectionState.Started &&
+            clientState == LocalConnectionState.Started;
+        public bool CanStartHost =>
+            serverState == LocalConnectionState.Stopped &&
+            clientState == LocalConnectionState.Stopped &&
+            !serverStartPending &&
+            !clientStartPending &&
+            !hostStartPending;
+        public bool CanStartServer =>
+            serverState == LocalConnectionState.Stopped &&
+            !serverStartPending;
+        public bool CanStartClient =>
+            clientState == LocalConnectionState.Stopped &&
+            !clientStartPending &&
+            !hostStartPending;
+        public bool CanDisconnect =>
+            serverState != LocalConnectionState.Stopped ||
+            clientState != LocalConnectionState.Stopped ||
+            serverStartPending ||
+            clientStartPending ||
+            hostStartPending;
+        public ushort Port => GetTransport()?.GetPort() ?? 0;
+        public string ClientAddress => GetTransport()?.GetClientAddress() ?? string.Empty;
+        public string ServerFailureStatus => serverFailureStatus;
+
+        public event Action StateChanged;
 
         private void Awake()
         {
             networkManager = GetComponent<NetworkManager>();
+            RefreshInitialState();
         }
 
         private void OnEnable()
@@ -23,13 +75,14 @@ namespace Incantation.Networking
                 networkManager = GetComponent<NetworkManager>();
             }
 
+            RefreshInitialState();
             networkManager.ServerManager.OnServerConnectionState += HandleServerConnectionState;
             networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
         }
 
         private void OnDisable()
         {
-            if (networkManager == null || !networkManager.Initialized)
+            if (networkManager == null)
             {
                 return;
             }
@@ -38,68 +91,264 @@ namespace Incantation.Networking
             networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
         }
 
-        public void StartHost()
+        public bool StartHost()
         {
-            if (!networkManager.ServerManager.Started)
+            Debug.Log("Start Host requested.");
+
+            if (!CanStartHost)
             {
-                networkManager.ServerManager.StartConnection();
+                Debug.LogWarning(
+                    $"Start Host rejected: server is {FormatState(ServerState)} and client is {FormatState(ClientState)}.");
+                return false;
             }
 
-            if (!networkManager.ClientManager.Started)
+            ClearServerFailure();
+            hostStartPending = true;
+            serverStartPending = true;
+
+            if (networkManager.ServerManager.StartConnection())
             {
-                networkManager.ClientManager.StartConnection("localhost");
+                return true;
             }
+
+            HandleImmediateServerStartFailure();
+            return false;
         }
 
-        public void StartServer()
+        public bool StartServer()
         {
-            if (!networkManager.ServerManager.Started)
+            Debug.Log("Start Server requested.");
+
+            if (!CanStartServer)
             {
-                networkManager.ServerManager.StartConnection();
+                Debug.LogWarning($"Start Server rejected: server is {FormatState(ServerState)}.");
+                return false;
             }
+
+            ClearServerFailure();
+            serverStartPending = true;
+
+            if (networkManager.ServerManager.StartConnection())
+            {
+                return true;
+            }
+
+            HandleImmediateServerStartFailure();
+            return false;
         }
 
-        public void StartClient()
+        public bool StartClient()
         {
-            if (!networkManager.ClientManager.Started)
+            Debug.Log("Start Client requested.");
+
+            if (!CanStartClient)
             {
-                networkManager.ClientManager.StartConnection("localhost");
+                Debug.LogWarning($"Start Client rejected: client is {FormatState(ClientState)}.");
+                return false;
             }
+
+            clientStartPending = true;
+            if (networkManager.ClientManager.StartConnection(ClientAddress))
+            {
+                return true;
+            }
+
+            clientStartPending = false;
+            Debug.LogWarning("Start Client rejected: FishNet did not accept the connection request.");
+            StateChanged?.Invoke();
+            return false;
         }
 
-        public void Disconnect()
+        public bool Disconnect()
         {
-            if (networkManager.ClientManager.Started)
+            Debug.Log("Disconnect requested.");
+
+            if (!CanDisconnect)
+            {
+                Debug.LogWarning("Disconnect ignored: server and client are already stopped.");
+                return false;
+            }
+
+            hostStartPending = false;
+            serverStartPending = false;
+            clientStartPending = false;
+
+            if (clientState != LocalConnectionState.Stopped)
             {
                 networkManager.ClientManager.StopConnection();
             }
 
-            if (networkManager.ServerManager.Started)
+            if (serverState != LocalConnectionState.Stopped)
             {
                 networkManager.ServerManager.StopConnection(true);
             }
+
+            return true;
+        }
+
+        public string GetServerStatusText()
+        {
+            return $"Server: {FormatState(ServerState)}";
+        }
+
+        public string GetClientStatusText()
+        {
+            return $"Client: {FormatClientState(ClientState)}";
         }
 
         private void HandleServerConnectionState(ServerConnectionStateArgs args)
         {
-            if (args.ConnectionState == LocalConnectionState.Started)
+            LocalConnectionState previousState = serverState;
+            serverState = args.ConnectionState;
+
+            switch (serverState)
             {
-                Debug.Log("Server Started");
+                case LocalConnectionState.Started:
+                    serverStartPending = false;
+                    Debug.Log("Server started.");
+                    StartPendingHostClient();
+                    break;
+
+                case LocalConnectionState.Stopped:
+                    bool failedToStart =
+                        serverStartPending &&
+                        previousState != LocalConnectionState.Started;
+
+                    serverStartPending = false;
+                    hostStartPending = false;
+
+                    if (failedToStart)
+                    {
+                        SetServerFailure();
+                    }
+
+                    Debug.Log("Server stopped.");
+                    break;
             }
+
+            StateChanged?.Invoke();
         }
 
         private void HandleClientConnectionState(ClientConnectionStateArgs args)
         {
-            if (args.ConnectionState == LocalConnectionState.Started)
+            clientState = args.ConnectionState;
+
+            if (clientState == LocalConnectionState.Started)
             {
+                clientStartPending = false;
                 clientWasConnected = true;
-                Debug.Log("Client Connected");
+                Debug.Log("Client connected.");
             }
-            else if (args.ConnectionState == LocalConnectionState.Stopped && clientWasConnected)
+            else if (clientState == LocalConnectionState.Stopped)
             {
-                clientWasConnected = false;
-                Debug.Log("Client Disconnected");
+                clientStartPending = false;
+
+                if (clientWasConnected)
+                {
+                    clientWasConnected = false;
+                    Debug.Log("Client disconnected.");
+                }
             }
+
+            StateChanged?.Invoke();
+        }
+
+        private void StartPendingHostClient()
+        {
+            if (!hostStartPending)
+            {
+                return;
+            }
+
+            hostStartPending = false;
+
+            if (clientState != LocalConnectionState.Stopped)
+            {
+                Debug.LogWarning($"Start Host rejected: local client became {FormatState(clientState)} before host startup completed.");
+                return;
+            }
+
+            clientStartPending = true;
+            if (!networkManager.ClientManager.StartConnection(ClientAddress))
+            {
+                clientStartPending = false;
+                Debug.LogWarning("Start Host rejected: FishNet did not accept the local client connection request.");
+            }
+        }
+
+        private void HandleImmediateServerStartFailure()
+        {
+            serverStartPending = false;
+            hostStartPending = false;
+            SetServerFailure();
+            StateChanged?.Invoke();
+        }
+
+        private void SetServerFailure()
+        {
+            if (!string.IsNullOrEmpty(serverFailureStatus))
+            {
+                return;
+            }
+
+            serverFailureStatus = $"{PortUnavailableMessage} Port: {Port}.";
+            Debug.LogError(serverFailureStatus);
+        }
+
+        private void ClearServerFailure()
+        {
+            if (string.IsNullOrEmpty(serverFailureStatus))
+            {
+                return;
+            }
+
+            serverFailureStatus = string.Empty;
+            StateChanged?.Invoke();
+        }
+
+        private void RefreshInitialState()
+        {
+            if (networkManager == null)
+            {
+                return;
+            }
+
+            serverState = networkManager.ServerManager.Started
+                ? LocalConnectionState.Started
+                : LocalConnectionState.Stopped;
+            clientState = networkManager.ClientManager.Started
+                ? LocalConnectionState.Started
+                : LocalConnectionState.Stopped;
+            clientWasConnected = clientState == LocalConnectionState.Started;
+        }
+
+        private Transport GetTransport()
+        {
+            return networkManager != null
+                ? networkManager.TransportManager.Transport
+                : null;
+        }
+
+        private static string FormatState(LocalConnectionState state)
+        {
+            switch (state)
+            {
+                case LocalConnectionState.Starting:
+                    return "Starting";
+                case LocalConnectionState.Started:
+                    return "Running";
+                case LocalConnectionState.Stopping:
+                    return "Stopping";
+                default:
+                    return "Stopped";
+            }
+        }
+
+        private static string FormatClientState(LocalConnectionState state)
+        {
+            return state == LocalConnectionState.Started
+                ? "Connected"
+                : FormatState(state);
         }
     }
 }

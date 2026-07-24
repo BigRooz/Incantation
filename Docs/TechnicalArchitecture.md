@@ -19,7 +19,7 @@ Read next: `Docs/PROJECT_KNOWLEDGE.md` for the detailed code map, or a focused s
 
 Priority 1 is the clean core ritual loop and reliable voice interaction.
 
-The current prototype is a local playable ritual slice. Lobby is the next major milestone. Networking is not implemented yet.
+The current prototype is a local playable ritual slice. Lobby is the next major milestone. The FishNet connection foundation and permanent NetworkPlayer data boundary exist, but gameplay networking is not implemented.
 
 ## Architecture Boundaries
 
@@ -37,9 +37,9 @@ The current prototype is a local playable ritual slice. Lobby is the next major 
 
 ### Lobby Player State
 
-`LobbyPlayerStateController` is the local, UI-independent source of truth for one lobby player's state. It owns the guarded `NotSeated`, `Seated`, and `Ready` transitions and exposes availability queries plus a state-change event for future Book UI consumers.
+`NetworkPlayer` is the permanent per-connection source of player identity and shared player state. FishNet supplies its `Connection`, `Owner`, and local ownership status. The component replicates high-priest role, priest name, lobby lifecycle state, and ready state; it exposes change events and server-only mutation APIs. Seat and character customization IDs are present as unsynchronized data boundaries until their authoritative systems receive focused networking tasks.
 
-The component does not select a physical Seat, render UI, start the ritual, or implement networking. Those integrations remain separate future responsibilities.
+`LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 
 The current v0.1 prototype includes:
 

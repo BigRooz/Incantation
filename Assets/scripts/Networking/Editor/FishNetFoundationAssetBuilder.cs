@@ -22,7 +22,8 @@ namespace Incantation.Networking.Editor
     {
         private const string NetworkFolder = "Assets/Networking";
         private const string PrefabFolder = NetworkFolder + "/Prefabs";
-        private const string PlayerPrefabPath = PrefabFolder + "/FishNetFoundationPlayer.prefab";
+        private const string PlayerPrefabPath = PrefabFolder + "/NetworkPlayer.prefab";
+        private const string ObsoletePlayerPrefabPath = PrefabFolder + "/FishNetFoundationPlayer.prefab";
         private const string ManagerPrefabPath = PrefabFolder + "/IncantationNetworkManager.prefab";
         private const string BootstrapScenePath = "Assets/Scenes/Bootstrap.unity";
 
@@ -35,6 +36,7 @@ namespace Incantation.Networking.Editor
         public static void Build()
         {
             EnsureFolders();
+            RemoveObsoletePlayerPrefab();
             NetworkObject playerPrefab = BuildPlayerPrefab();
             GameObject managerPrefab = BuildManagerPrefab(playerPrefab);
             BuildBootstrapScene(managerPrefab);
@@ -73,13 +75,22 @@ namespace Incantation.Networking.Editor
 
         private static NetworkObject BuildPlayerPrefab()
         {
-            GameObject player = new GameObject("FishNetFoundationPlayer");
+            GameObject player = new GameObject("NetworkPlayer");
             NetworkObject networkObject = player.AddComponent<NetworkObject>();
-            player.AddComponent<FishNetFoundationPlayer>();
+            networkObject.SetIsGlobal(true);
+            player.AddComponent<NetworkPlayer>();
 
             GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath);
             Object.DestroyImmediate(player);
             return savedPrefab.GetComponent<NetworkObject>();
+        }
+
+        private static void RemoveObsoletePlayerPrefab()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(ObsoletePlayerPrefabPath) != null)
+            {
+                AssetDatabase.DeleteAsset(ObsoletePlayerPrefabPath);
+            }
         }
 
         private static GameObject BuildManagerPrefab(NetworkObject playerPrefab)

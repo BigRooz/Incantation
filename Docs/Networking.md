@@ -820,14 +820,18 @@ Primary sources reviewed for this decision:
 
 ## Status
 
-TASK-038 installed the FishNet foundation on 2026-07-23:
+TASK-038 installed the FishNet foundation and TASK-039 established the permanent per-connection player architecture on 2026-07-23:
 
 - FishNet is pinned to official tag `4.7.2` through Unity Package Manager.
 - Tugboat is the configured local diagnostic transport on port `7770`, connecting to `localhost`.
 - `Assets/Scenes/Bootstrap.unity` contains one project-owned persistent `IncantationNetworkManager`.
 - The manager prefab explicitly configures FishNet's server, client, transport, time, scene, and observer managers.
-- `PlayerSpawner` uses the separate minimal `FishNetFoundationPlayer` prefab. It does not replace a gameplay player.
+- `PlayerSpawner` creates one owner-assigned `NetworkPlayer` prefab for each connection.
+- `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and character customization ID.
+- High-priest role, priest name, lobby state, and ready state use FishNet `SyncVar` storage and expose change events plus server-only mutation APIs.
+- Seat ID and character customization ID are intentionally not synchronized until their dedicated authoritative systems are implemented.
+- `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
 - A Play Mode smoke test logged `Server Started`, `Client Connected`, and `Client Disconnected` and spawned the minimal player.
 
-No gameplay, lobby, Seat, Book, ritual, voice, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.
+No lobby command flow or Seat, Book, ritual, voice, cosmetic, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.

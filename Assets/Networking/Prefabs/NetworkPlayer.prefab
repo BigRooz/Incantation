@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 1550624151087068695}
   - component: {fileID: 5194925898452625558}
   m_Layer: 0
-  m_Name: FishNetFoundationPlayer
+  m_Name: NetworkPlayer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -58,7 +58,7 @@ MonoBehaviour:
   RuntimeChildNetworkBehaviours: []
   _isNetworked: 1
   _isSpawnable: 1
-  _isGlobal: 0
+  _isGlobal: 1
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
@@ -83,7 +83,7 @@ MonoBehaviour:
   _teleportThreshold: 1
   <PrefabId>k__BackingField: 65535
   <SpawnableCollectionId>k__BackingField: 0
-  <AssetPathHash>k__BackingField: 18443512436080641421
+  <AssetPathHash>k__BackingField: 8819742547294822409
   SceneId: 0
   SerializedTransformProperties:
     Position: {x: 0, y: 0, z: 0}

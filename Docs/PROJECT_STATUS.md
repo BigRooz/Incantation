@@ -64,7 +64,8 @@ The current prototype includes:
 20. Fire flicker.
 21. Hourglass light possession effect.
 22. Room veil and dark cabin ambience.
-23. FishNet `4.7.2` networking foundation with a dedicated Bootstrap scene, Tugboat localhost transport, one persistent NetworkManager, and a separate minimal network test player.
+23. FishNet `4.7.2` networking foundation with a dedicated Bootstrap scene, Tugboat localhost transport, and one persistent NetworkManager.
+24. One permanent owner-assigned `NetworkPlayer` per connection, with replicated identity/lobby-ready state, change events, and reserved unsynchronized Seat/customization data boundaries.
 
 ## Experimental Or Incomplete Systems
 
@@ -81,7 +82,7 @@ The current prototype includes:
 
 - Ready check.
 - Production automatic seating from lobby players.
-- Multiplayer gameplay synchronization. The FishNet connection foundation is installed, but lobby, Seat, Book, ritual, voice, and gameplay state remain local.
+- Multiplayer gameplay synchronization. The FishNet connection foundation and NetworkPlayer state boundary are installed, but the existing lobby is not yet adapted and Seat, Book, ritual, voice, cosmetics, and gameplay state remain unsynchronized.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
@@ -104,6 +105,7 @@ When a bug becomes part of the current project state, add it here briefly and re
 - `BookController` arrival is duration-based because `BookMover` does not expose a true completion callback.
 - Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
+- `LobbyPlayerStateController` remains the current local lobby state source while the Living Book flow is preserved; it must later become an adapter/consumer of `NetworkPlayer`.
 
 ## Voice State
 
@@ -161,8 +163,8 @@ The phrase does not grow after every player.
 
 Read `Docs/NEXT_TASK.md`.
 
-The immediate objective remains the first lobby flow: complete ready state and automatic seating through the Seat system, then define a later focused task for adapting that state to the installed FishNet boundary.
+The immediate objective remains the first lobby flow: complete ready state and automatic seating through the Seat system, then adapt that flow to consume the permanent `NetworkPlayer` boundary in a separately scoped networking task.
 
 ## Last Reviewed
 
-2026-07-23 during TASK-038 FishNet foundation installation.
+2026-07-23 during TASK-039 NetworkPlayer architecture.
