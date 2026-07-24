@@ -10,7 +10,7 @@ Questions answered here:
 - How should lobby creation, Seal joining, invitations, seating, voice, and ritual startup flow?
 - What must a future `LobbySession` own?
 
-This document is an architecture decision and implementation plan. It does not mean networking is installed or implemented, and it does not grant permission to modify gameplay, scenes, prefabs, or packages outside a focused networking task.
+This document records both the networking architecture decision and the installed foundation. FishNet connection lifecycle is operational, but gameplay networking is not implemented.
 
 Read next: `DECISIONS.md` for the durable decision summary, `Docs/TechnicalArchitecture.md` for current system ownership, or `Docs/NEXT_TASK.md` for the active production task.
 
@@ -26,7 +26,7 @@ Use a host-client topology:
 - FishNet uses a compatible Steam Networking transport for game traffic.
 - Voice chat remains a separate service from FishNet game-state replication and from ritual voice recognition.
 
-Do not install FishNet, a Steamworks wrapper, a transport, or a voice package until a later implementation task explicitly scopes and validates exact package versions.
+FishNet `4.7.2` and its included Tugboat transport are installed for local diagnostics. Steamworks.NET, FishySteamworks, and voice chat remain deferred until separately scoped compatibility tasks.
 
 ## Why FishNet
 
@@ -820,4 +820,14 @@ Primary sources reviewed for this decision:
 
 ## Status
 
-Architecture selected. Networking is not implemented. No networking packages were installed by TASK-036.
+TASK-038 installed the FishNet foundation on 2026-07-23:
+
+- FishNet is pinned to official tag `4.7.2` through Unity Package Manager.
+- Tugboat is the configured local diagnostic transport on port `7770`, connecting to `localhost`.
+- `Assets/Scenes/Bootstrap.unity` contains one project-owned persistent `IncantationNetworkManager`.
+- The manager prefab explicitly configures FishNet's server, client, transport, time, scene, and observer managers.
+- `PlayerSpawner` uses the separate minimal `FishNetFoundationPlayer` prefab. It does not replace a gameplay player.
+- The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
+- A Play Mode smoke test logged `Server Started`, `Client Connected`, and `Client Disconnected` and spawned the minimal player.
+
+No gameplay, lobby, Seat, Book, ritual, voice, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.
