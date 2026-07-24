@@ -43,9 +43,14 @@ The current prototype is a local playable ritual slice. Lobby is the next major 
 Seat requests to the server; the server rejects an ID already assigned to another active
 player and replicates accepted changes. `SeatManager` derives stable zero-based IDs from the
 configured clockwise physical Seat list, resolves a Seat occupant through active
-`NetworkPlayer` instances, and refreshes existing local presentation. `Seat.currentPlayer`
-and `Seat.isOccupied` remain only as backward-compatible offline/debug presentation state.
-They must not be used as a second network occupancy authority.
+`NetworkPlayer` instances, and refreshes Seat availability presentation.
+`NetworkCharacterPresentation` is a one-to-one observer attached to the NetworkPlayer prefab.
+On each client it binds exactly one visual character to its observed player, resolves the
+local scene character only for the owning player, creates an independent visual instance for
+each non-owner, and moves or releases only that character when Seat ID changes or the player
+disconnects. `Seat.currentPlayer` and `Seat.isOccupied` remain only as backward-compatible
+offline/debug and runtime visual bindings. They must not be used as a second network
+occupancy authority.
 
 `LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 

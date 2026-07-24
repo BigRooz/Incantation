@@ -75,6 +75,7 @@ The current prototype includes:
 31. Replicated `NetworkPlayer` state for Priest Name, Lobby Player State, Ready State, and High Priest.
 32. Replicated, server-authoritative `NetworkPlayer.SeatId` assignment with one player per Seat.
 33. Automatic FishNet global-scene transition from Bootstrap into `MainGame`.
+34. Independent character presentation for every observed `NetworkPlayer`.
 
 ## Networking Foundation
 
@@ -103,8 +104,13 @@ The replicated state currently includes:
 
 `NetworkPlayer.SeatId` is the single authoritative multiplayer Seat assignment. `SeatManager`
 maps the configured clockwise physical order to stable zero-based Seat IDs and resolves
-occupancy by reading active `NetworkPlayer` instances. Character selection is the next
-planned lobby-state migration and is not yet synchronized.
+occupancy by reading active `NetworkPlayer` instances. `NetworkCharacterPresentation`
+observes one `NetworkPlayer`, owns exactly one local visual character for it, and moves only
+that character when its synchronized Seat ID changes. The owning player reuses the existing
+scene character so character preview, local camera, offline mode, and debug mode remain
+compatible; non-owning players receive independent visual instances with local camera and
+look input disabled. Character selection is the next planned lobby-state migration and is
+not yet synchronized.
 
 ## Runtime Validation
 
@@ -203,7 +209,8 @@ Debug occupants are for local testing only.
 
 For connected players, `NetworkPlayer.SeatId` owns Seat assignment. `Seat` occupant fields
 remain only for offline/debug compatibility and presentation binding; they are not a second
-network Seat authority.
+network Seat authority. `NetworkCharacterPresentation` writes those presentation fields only
+for the visual instance owned by its `NetworkPlayer`.
 
 ## Phrase State
 

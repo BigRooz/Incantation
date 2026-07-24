@@ -869,12 +869,19 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - `SeatManager` maps Seat IDs from the configured clockwise physical order without storing a
   second Seat ID on `Seat`. Legacy `Seat` occupant state remains only for offline/debug
   compatibility and player presentation.
+- `NetworkCharacterPresentation` is attached once to the `NetworkPlayer` prefab. Every client
+  binds exactly one visible character per observed player: the owner claims the existing scene
+  character and each non-owner creates an independent visual instance. Seat changes move only
+  the character belonging to the changed `NetworkPlayer`; disconnect releases that Seat and
+  destroys only that player's non-owner instance.
+- Remote character instances disable their cameras, audio listeners, and local look controls.
+  The existing scene character, character preview, offline flow, and debug flow remain intact.
 - Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
 - Bootstrap is a launcher only. The first successful server start requests `MainGame` once
   as a FishNet global scene with `ReplaceOption.All`; the host client and remote clients
   automatically follow, including clients authenticated after the initial load.
-- Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.
+- Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown. TASK-041 adds the independent presentation path; its two-instance visual acceptance checklist remains a required Unity Play Mode verification.
 
 No lobby command flow or Seat, Book, ritual, voice, cosmetic, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.

@@ -79,6 +79,11 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Permanent FishNet `NetworkBehaviour` and single source of truth for one connected player's identity and shared state.
   - Exposes the FishNet connection/owner, local-player status, active-player registry, replicated high-priest/name/lobby/ready values, unsynchronized Seat/customization IDs, server-only mutation APIs, and value-change events.
   - Contains no UI, Book, Seat, character presentation, ritual, voice, or gameplay behavior.
+- `Assets/Scripts/Networking/NetworkCharacterPresentation.cs`
+  - One-to-one presentation observer attached to every `NetworkPlayer` prefab.
+  - Claims the existing scene character for the local owner, creates one independent visual instance for each remote player, and follows only its owner's synchronized `SeatId`.
+  - Releases its previous Seat on Seat changes, removes only its own remote instance on disconnect, and disables remote cameras, audio listeners, and local look input.
+  - Does not own network identity, Seat authority, lobby transitions, Book state, or ritual gameplay.
 - `Assets/Scripts/Networking/ReadyState.cs`
   - Defines the independent `NotReady` and `Ready` network-player value. Lobby transition rules remain outside the data component.
 - `Assets/Scripts/Lobby/LobbyPlayerState.cs`
