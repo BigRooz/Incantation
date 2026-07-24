@@ -133,18 +133,10 @@ public sealed class BookStateController : MonoBehaviour
                 break;
 
             case BookState.JoinMenu:
-                PreparePage(
-                    "JOIN RITUAL",
-                    "Enter Ritual Seal", bookMenuController != null ? bookMenuController.BeginSealEntry : null,
-                    string.Empty, null,
-                    string.Empty, null,
-                    "Back", bookMenuController != null ? bookMenuController.CancelJoinRitual : null);
-                break;
-
             case BookState.JoinSealEntry:
                 PreparePage(
                     "JOIN RITUAL",
-                    "Enter Ritual Seal", bookMenuController != null ? bookMenuController.BeginSealEntry : null,
+                    string.Empty, null,
                     string.Empty, null,
                     string.Empty, null,
                     "Back", bookMenuController != null ? bookMenuController.CancelJoinRitual : null);
@@ -318,9 +310,21 @@ public sealed class BookStateController : MonoBehaviour
 
     private void HandleRitualSealChanged()
     {
-        if (preparedState == BookState.JoinSealEntry || preparedState == BookState.RitualCreated)
+        if (preparedState == BookState.JoinSealEntry)
+        {
+            RefreshJoinSealPresentation();
+        }
+        else if (preparedState == BookState.RitualCreated)
         {
             SetState(preparedState);
+        }
+    }
+
+    public void RefreshJoinSealPresentation()
+    {
+        if (preparedState == BookState.JoinSealEntry && rightPageController != null)
+        {
+            rightPageController.RefreshJoinSealSilently();
         }
     }
 

@@ -56,7 +56,8 @@ public class BookMenuController : MonoBehaviour
     {
         RitualSealService.Instance?.CancelJoin();
         enteredSeal = string.Empty;
-        bookStateController.SetState(BookState.JoinMenu);
+        RitualSealService.Instance?.BeginJoinEntry();
+        bookStateController.SetState(BookState.JoinSealEntry);
     }
 
     public void CreateNetworkRitual()
@@ -69,13 +70,6 @@ public class BookMenuController : MonoBehaviour
         }
 
         bookStateController.SetState(BookState.RitualCreated);
-    }
-
-    public void BeginSealEntry()
-    {
-        enteredSeal = string.Empty;
-        RitualSealService.Instance?.BeginJoinEntry();
-        bookStateController.SetState(BookState.JoinSealEntry);
     }
 
     public void CancelJoinRitual()
@@ -93,10 +87,7 @@ public class BookMenuController : MonoBehaviour
         }
 
         RitualSealService service = RitualSealService.Instance;
-        if (service.JoinRitual(enteredSeal))
-        {
-            bookStateController.SetState(BookState.JoinSealEntry);
-        }
+        service.JoinRitual(enteredSeal);
     }
 
     private void Update()
@@ -139,8 +130,15 @@ public class BookMenuController : MonoBehaviour
 
         if (changed)
         {
-            RitualSealService.Instance?.BeginJoinEntry();
-            bookStateController.SetState(BookState.JoinSealEntry);
+            RitualSealService service = RitualSealService.Instance;
+            if (service != null)
+            {
+                service.BeginJoinEntry();
+            }
+            else
+            {
+                bookStateController.RefreshJoinSealPresentation();
+            }
         }
     }
 

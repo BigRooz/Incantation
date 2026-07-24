@@ -82,8 +82,6 @@ public sealed class BookRightPageController : MonoBehaviour
                 PrepareHostPage(texts, targetStrings);
                 break;
             case BookState.JoinMenu:
-                PrepareClearPage(texts, targetStrings);
-                break;
             case BookState.JoinSealEntry:
                 PrepareJoinSealPage(texts, targetStrings);
                 break;
@@ -115,26 +113,40 @@ public sealed class BookRightPageController : MonoBehaviour
 
     public void CompletePreparedTransition()
     {
-        SetMenuItemInteraction(rightMenuItem1, rightLine1);
-        SetMenuItemInteraction(rightMenuItem2, rightLine2);
-        SetMenuItemInteraction(rightMenuItem4, rightLine4);
-        SetMenuItemInteraction(rightMenuItem5, rightLine5);
-
-        if (preparedState == BookState.JoinSealEntry)
+        if (preparedState == BookState.JoinMenu || preparedState == BookState.JoinSealEntry)
         {
-            bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
-            if (rightMenuItem3 != null)
-            {
-                rightMenuItem3.SetInteractionEnabled(canSubmit);
-            }
-
-            UpdateValidateButtonColor(canSubmit);
+            ConfigureJoinSealInteractions();
         }
         else
         {
+            SetMenuItemInteraction(rightMenuItem1, rightLine1);
+            SetMenuItemInteraction(rightMenuItem2, rightLine2);
             SetMenuItemInteraction(rightMenuItem3, rightLine3);
+            SetMenuItemInteraction(rightMenuItem4, rightLine4);
+            SetMenuItemInteraction(rightMenuItem5, rightLine5);
             validateButtonWasEnabled = false;
         }
+    }
+
+    public void RefreshJoinSealSilently()
+    {
+        if (preparedState != BookState.JoinMenu && preparedState != BookState.JoinSealEntry)
+        {
+            return;
+        }
+
+        RitualSealService service = RitualSealService.Instance;
+        string seal = bookMenuController != null ? bookMenuController.EnteredSeal : string.Empty;
+        bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
+
+        ApplyTextImmediately(rightTitle, string.Empty);
+        ApplyTextImmediately(rightLine1, "Seal");
+        ApplyTextImmediately(rightLine2, FormatSealField(seal));
+        ApplyTextImmediately(rightLine3, "Validate Seal");
+        ApplyTextImmediately(rightLine4, GetJoinStatus(service, seal, canSubmit));
+        ApplyTextImmediately(rightLine5, string.Empty);
+
+        ConfigureJoinSealInteractions();
     }
 
     public void PrepareLobbyPage(
@@ -257,6 +269,55 @@ public sealed class BookRightPageController : MonoBehaviour
             bookMenuController != null ? bookMenuController.SubmitSeal : null);
         PrepareEntry(texts, targets, rightLine4, rightMenuItem4, status, null);
         PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+    }
+
+    private void ConfigureJoinSealInteractions()
+    {
+        bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
+
+        if (rightMenuItem1 != null)
+        {
+            rightMenuItem1.SetOnClickAction(null);
+            rightMenuItem1.SetInteractionEnabled(false);
+        }
+
+        if (rightMenuItem2 != null)
+        {
+            rightMenuItem2.SetOnClickAction(null);
+            rightMenuItem2.SetInteractionEnabled(true);
+        }
+
+        if (rightMenuItem3 != null)
+        {
+            rightMenuItem3.SetOnClickAction(
+                bookMenuController != null ? bookMenuController.SubmitSeal : null);
+            rightMenuItem3.SetInteractionEnabled(canSubmit);
+        }
+
+        if (rightMenuItem4 != null)
+        {
+            rightMenuItem4.SetOnClickAction(null);
+            rightMenuItem4.SetInteractionEnabled(false);
+        }
+
+        if (rightMenuItem5 != null)
+        {
+            rightMenuItem5.SetOnClickAction(null);
+            rightMenuItem5.SetInteractionEnabled(false);
+        }
+
+        UpdateValidateButtonColor(canSubmit);
+    }
+
+    private static void ApplyTextImmediately(TMP_Text textEntry, string value)
+    {
+        if (textEntry == null)
+        {
+            return;
+        }
+
+        textEntry.text = value ?? string.Empty;
+        textEntry.maxVisibleCharacters = int.MaxValue;
     }
 
     private static string FormatSealField(string seal)

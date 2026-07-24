@@ -91,11 +91,12 @@ The current Seal directory is deliberately a Tugboat LAN diagnostic implementati
 authentication and does not replace the planned Steam lobby metadata or external production
 directory. The diagnostic FishNet HUD remains available for debug mode only.
 
-The Join Ritual Book page now starts with an empty right page. Selecting `Enter Ritual Seal`
-opens a focused four-character Seal form with uppercase normalized input, a disabled-until-valid
-`Validate Seal` Book button, concise join status, and Enter as an enabled-state-only shortcut.
-This presentation remains a consumer of `RitualSealService`; discovery and FishNet connection
-behavior are unchanged.
+Selecting `Join Ritual` now opens the focused four-character Seal form immediately. The left
+page contains only the `JOIN RITUAL` title and dedicated `Back` action. On the right page, only
+the Seal field and enabled `Validate Seal` button are interactive; title and status labels are
+presentation-only. Uppercase normalized input, button state, and concise join status refresh
+silently without replaying the Book page transition. This presentation remains a consumer of
+`RitualSealService`; discovery and FishNet connection behavior are unchanged.
 
 ## Networking Foundation
 

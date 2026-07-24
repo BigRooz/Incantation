@@ -745,9 +745,9 @@ Book state controller:
 - On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
 - `HostMenu` displays `CREATE RITUAL`, `Create Ritual`, and `Back`. Creation starts the host and opens `RitualCreated`; it does not start ritual gameplay.
-- Empty page lines remain assigned but display an empty string and have no click action. `Create Ritual` and `Enter Ritual Seal` are connected to the TASK-042 Book-owned LAN flow.
+- Empty page lines remain assigned but display an empty string and have no click action. `Create Ritual` and `Join Ritual` are connected to the TASK-042 Book-owned LAN flow.
 - States include `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `JoinSealEntry`, `RitualCreated`, `CharacterMenu`, `OptionsMenu`, `VoiceMenu`, and `Lobby`. Voice detail selection stays inside `VoiceMenu` and does not trigger another state transition.
-- `JoinMenu` and `JoinSealEntry` keep `JOIN RITUAL`, `Enter Ritual Seal`, and the dedicated bottom-left `Back` line unchanged. `Back` clears input and join status and returns to `PlayMenu` without disconnecting an established client.
+- Selecting `Join Ritual` opens `JoinSealEntry` directly. The left page shows only `JOIN RITUAL` and the dedicated bottom-left `Back` line. `Back` clears input and join status and returns to `PlayMenu` without disconnecting an established client.
 
 Book right page controller:
 
@@ -761,11 +761,11 @@ Book right page controller:
 - `voiceBookPageController`: assign the same `VoiceBookPageController` used by `BookStateController`. In `VoiceMenu`, it prepares the right-page values as part of the existing coordinated transition.
 - `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
-- `PlayMenu`, `JoinMenu`, and `OptionsMenu` clear the right-page text and actions. The initial Join page must not show Seal, player count, waiting text, or status.
+- `PlayMenu` and `OptionsMenu` clear the right-page text and actions.
 - `HostMenu` displays `CREATE RITUAL`, with `Create Ritual` starting the Tugboat host and generating a four-character Seal. `RitualCreated` displays the Seal and `Waiting for other mages...`; `Enter the Circle` opens the existing lobby without starting gameplay.
-- `JoinMenu` leaves the entire right page empty. Selecting `Enter Ritual Seal` opens `JoinSealEntry` without changing the left page.
-- `JoinSealEntry` uses the existing right-page TMP lines as one focused Book form: right line 1 shows the centered `Seal` title, right line 2 is the centered four-character field, right line 3 is the centered `Validate Seal` Book button, and right line 4 is the centered status. Right line 5 remains empty. It never displays player count or duplicates the entered Seal outside the field.
+- `JoinSealEntry` opens immediately when `Join Ritual` is selected and uses the existing right-page TMP lines as one focused Book form: right line 1 shows the centered non-interactive `Seal` title, right line 2 is the centered interactive four-character field, right line 3 is the centered `Validate Seal` Book button, and right line 4 is the centered non-interactive status. Right line 5 remains empty and non-interactive. It never displays player count or duplicates the entered Seal outside the field.
 - Seal entry is focused as soon as the page opens. Input is normalized to the readable uppercase Seal alphabet, spaces and unsupported characters are ignored, and Backspace removes a character. `Validate Seal` is grey and non-interactive until exactly four characters are present, then fades to its authored gold color over `0.18` seconds. Enter is an optional shortcut and submits only while the button is enabled.
+- Typing, deleting, status changes, and Validate state changes update the Join form immediately without replaying the Book page transition. Full text transitions run only when entering or leaving a Book state.
 - Join status text is concise: `Enter a ritual seal.`, `Ready to join.`, `Joining ritual...`, `Ritual not found.`, `Ritual is full.`, or `Connection rejected.` The discovery and FishNet client lifecycle remain owned by `RitualSealService`.
 - `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` remain presentation hooks for the older right-page lobby layout. TASK-042's Seal state is owned by `RitualSealService`; Steam matchmaking and production player-list ownership remain future work.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
