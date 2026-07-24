@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using Incantation.Networking;
 
 /// <summary>
 /// Owns the current Living Book menu state and prepares its left-page content and actions.
@@ -54,6 +55,11 @@ public sealed class BookStateController : MonoBehaviour
         {
             lobbyPlayerStateController.StateChanged += HandleLobbyPlayerStateChanged;
         }
+
+        if (RitualSealService.Instance != null)
+        {
+            RitualSealService.Instance.Changed += HandleRitualSealChanged;
+        }
     }
 
     private void OnDisable()
@@ -62,11 +68,28 @@ public sealed class BookStateController : MonoBehaviour
         {
             lobbyPlayerStateController.StateChanged -= HandleLobbyPlayerStateChanged;
         }
+
+        if (RitualSealService.Instance != null)
+        {
+            RitualSealService.Instance.Changed -= HandleRitualSealChanged;
+        }
     }
 
     private void Start()
     {
-        SetState(BookState.MainMenu);
+        RitualSealService sealService = RitualSealService.Instance;
+        if (sealService != null && sealService.IsHostingRitual)
+        {
+            SetState(BookState.RitualCreated);
+        }
+        else if (sealService != null && sealService.HasActiveRitual)
+        {
+            SetState(BookState.Lobby);
+        }
+        else
+        {
+            SetState(BookState.MainMenu);
+        }
     }
 
     public void SetState(BookState state)
@@ -102,20 +125,42 @@ public sealed class BookStateController : MonoBehaviour
 
             case BookState.HostMenu:
                 PreparePage(
-                    "THE CIRCLE",
-                    "Start Ritual", bookMenuController != null ? bookMenuController.StartRitualFromBook : null,
-                    "Share Ritual", null,
-                    "Take Your Seat", bookMenuController != null ? bookMenuController.OpenLobby : null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null);
+                    "CREATE RITUAL",
+                    "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
+                    "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
+                    string.Empty, null,
+                    string.Empty, null);
                 break;
 
             case BookState.JoinMenu:
                 PreparePage(
                     "JOIN RITUAL",
-                    "Enter Seal", null,
-                    "Take Your Seat", null,
+                    "Enter Ritual Seal", bookMenuController != null ? bookMenuController.BeginSealEntry : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
+                    string.Empty, null,
                     string.Empty, null);
+                break;
+
+            case BookState.JoinSealEntry:
+                string enteredSeal = bookMenuController != null ? bookMenuController.EnteredSeal : string.Empty;
+                string joinStatus = RitualSealService.Instance != null ? RitualSealService.Instance.StatusMessage : string.Empty;
+                PreparePage(
+                    "ENTER SEAL",
+                    string.IsNullOrEmpty(enteredSeal) ? "_ _ _ _" : enteredSeal,
+                    null,
+                    "Validate", bookMenuController != null ? bookMenuController.SubmitSeal : null,
+                    joinStatus, null,
+                    "Back", bookMenuController != null ? bookMenuController.OpenJoinMenu : null);
+                break;
+
+            case BookState.RitualCreated:
+                string activeSeal = RitualSealService.Instance != null ? RitualSealService.Instance.ActiveSeal : string.Empty;
+                PreparePage(
+                    "RITUAL CREATED",
+                    "SEAL", null,
+                    activeSeal, null,
+                    "Waiting for other mages...", null,
+                    "Enter the Circle", bookMenuController != null ? bookMenuController.OpenLobby : null);
                 break;
 
             case BookState.Lobby:
@@ -271,6 +316,14 @@ public sealed class BookStateController : MonoBehaviour
         if (preparedState == BookState.Lobby)
         {
             SetState(BookState.Lobby);
+        }
+    }
+
+    private void HandleRitualSealChanged()
+    {
+        if (preparedState == BookState.JoinSealEntry || preparedState == BookState.RitualCreated)
+        {
+            SetState(preparedState);
         }
     }
 

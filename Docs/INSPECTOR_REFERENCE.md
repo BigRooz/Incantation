@@ -745,7 +745,7 @@ Book state controller:
 - On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
 - `HostMenu` displays `THE CIRCLE` with `Start Ritual`, `Share Ritual`, `Take Your Seat`, and `Back`. `Start Ritual` calls `BookMenuController.StartRitualFromBook()`, `Share Ritual` keeps its existing placeholder behavior, `Take Your Seat` calls `BookMenuController.OpenLobby()`, and `Back` returns to `PlayMenu`.
-- Empty page lines remain assigned but display an empty string and have no click action. Placeholder lines such as `Share Ritual` and `Enter Seal` remain visible with no action until their systems are implemented.
+- Empty page lines remain assigned but display an empty string and have no click action. `Create Ritual` and `Enter Ritual Seal` are connected to the TASK-042 Book-owned LAN flow.
 - States are `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `CharacterMenu`, `OptionsMenu`, and `VoiceMenu`. Voice detail selection stays inside `VoiceMenu` and does not trigger another state transition.
 - Book state changes never move cameras and never invoke gameplay, ritual, lobby creation/joining, or seating logic.
 
@@ -762,9 +762,9 @@ Book right page controller:
 - `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
 - `PlayMenu` and `OptionsMenu` clear the right-page text and actions. `HostMenu`, `JoinMenu`, and the Character page flow preserve their existing independent right-page content without changing left-page text or moving a camera.
-- `HostMenu` displays `Invite a Mage`, `Seal: ----`, `Players: 1 / 8`, and `Host Name`, then clears right line 5. `Take Your Seat` appears only on the left page. `Invite a Mage` only logs `Invite a Mage is not implemented yet.`; seal and player data are not connected to networking.
-- `JoinMenu` clears right lines 1 and 5 and displays only contextual placeholder content on right lines 2 through 4: `Seal: ----`, `Players: -- / 8`, and `Waiting...`. `Enter Seal` and `Take Your Seat` appear only on the left page; the contextual entries remain unimplemented.
-- `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` are presentation-only hooks for future lobby work. They update right-side line 2, line 3, and line 4 respectively and do not implement Steam, networking, lobby codes, matchmaking, or player-list ownership.
+- `HostMenu` displays `CREATE RITUAL`, with `Create Ritual` starting the Tugboat host and generating a four-character Seal. `RitualCreated` displays the Seal and `Waiting for other mages...`; `Enter the Circle` opens the existing lobby without starting gameplay.
+- `JoinMenu` opens `JoinSealEntry`. Keyboard input is normalized to the readable uppercase Seal alphabet, Backspace removes a character, and `Validate` resolves the matching LAN ritual before FishNet connects.
+- `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` remain presentation hooks for the older right-page lobby layout. TASK-042's Seal state is owned by `RitualSealService`; Steam matchmaking and production player-list ownership remain future work.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
 
 Voice Book page controller:

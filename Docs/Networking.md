@@ -30,7 +30,16 @@ Lobby Systems
 Gameplay Systems
 ```
 
-The Bootstrap scene establishes the persistent `NetworkManager`, which owns the FishNet lifecycle. FishNet creates one persistent, owner-assigned `NetworkPlayer` for each connection. Lobby systems are the next consumers being migrated to this identity, followed by gameplay systems.
+The Bootstrap scene establishes the persistent `NetworkManager`, then opens `MainGame` so the
+Living Book is available before a transport connection. `RitualSealService` provides the first
+Book-driven create/join path for Tugboat LAN diagnostics: a host advertises a normalized
+four-character Seal and a client resolves that Seal to an address internally before FishNet
+connects. FishNet then creates one persistent, owner-assigned `NetworkPlayer` for each
+connection and retains its global-scene synchronization path.
+
+The LAN Seal is a locator, never an identity, password, connection ID, or gameplay authority.
+It is intentionally isolated so the future Steam lobby metadata or external directory can
+replace only lookup. No IP address or transport detail is displayed by the Book.
 
 `NetworkPlayer` is the permanent networking identity of every connected player. Its replicated state currently includes Priest Name, Lobby Player State, Ready State, and High Priest.
 
@@ -883,9 +892,11 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
-- Bootstrap is a launcher only. The first successful server start requests `MainGame` once
-  as a FishNet global scene with `ReplaceOption.All`; the host client and remote clients
-  automatically follow, including clients authenticated after the initial load.
+- Bootstrap remains the launcher and persistent network-composition owner. It now opens
+  `MainGame` before connection so the Book can create or join a ritual. The first successful
+  server start still registers/requests `MainGame` through FishNet global scene loading with
+  `ReplaceOption.All`, preserving synchronization for the host and remote clients.
 - Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown. TASK-041 adds the independent presentation path; its two-instance visual acceptance checklist remains a required Unity Play Mode verification.
+- TASK-042 adds the first Book-owned Ritual Creation flow and a four-character Tugboat LAN Seal directory. Creating does not start ritual gameplay. Joining resolves the Seal internally and then uses the existing FishNet client lifecycle.
 
-No lobby command flow or Seat, Book, ritual, voice, cosmetic, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.
+Production Steam discovery, Steam transport, networked Book/ritual/voice/cosmetic state, and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.

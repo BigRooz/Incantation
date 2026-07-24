@@ -4,6 +4,8 @@ public enum BookState
     PlayMenu,
     HostMenu,
     JoinMenu,
+    JoinSealEntry,
+    RitualCreated,
     CharacterMenu,
     OptionsMenu,
     VoiceMenu,

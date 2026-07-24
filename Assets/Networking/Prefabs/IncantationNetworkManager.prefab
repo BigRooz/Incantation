@@ -20,6 +20,7 @@ GameObject:
   - component: {fileID: 1556469610399574873}
   - component: {fileID: 8028150254634642158}
   - component: {fileID: 8805356638403051849}
+  - component: {fileID: 6671042946533391021}
   m_Layer: 0
   m_Name: IncantationNetworkManager
   m_TagString: Untagged
@@ -239,3 +240,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   foundationController: {fileID: 8028150254634642158}
+--- !u!114 &6671042946533391021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1831679611019226322}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f742e76e9284e188cd4d467d1b58bb4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:

@@ -1,4 +1,5 @@
 using UnityEngine;
+using Incantation.Networking;
 
 public class BookMenuController : MonoBehaviour
 {
@@ -22,6 +23,9 @@ public class BookMenuController : MonoBehaviour
     [SerializeField] private string discordUrl;
 
     private BookState characterReturnState = BookState.MainMenu;
+    private string enteredSeal = string.Empty;
+
+    public string EnteredSeal => enteredSeal;
 
     private void Awake()
     {
@@ -41,12 +45,80 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenHostMenu()
     {
-        bookStateController.SetState(BookState.Lobby);
+        bookStateController.SetState(BookState.HostMenu);
     }
 
     public void OpenJoinMenu()
     {
         bookStateController.SetState(BookState.JoinMenu);
+    }
+
+    public void CreateNetworkRitual()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null || !service.CreateRitual())
+        {
+            Debug.LogWarning("The Ritual Seal service could not create a ritual.", this);
+            return;
+        }
+
+        bookStateController.SetState(BookState.RitualCreated);
+    }
+
+    public void BeginSealEntry()
+    {
+        enteredSeal = string.Empty;
+        bookStateController.SetState(BookState.JoinSealEntry);
+    }
+
+    public void SubmitSeal()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service != null && service.JoinRitual(enteredSeal))
+        {
+            bookStateController.SetState(BookState.JoinSealEntry);
+        }
+    }
+
+    private void Update()
+    {
+        if (bookStateController == null || bookStateController.CurrentState != BookState.JoinSealEntry)
+        {
+            return;
+        }
+
+        string input = Input.inputString;
+        bool changed = false;
+        for (int i = 0; i < input.Length; i++)
+        {
+            char character = input[i];
+            if (character == '\b')
+            {
+                if (enteredSeal.Length > 0)
+                {
+                    enteredSeal = enteredSeal.Substring(0, enteredSeal.Length - 1);
+                    changed = true;
+                }
+            }
+            else if (character == '\n' || character == '\r')
+            {
+                SubmitSeal();
+            }
+            else if (enteredSeal.Length < 4)
+            {
+                string normalized = RitualSealService.NormalizeSeal(character.ToString());
+                if (normalized.Length == 1)
+                {
+                    enteredSeal += normalized;
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            bookStateController.SetState(BookState.JoinSealEntry);
+        }
     }
 
     public void ReturnToMainMenu()

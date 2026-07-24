@@ -65,10 +65,21 @@ namespace Incantation.Networking
 
         public event Action StateChanged;
 
+        public static FishNetFoundationController Instance { get; private set; }
+
         private void Awake()
         {
+            Instance = this;
             networkManager = GetComponent<NetworkManager>();
             RefreshInitialState();
+        }
+
+        private void Start()
+        {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Bootstrap")
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(GameplaySceneName);
+            }
         }
 
         private void OnEnable()
@@ -97,6 +108,14 @@ namespace Incantation.Networking
 
             networkManager.ServerManager.OnServerConnectionState -= HandleServerConnectionState;
             networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
         }
 
         public bool StartHost()
@@ -147,6 +166,16 @@ namespace Incantation.Networking
 
         public bool StartClient()
         {
+            return StartClient(ClientAddress);
+        }
+
+        public bool StartClient(string address)
+        {
+            return StartClient(address, Port);
+        }
+
+        public bool StartClient(string address, ushort port)
+        {
             Debug.Log("Start Client requested.");
 
             if (!CanStartClient)
@@ -156,7 +185,15 @@ namespace Incantation.Networking
             }
 
             clientStartPending = true;
-            if (networkManager.ClientManager.StartConnection(ClientAddress))
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                clientStartPending = false;
+                Debug.LogWarning("Start Client rejected: no resolved host address was supplied.");
+                return false;
+            }
+
+            GetTransport()?.SetPort(port);
+            if (networkManager.ClientManager.StartConnection(address))
             {
                 return true;
             }

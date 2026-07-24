@@ -18,20 +18,20 @@ Read next: `Docs/PROJECT_STATUS.md` for current reality, then `Docs/Roadmap.md` 
 
 ## Immediate Objective
 
-Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state.
+Synchronize the remaining lobby presentation and character selection through `NetworkPlayer`.
 
 ## Why This Is Next
 
-The FishNet foundation and permanent `NetworkPlayer` architecture are implemented and runtime validated. The remaining lobby systems still contain local or duplicated state that must be migrated onto this networking identity before the lobby can become the production multiplayer entry flow.
+The FishNet foundation, permanent `NetworkPlayer` architecture, and Book-driven LAN Ritual Seal entry flow are implemented. The remaining lobby presentation and character choice still contain local or duplicated state that must be migrated onto this networking identity.
 
 Using `NetworkPlayer` as the shared authority keeps each connected player's identity and lobby state in one place and prevents local lobby models from diverging across peers.
 
 ## Next Planned Milestones
 
 1. Synchronize Character selection.
-2. Synchronize Lobby UI.
+2. Make Book lobby counts, roles, and ready presentation observe active `NetworkPlayer` state.
 3. Remove duplicated local lobby state.
-4. Transition Book systems to read `NetworkPlayer`.
+4. Replace the diagnostic LAN Seal directory only when the Steam/platform lobby task is approved.
 
 ## Out Of Scope
 

@@ -28,7 +28,7 @@ Unknown from documentation. Confirm with `git branch --show-current` before bran
 
 Networked lobby migration.
 
-The FishNet networking foundation, permanent `NetworkPlayer` architecture, and initial runtime validation are complete. The next milestone is to migrate the remaining lobby systems so `NetworkPlayer` becomes their authoritative multiplayer state source.
+The FishNet networking foundation, permanent `NetworkPlayer` architecture, initial runtime validation, and first Book-driven Ritual Creation flow are complete. The next milestone is to migrate the remaining lobby state so `NetworkPlayer` becomes its authoritative multiplayer source.
 
 ## Current Goal
 
@@ -76,6 +76,20 @@ The current prototype includes:
 32. Replicated, server-authoritative `NetworkPlayer.SeatId` assignment with one player per Seat.
 33. Automatic FishNet global-scene transition from Bootstrap into `MainGame`.
 34. Independent character presentation for every observed `NetworkPlayer`.
+35. Book-driven creation and joining through four-character Ritual Seals for Tugboat LAN diagnostics.
+
+## Ritual Creation
+
+`Bootstrap` now opens `MainGame` as the pre-connection Book interface while preserving the
+persistent FishNet manager. The Book's Play page offers `Create Ritual` and `Join Ritual`.
+Creating starts the host, generates and displays an uppercase four-character Seal, and waits
+in the lobby without starting ritual gameplay. Joining accepts and normalizes a Seal, resolves
+the matching LAN host through `RitualSealService`, and supplies the resolved address to FishNet
+without displaying it to the player.
+
+The current Seal directory is deliberately a Tugboat LAN diagnostic implementation. It is not
+authentication and does not replace the planned Steam lobby metadata or external production
+directory. The diagnostic FishNet HUD remains available for debug mode only.
 
 ## Networking Foundation
 

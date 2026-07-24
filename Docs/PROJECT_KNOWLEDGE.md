@@ -23,8 +23,8 @@ Read this after `Docs/START_HERE.md` and `Docs/PROJECT_STATUS.md` when taking ov
 - Unity version: 6000.0.56f1.
 - Render pipeline: URP 17.0.4.
 - Input package is present, but existing prototype scripts still include older input patterns in places.
-- The current playable scene is `Assets/Scenes/MainGame.unity`.
-- The prototype is local-first. Networking packages or Unity multiplayer helpers in the project do not mean production networking is implemented.
+- `Assets/Scenes/Bootstrap.unity` creates the persistent network manager and opens the pre-connection Book interface in `Assets/Scenes/MainGame.unity`.
+- FishNet multiplayer is operational through Tugboat for local/LAN diagnostics. Steam transport and a production global Seal directory are not implemented.
 
 ## What The Prototype Really Is
 
@@ -40,11 +40,17 @@ It proves:
 - The hourglass can create pressure.
 - Wrong words can be rejected while time remains.
 
-It does not prove:
+It also proves:
 
-- Lobby readiness.
-- Real player identity.
-- Networked seating.
+- Persistent FishNet player identity.
+- Server-authoritative networked Seat IDs.
+- Independent character presentation.
+- Book-driven LAN ritual creation and Seal joining.
+
+It does not yet prove:
+
+- Production lobby readiness synchronization.
+- Steam identity, discovery, or transport.
 - Multiplayer authority.
 - Production end-of-game presentation.
 - Card or spell interference.
