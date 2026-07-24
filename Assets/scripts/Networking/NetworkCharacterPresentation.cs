@@ -24,6 +24,7 @@ namespace Incantation.Networking
         private void Awake()
         {
             networkPlayer = GetComponent<NetworkPlayer>();
+            networkPlayer.ClientStarted += HandleClientStarted;
         }
 
         private void OnEnable()
@@ -46,7 +47,10 @@ namespace Incantation.Networking
         private void OnDestroy()
         {
             if (networkPlayer != null)
+            {
+                networkPlayer.ClientStarted -= HandleClientStarted;
                 networkPlayer.SeatIdChanged -= HandleSeatIdChanged;
+            }
 
             NetworkPlayer.ActivePlayerRemoved -= HandleNetworkPlayerRemoved;
             ReleaseOccupiedSeat();
@@ -59,6 +63,11 @@ namespace Incantation.Networking
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
+        {
+            TryBindPresentation();
+        }
+
+        private void HandleClientStarted()
         {
             TryBindPresentation();
         }

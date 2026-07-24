@@ -56,6 +56,7 @@ namespace Incantation.Networking
         public event Action<ReadyState, ReadyState> ReadyStateChanged;
         public event Action<int, int> SeatIdChanged;
         public event Action<int, int> CharacterCustomizationIdChanged;
+        public event Action ClientStarted;
 
         public override void OnStartNetwork()
         {
@@ -78,6 +79,7 @@ namespace Incantation.Networking
                 LocalPlayer = this;
             }
 
+            ClientStarted?.Invoke();
             Debug.Log($"NetworkPlayer spawned. ConnectionId: {Owner.ClientId}, IsLocalPlayer: {IsLocalPlayer}.");
         }
 

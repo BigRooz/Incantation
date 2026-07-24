@@ -874,6 +874,10 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   character and each non-owner creates an independent visual instance. Seat changes move only
   the character belonging to the changed `NetworkPlayer`; disconnect releases that Seat and
   destroys only that player's non-owner instance.
+- Presentation binding is retried from each `NetworkPlayer.OnStartClient` lifecycle callback.
+  This is required for Host mode, where a remote player's Unity `Start` can run during server
+  initialization before the same object becomes initialized on the Host client. Dedicated
+  servers never receive that client callback and therefore do not create visual characters.
 - Remote character instances disable their cameras, audio listeners, and local look controls.
   The existing scene character, character preview, offline flow, and debug flow remain intact.
 - Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
