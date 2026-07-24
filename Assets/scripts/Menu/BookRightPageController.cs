@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -30,6 +31,8 @@ public sealed class BookRightPageController : MonoBehaviour
 
     [Header("Page Presentation")]
     [SerializeField] private BookTextTransitionController textTransitionController;
+    [SerializeField] private Color disabledButtonColor = new Color(0.42f, 0.42f, 0.42f, 1f);
+    [SerializeField, Range(0.15f, 0.2f)] private float buttonFadeDuration = 0.18f;
 
     [Header("Voice Page")]
     [SerializeField] private VoiceBookPageController voiceBookPageController;
@@ -40,6 +43,10 @@ public sealed class BookRightPageController : MonoBehaviour
     private TextAlignmentOptions originalRightLine3Alignment;
     private TextAlignmentOptions originalRightLine4Alignment;
     private TextAlignmentOptions originalRightLine5Alignment;
+    private Color validateButtonColor;
+    private Coroutine buttonFadeCoroutine;
+    private BookState preparedState;
+    private bool validateButtonWasEnabled;
 
     private void Awake()
     {
@@ -47,6 +54,7 @@ public sealed class BookRightPageController : MonoBehaviour
         if (rightLine3 != null) originalRightLine3Alignment = rightLine3.alignment;
         if (rightLine4 != null) originalRightLine4Alignment = rightLine4.alignment;
         if (rightLine5 != null) originalRightLine5Alignment = rightLine5.alignment;
+        if (rightLine3 != null) validateButtonColor = rightLine3.color;
     }
 
     public void RefreshForState(BookState state)
@@ -62,6 +70,7 @@ public sealed class BookRightPageController : MonoBehaviour
         List<TMP_Text> texts,
         List<string> targetStrings)
     {
+        preparedState = state;
         RestoreDefaultAlignment();
 
         switch (state)
@@ -108,9 +117,24 @@ public sealed class BookRightPageController : MonoBehaviour
     {
         SetMenuItemInteraction(rightMenuItem1, rightLine1);
         SetMenuItemInteraction(rightMenuItem2, rightLine2);
-        SetMenuItemInteraction(rightMenuItem3, rightLine3);
         SetMenuItemInteraction(rightMenuItem4, rightLine4);
         SetMenuItemInteraction(rightMenuItem5, rightLine5);
+
+        if (preparedState == BookState.JoinSealEntry)
+        {
+            bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
+            if (rightMenuItem3 != null)
+            {
+                rightMenuItem3.SetInteractionEnabled(canSubmit);
+            }
+
+            UpdateValidateButtonColor(canSubmit);
+        }
+        else
+        {
+            SetMenuItemInteraction(rightMenuItem3, rightLine3);
+            validateButtonWasEnabled = false;
+        }
     }
 
     public void PrepareLobbyPage(
@@ -213,22 +237,110 @@ public sealed class BookRightPageController : MonoBehaviour
     {
         RitualSealService service = RitualSealService.Instance;
         string seal = bookMenuController != null ? bookMenuController.EnteredSeal : string.Empty;
-        string paddedSeal = (seal ?? string.Empty).PadRight(4, '_');
-        string centeredSeal = string.Join(" ", paddedSeal.ToCharArray());
-        string status = service != null ? service.StatusMessage : "Waiting...";
-        string reason = service != null ? service.JoinFailureReason : string.Empty;
+        bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
+        string status = GetJoinStatus(service, seal, canSubmit);
 
+        if (rightLine1 != null) rightLine1.alignment = TextAlignmentOptions.Center;
         if (rightLine2 != null) rightLine2.alignment = TextAlignmentOptions.Center;
         if (rightLine3 != null) rightLine3.alignment = TextAlignmentOptions.Center;
         if (rightLine4 != null) rightLine4.alignment = TextAlignmentOptions.Center;
-        if (rightLine5 != null) rightLine5.alignment = TextAlignmentOptions.Center;
 
         PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
-        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, string.Empty, null);
-        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal", null);
-        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, $"[ {centeredSeal} ]", null);
+        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Seal", null);
+        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, FormatSealField(seal), null);
+        PrepareEntry(
+            texts,
+            targets,
+            rightLine3,
+            rightMenuItem3,
+            "Validate Seal",
+            bookMenuController != null ? bookMenuController.SubmitSeal : null);
         PrepareEntry(texts, targets, rightLine4, rightMenuItem4, status, null);
-        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, reason, null);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+    }
+
+    private static string FormatSealField(string seal)
+    {
+        string normalizedSeal = RitualSealService.NormalizeSeal(seal);
+        return $"[ {normalizedSeal.PadRight(4, '•')} ]";
+    }
+
+    private static string GetJoinStatus(RitualSealService service, string seal, bool canSubmit)
+    {
+        if (service != null && service.JoinStatus == RitualJoinStatus.Joining)
+        {
+            return "Joining ritual...";
+        }
+
+        if (service != null && service.JoinStatus == RitualJoinStatus.CantJoin)
+        {
+            return AddPeriod(service.JoinFailureReason);
+        }
+
+        return canSubmit && RitualSealService.NormalizeSeal(seal).Length == 4
+            ? "Ready to join."
+            : "Enter a ritual seal.";
+    }
+
+    private static string AddPeriod(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return "Connection rejected.";
+        }
+
+        return message.EndsWith(".") ? message : $"{message}.";
+    }
+
+    private void UpdateValidateButtonColor(bool enabled)
+    {
+        if (rightLine3 == null)
+        {
+            return;
+        }
+
+        Color targetColor = enabled ? validateButtonColor : disabledButtonColor;
+        if (!enabled)
+        {
+            if (buttonFadeCoroutine != null)
+            {
+                StopCoroutine(buttonFadeCoroutine);
+                buttonFadeCoroutine = null;
+            }
+
+            rightLine3.color = targetColor;
+        }
+        else if (!validateButtonWasEnabled)
+        {
+            if (buttonFadeCoroutine != null)
+            {
+                StopCoroutine(buttonFadeCoroutine);
+            }
+
+            buttonFadeCoroutine = StartCoroutine(FadeValidateButton(rightLine3.color, targetColor));
+        }
+        else
+        {
+            rightLine3.color = targetColor;
+        }
+
+        rightMenuItem3?.CaptureAuthoredBaseline();
+        validateButtonWasEnabled = enabled;
+    }
+
+    private IEnumerator FadeValidateButton(Color from, Color to)
+    {
+        float elapsed = 0f;
+        while (elapsed < buttonFadeDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            rightLine3.color = Color.Lerp(from, to, Mathf.Clamp01(elapsed / buttonFadeDuration));
+            yield return null;
+        }
+
+        rightLine3.color = to;
+        rightMenuItem3?.CaptureAuthoredBaseline();
+        buttonFadeCoroutine = null;
     }
 
     private void RestoreDefaultAlignment()

@@ -26,6 +26,10 @@ public class BookMenuController : MonoBehaviour
     private string enteredSeal = string.Empty;
 
     public string EnteredSeal => enteredSeal;
+    public bool CanSubmitSeal => enteredSeal.Length == 4 &&
+                                 RitualSealService.Instance != null &&
+                                 !RitualSealService.Instance.IsJoining &&
+                                 RitualSealService.Instance.JoinStatus != RitualJoinStatus.Joining;
 
     private void Awake()
     {
@@ -83,9 +87,13 @@ public class BookMenuController : MonoBehaviour
 
     public void SubmitSeal()
     {
+        if (!CanSubmitSeal)
+        {
+            return;
+        }
+
         RitualSealService service = RitualSealService.Instance;
-        if (service != null && !service.IsJoining &&
-            service.JoinStatus != RitualJoinStatus.Joining && service.JoinRitual(enteredSeal))
+        if (service.JoinRitual(enteredSeal))
         {
             bookStateController.SetState(BookState.JoinSealEntry);
         }
@@ -113,7 +121,10 @@ public class BookMenuController : MonoBehaviour
             }
             else if (character == '\n' || character == '\r')
             {
-                SubmitSeal();
+                if (CanSubmitSeal)
+                {
+                    SubmitSeal();
+                }
             }
             else if (enteredSeal.Length < 4)
             {
@@ -128,6 +139,7 @@ public class BookMenuController : MonoBehaviour
 
         if (changed)
         {
+            RitualSealService.Instance?.BeginJoinEntry();
             bookStateController.SetState(BookState.JoinSealEntry);
         }
     }
