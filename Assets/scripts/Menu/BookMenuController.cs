@@ -24,9 +24,12 @@ public class BookMenuController : MonoBehaviour
 
     private BookState characterReturnState = BookState.MainMenu;
     private string enteredSeal = string.Empty;
+    private bool sealHasSupportedCharacterOverflow;
 
     public string EnteredSeal => enteredSeal;
-    public bool CanSubmitSeal => enteredSeal.Length == 4 &&
+    public bool HasValidSeal => !sealHasSupportedCharacterOverflow &&
+                                RitualSealService.NormalizeSeal(enteredSeal).Length == 4;
+    public bool CanSubmitSeal => HasValidSeal &&
                                  RitualSealService.Instance != null &&
                                  !RitualSealService.Instance.IsJoining &&
                                  RitualSealService.Instance.JoinStatus != RitualJoinStatus.Joining;
@@ -56,6 +59,7 @@ public class BookMenuController : MonoBehaviour
     {
         RitualSealService.Instance?.CancelJoin();
         enteredSeal = string.Empty;
+        sealHasSupportedCharacterOverflow = false;
         RitualSealService.Instance?.BeginJoinEntry();
         bookStateController.SetState(BookState.JoinSealEntry);
     }
@@ -75,6 +79,7 @@ public class BookMenuController : MonoBehaviour
     public void CancelJoinRitual()
     {
         enteredSeal = string.Empty;
+        sealHasSupportedCharacterOverflow = false;
         bookStateController.SetState(BookState.PlayMenu);
         RitualSealService.Instance?.CancelJoin();
     }
@@ -104,7 +109,12 @@ public class BookMenuController : MonoBehaviour
             char character = input[i];
             if (character == '\b')
             {
-                if (enteredSeal.Length > 0)
+                if (sealHasSupportedCharacterOverflow)
+                {
+                    sealHasSupportedCharacterOverflow = false;
+                    changed = true;
+                }
+                else if (enteredSeal.Length > 0)
                 {
                     enteredSeal = enteredSeal.Substring(0, enteredSeal.Length - 1);
                     changed = true;
@@ -117,13 +127,21 @@ public class BookMenuController : MonoBehaviour
                     SubmitSeal();
                 }
             }
-            else if (enteredSeal.Length < 4)
+            else
             {
                 string normalized = RitualSealService.NormalizeSeal(character.ToString());
                 if (normalized.Length == 1)
                 {
-                    enteredSeal += normalized;
-                    changed = true;
+                    if (enteredSeal.Length < 4)
+                    {
+                        enteredSeal += normalized;
+                        changed = true;
+                    }
+                    else if (!sealHasSupportedCharacterOverflow)
+                    {
+                        sealHasSupportedCharacterOverflow = true;
+                        changed = true;
+                    }
                 }
             }
         }

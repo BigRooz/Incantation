@@ -40,13 +40,18 @@ public sealed class BookRightPageController : MonoBehaviour
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
     private Color validateButtonColor;
+    private Material validateButtonMaterial;
     private Coroutine buttonFadeCoroutine;
     private BookState preparedState;
     private bool validateButtonWasEnabled;
 
     private void Awake()
     {
-        if (rightLine3 != null) validateButtonColor = rightLine3.color;
+        if (rightLine3 != null)
+        {
+            validateButtonColor = rightLine3.color;
+            validateButtonMaterial = rightLine3.fontSharedMaterial;
+        }
     }
 
     public void RefreshForState(BookState state)
@@ -62,6 +67,13 @@ public sealed class BookRightPageController : MonoBehaviour
         List<TMP_Text> texts,
         List<string> targetStrings)
     {
+        bool wasJoinState = IsJoinState(preparedState);
+        bool willBeJoinState = IsJoinState(state);
+        if (wasJoinState && !willBeJoinState)
+        {
+            RestoreValidateSealVisualState();
+        }
+
         preparedState = state;
 
         switch (state)
@@ -104,7 +116,7 @@ public sealed class BookRightPageController : MonoBehaviour
 
     public void CompletePreparedTransition()
     {
-        if (preparedState == BookState.JoinMenu || preparedState == BookState.JoinSealEntry)
+        if (IsJoinState(preparedState))
         {
             ConfigureJoinSealInteractions();
         }
@@ -121,7 +133,7 @@ public sealed class BookRightPageController : MonoBehaviour
 
     public void RefreshJoinSealSilently()
     {
-        if (preparedState != BookState.JoinMenu && preparedState != BookState.JoinSealEntry)
+        if (!IsJoinState(preparedState))
         {
             return;
         }
@@ -364,14 +376,15 @@ public sealed class BookRightPageController : MonoBehaviour
                 StopCoroutine(buttonFadeCoroutine);
             }
 
-            buttonFadeCoroutine = StartCoroutine(FadeValidateButton(rightLine3.color, targetColor));
+            rightLine3.color = disabledButtonColor;
+            buttonFadeCoroutine = StartCoroutine(
+                FadeValidateButton(disabledButtonColor, targetColor));
         }
         else
         {
             rightLine3.color = targetColor;
         }
 
-        rightMenuItem3?.CaptureAuthoredBaseline();
         validateButtonWasEnabled = enabled;
     }
 
@@ -386,8 +399,32 @@ public sealed class BookRightPageController : MonoBehaviour
         }
 
         rightLine3.color = to;
-        rightMenuItem3?.CaptureAuthoredBaseline();
         buttonFadeCoroutine = null;
+    }
+
+    private void RestoreValidateSealVisualState()
+    {
+        if (buttonFadeCoroutine != null)
+        {
+            StopCoroutine(buttonFadeCoroutine);
+            buttonFadeCoroutine = null;
+        }
+
+        if (rightLine3 != null)
+        {
+            rightLine3.color = validateButtonColor;
+            if (validateButtonMaterial != null)
+            {
+                rightLine3.fontSharedMaterial = validateButtonMaterial;
+            }
+        }
+
+        validateButtonWasEnabled = false;
+    }
+
+    private static bool IsJoinState(BookState state)
+    {
+        return state == BookState.JoinMenu || state == BookState.JoinSealEntry;
     }
 
     private void PrepareClearPage(List<TMP_Text> texts, List<string> targets)
