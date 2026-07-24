@@ -18,33 +18,28 @@ Read next: `Docs/PROJECT_STATUS.md` for current reality, then `Docs/Roadmap.md` 
 
 ## Immediate Objective
 
-Add the first lobby flow that can hand ready local players into the existing seated ritual loop.
-
-The FishNet connection foundation now exists, but this objective remains local-first. Do not synchronize lobby or gameplay state as part of this task.
+Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state.
 
 ## Why This Is Next
 
-The current prototype uses local debug occupants for Play Mode testing. That proves the ritual loop, but it is not the production player entry flow.
+The FishNet foundation and permanent `NetworkPlayer` architecture are implemented and runtime validated. The remaining lobby systems still contain local or duplicated state that must be migrated onto this networking identity before the lobby can become the production multiplayer entry flow.
 
-Lobby is the next major milestone because it connects players to seats before networking, cards, demon reactions, or campaign systems return.
+Using `NetworkPlayer` as the shared authority keeps each connected player's identity and lobby state in one place and prevents local lobby models from diverging across peers.
 
-## Scope
+## Next Planned Milestones
 
-The first lobby task should focus on:
-
-1. Lobby entry.
-2. Ready state.
-3. Minimum and maximum player rules for the prototype.
-4. Automatic assignment of ready players to physical Seats through the Seat system.
-5. Handoff from lobby state into the current table ritual loop.
-6. Preservation of local debug occupant testing until lobby seating is stable.
+1. Synchronize Seat assignment.
+2. Synchronize Character selection.
+3. Synchronize Lobby UI.
+4. Remove duplicated local lobby state.
+5. Transition Book systems to read `NetworkPlayer`.
 
 ## Out Of Scope
 
 Do not include:
 
-- Production networking flow beyond the installed FishNet localhost foundation.
-- Networked player seating.
+- A new networking framework or competing player-identity architecture.
+- Ritual, voice, or elimination synchronization.
 - Interference cards.
 - Demon reactions.
 - Campaign objectives.
@@ -61,17 +56,18 @@ Before implementing, read:
 2. `Docs/START_HERE.md`
 3. `Docs/PROJECT_STATUS.md`
 4. `Docs/GAMEPLAY_TRUTH.md`
-5. `Docs/CoreRitualLoopArchitecture.md`
+5. `Docs/Networking.md`
 6. `Docs/TechnicalArchitecture.md`
 7. `Docs/PROJECT_KNOWLEDGE.md`
-8. `Docs/INSPECTOR_REFERENCE.md`
+8. The focused lobby, Seat, Character, UI, or Book documentation relevant to the selected milestone.
 
 ## Completion Criteria
 
-The task is not complete until:
+Each migration milestone is not complete until:
 
-1. Ready local players can be represented before the ritual starts.
-2. Ready players can be assigned to physical Seats without using hierarchy order, seat number order, player join order, or network index as the authority.
-3. The ritual can start from lobby state using the existing one-book table loop.
-4. Local debug occupant testing remains available.
-5. Documentation that changed from the task is updated before commit.
+1. The selected lobby state is synchronized through `NetworkPlayer` or an explicitly documented authority that consumes it.
+2. Duplicated local ownership of that state is removed or converted into a presentation adapter.
+3. Existing local debug support remains available where still required.
+4. The change preserves physical Seat order and the single-book ritual rules.
+5. Host and remote-client behavior are runtime validated.
+6. Documentation is updated before commit.

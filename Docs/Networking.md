@@ -10,7 +10,33 @@ Questions answered here:
 - How should lobby creation, Seal joining, invitations, seating, voice, and ritual startup flow?
 - What must a future `LobbySession` own?
 
-This document records both the networking architecture decision and the installed foundation. FishNet connection lifecycle is operational, but gameplay networking is not implemented.
+This document records both the networking architecture decision and the installed foundation. FishNet connection lifecycle and the permanent per-connection `NetworkPlayer` architecture are operational; migration of lobby and gameplay systems onto that foundation remains in progress.
+
+## Current Architecture
+
+The implemented networking architecture is:
+
+```text
+Bootstrap
+↓
+Persistent NetworkManager
+↓
+FishNet
+↓
+NetworkPlayer (one per connection)
+↓
+Lobby Systems
+↓
+Gameplay Systems
+```
+
+The Bootstrap scene establishes the persistent `NetworkManager`, which owns the FishNet lifecycle. FishNet creates one persistent, owner-assigned `NetworkPlayer` for each connection. Lobby systems are the next consumers being migrated to this identity, followed by gameplay systems.
+
+`NetworkPlayer` is the permanent networking identity of every connected player. Its replicated state currently includes Priest Name, Lobby Player State, Ready State, and High Priest.
+
+Future systems should use `NetworkPlayer` as the authoritative multiplayer source whenever possible. Avoid creating duplicated lobby state outside `NetworkPlayer`; presentation components should observe or adapt its state instead of becoming competing authorities.
+
+The current foundation has successfully validated host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.
 
 Read next: `DECISIONS.md` for the durable decision summary, `Docs/TechnicalArchitecture.md` for current system ownership, or `Docs/NEXT_TASK.md` for the active production task.
 
@@ -232,7 +258,7 @@ Invitation joining and Seal joining must converge after lobby resolution; they m
 - For the first implementation, host loss ends the session gracefully and returns clients to the lobby/menu with a clear reason.
 - Host migration is deferred. It requires snapshot transfer, Steam lobby ownership changes, transport reconnection, and deterministic recovery; it should not be implied by the first multiplayer milestone.
 
-## Future Player Authority Architecture
+## Player Authority Architecture
 
 Use host authority for shared truth and owner authority only for bounded personal input/presentation.
 
@@ -303,11 +329,13 @@ Prefer semantic state and events over continuous transform traffic:
 - Define timeouts for Steam lobby operations, network connection, scene readiness, and reconnect attempts.
 - Return structured disconnect/failure reasons that the Living Book UI can explain.
 
-## TASK-037 Repository Audit
+## Historical TASK-037 Pre-Installation Audit
 
 Audit date: 2026-07-23.
 
-The current project is a Unity `6000.0.56f1` local prototype. `MainGame.unity` currently contains the menu/lobby presentation, logical Seats, player objects, one real book, ritual orchestration, voice recognition, hourglass, lighting, ambience, and aftermath presentation. There are no FishNet, Steamworks.NET, Steam transport, or voice-chat packages in `Packages/manifest.json`. There are also no game-owned assembly definitions, so all game scripts currently compile into Unity's default runtime assembly.
+This section preserves the repository evidence recorded before FishNet installation. It is historical context, not current project status.
+
+At the time of the audit, the project was a Unity `6000.0.56f1` local prototype. `MainGame.unity` contained the menu/lobby presentation, logical Seats, player objects, one real book, ritual orchestration, voice recognition, hourglass, lighting, ambience, and aftermath presentation. FishNet, Steamworks.NET, a Steam transport, and voice chat were not yet installed, and game scripts compiled into Unity's default runtime assembly.
 
 The local lobby foundation currently calls directly into `SeatManager`, moves the local player GameObject, and starts `RitualController`. That is valid prototype behavior but is not a network boundary. The first integration must preserve the local loop while placing platform, connection, lobby, seating, and ritual authority behind application-level services.
 
@@ -394,7 +422,7 @@ Before adding those scripts, introduce game-owned runtime and test assembly defi
 
 Do not create a second parallel `Assets/Scripts` versus `Assets/scripts` hierarchy as part of networking. The repository currently contains mixed path casing; choose the existing canonical path on disk and normalize casing only in a separate, reviewed cleanup task because Windows can hide case-only conflicts.
 
-## Scene Setup Plan
+## Original Scene Setup Plan
 
 The first integration should use two scene roles:
 
@@ -424,7 +452,7 @@ Scene setup rules:
 - Treat scene object IDs and spawned prefab IDs as serialization details, never as stable player or Seat identity.
 - Keep `Room`, lighting, ambience, cameras, menu pages, `BookGhost`, and Seat target transforms non-networked unless later evidence proves a network identity is necessary.
 
-## NetworkManager Setup Plan
+## Original NetworkManager Setup Plan
 
 Create one project-owned `IncantationNetworkManager` prefab based on a clean FishNet manager configuration, not a modified demo prefab.
 
@@ -635,7 +663,7 @@ Do not let Unity `Awake`/`Start` order implicitly begin the ritual. Network star
 8. Interpolate presentation and book movement from semantic commands.
 9. On disconnect or host loss, stop local input/recognition, display the structured reason, leave the Steam lobby, and return to offline/menu state.
 
-## Architectural Risks Before Installation
+## Historical Architectural Risks Before Installation
 
 | Risk | Evidence in current project | Mitigation/gate |
 | --- | --- | --- |
@@ -657,7 +685,7 @@ Do not let Unity `Awake`/`Start` order implicitly begin the ritual. Network star
 | Scene book duplication | Spawned-prefab thinking could create one book per connection or duplicate the scene book. | Keep one scene book and one server-owned ritual authority; assert uniqueness in validation. |
 | Steam Seal assumptions | Lobby search is asynchronous, distance-filtered, and can return collisions. | Treat Seal as locator, handle 0/multiple results, set explicit filters/timeouts, and keep external directory fallback isolated. |
 
-## Step-By-Step First FishNet Implementation Roadmap
+## Original FishNet Implementation Roadmap
 
 Each step is a separate small task with documentation, compile/build validation, review, commit, and push. Do not combine package installation with gameplay conversion.
 
@@ -780,9 +808,9 @@ Do not implement all networking at once.
 
 Each milestone requires a separate focused task, documentation update, Unity validation, commit, and review.
 
-## Validation Gate Before Installation
+## Historical Validation Gate Before Installation
 
-The framework decision is approved, but package selection is not yet approved. Before adding packages:
+At the time of TASK-037, the framework decision was approved but package selection was not. The pre-installation gate required:
 
 1. Pin exact versions rather than following floating Git branches.
 2. Confirm license compatibility for FishNet, the Steamworks wrapper, and the transport.
@@ -832,6 +860,6 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - Seat ID and character customization ID are intentionally not synchronized until their dedicated authoritative systems are implemented.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
-- A Play Mode smoke test logged `Server Started`, `Client Connected`, and `Client Disconnected` and spawned the minimal player.
+- Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.
 
 No lobby command flow or Seat, Book, ritual, voice, cosmetic, Steam, or Seal synchronization exists. Steamworks.NET and FishySteamworks are not installed.

@@ -26,13 +26,13 @@ Unknown from documentation. Confirm with `git branch --show-current` before bran
 
 ## Current Milestone
 
-Lobby.
+Networked lobby migration.
 
-The next major milestone is to replace local debug occupant assumptions with a real pre-ritual player flow while preserving the current local test path.
+The FishNet networking foundation, permanent `NetworkPlayer` architecture, and initial runtime validation are complete. The next milestone is to migrate the remaining lobby systems so `NetworkPlayer` becomes their authoritative multiplayer state source.
 
 ## Current Goal
 
-Stabilize the core ritual loop and add the first lobby, ready check, automatic seating, and ritual-start handoff.
+Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state.
 
 The core vision has not changed: one cursed book, one table, seated players, an hourglass, voice pressure, betrayal, tension, laughter, and memorable social moments.
 
@@ -64,12 +64,57 @@ The current prototype includes:
 20. Fire flicker.
 21. Hourglass light possession effect.
 22. Room veil and dark cabin ambience.
-23. FishNet `4.7.2` networking foundation with a dedicated Bootstrap scene, Tugboat localhost transport, and one persistent NetworkManager.
-24. One permanent owner-assigned `NetworkPlayer` per connection, with replicated identity/lobby-ready state, change events, and reserved unsynchronized Seat/customization data boundaries.
+23. FishNet `4.7.2` networking foundation.
+24. Dedicated Bootstrap scene.
+25. One persistent `NetworkManager`.
+26. Tugboat transport configured for local diagnostics.
+27. Build Profiles configured for the Bootstrap and gameplay scene flow.
+28. Networking runtime validation completed.
+29. One persistent, owner-assigned `NetworkPlayer` for every connected player.
+30. `NetworkPlayer` as the networking identity of every connected player.
+31. Replicated `NetworkPlayer` state for Priest Name, Lobby Player State, Ready State, and High Priest.
+
+## Networking Foundation
+
+The following foundation milestones are complete:
+
+- FishNet is installed.
+- The Bootstrap scene is configured.
+- One persistent `NetworkManager` owns the networking lifecycle.
+- Tugboat is configured as the current diagnostic transport.
+- Build Profiles are configured.
+- Runtime validation is complete.
+
+## NetworkPlayer
+
+One persistent `NetworkPlayer` exists for every connected player.
+
+`NetworkPlayer` is the networking identity of every player and should become the authoritative multiplayer source for lobby and gameplay consumers wherever possible.
+
+The replicated state currently includes:
+
+- Priest Name.
+- Lobby Player State.
+- Ready State.
+- High Priest.
+
+Seat assignment and character selection are the next planned lobby-state migrations and are not yet synchronized.
+
+## Runtime Validation
+
+The following networking behaviors have been successfully validated:
+
+- Host startup.
+- Client connection.
+- `NetworkPlayer` spawning.
+- Local player ownership.
+- Remote player replication.
+- Disconnect.
+- Shutdown.
 
 ## Experimental Or Incomplete Systems
 
-- A local lobby player state component models `NotSeated`, `Seated`, and `Ready`, including guarded transitions and UI-facing availability queries. The existing Living Book lobby page observes this state and refreshes its actions and status text through the existing Book text-transition system. Physical seating, ritual handoff, and networking remain unconnected.
+- A local lobby player state component still duplicates part of the lobby state during migration. The existing Living Book lobby page observes this local state and refreshes its actions and status text through the existing Book text-transition system. It must be converted to consume authoritative `NetworkPlayer` state.
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
@@ -80,16 +125,19 @@ The current prototype includes:
 
 ## Known Missing Product Systems
 
-- Ready check.
-- Production automatic seating from lobby players.
-- Multiplayer gameplay synchronization. The FishNet connection foundation and NetworkPlayer state boundary are installed, but the existing lobby is not yet adapted and Seat, Book, ritual, voice, cosmetics, and gameplay state remain unsynchronized.
+- Synchronized Seat assignment.
+- Synchronized Character selection.
+- Synchronized Lobby UI.
+- Removal of duplicated local lobby state.
+- Book systems consuming `NetworkPlayer`.
+- Multiplayer gameplay synchronization beyond the validated connection and player-identity foundation. Book, ritual, voice, cosmetics, and gameplay state remain unsynchronized.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
 - Demon reactions.
 - Campaign objectives.
 
-Lobby is the next major milestone.
+Networked lobby migration is the next major milestone.
 
 ## Known Bugs
 
@@ -105,7 +153,7 @@ When a bug becomes part of the current project state, add it here briefly and re
 - `BookController` arrival is duration-based because `BookMover` does not expose a true completion callback.
 - Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
-- `LobbyPlayerStateController` remains the current local lobby state source while the Living Book flow is preserved; it must later become an adapter/consumer of `NetworkPlayer`.
+- `LobbyPlayerStateController` still duplicates lobby state while the Living Book flow is preserved; it must become an adapter/consumer of authoritative `NetworkPlayer` state.
 
 ## Voice State
 
@@ -163,8 +211,8 @@ The phrase does not grow after every player.
 
 Read `Docs/NEXT_TASK.md`.
 
-The immediate objective remains the first lobby flow: complete ready state and automatic seating through the Seat system, then adapt that flow to consume the permanent `NetworkPlayer` boundary in a separately scoped networking task.
+Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state. The planned sequence is synchronized Seat assignment, Character selection, Lobby UI, removal of duplicated local lobby state, and transition of Book systems to read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-23 during TASK-039 NetworkPlayer architecture.
+2026-07-24 during TASK-039.6 networking documentation synchronization.
