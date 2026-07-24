@@ -718,6 +718,8 @@ Voice lip controller:
 
 Camera transition foundation:
 
+- `BookMenuController` registers its existing `bookMenuCameraTarget` with `CameraTransitionManager` at runtime. Moving the local menu camera to that target selects the local-only `BookInteraction` input context; moving to any other target restores `Gameplay`. No additional scene reference is required.
+- `LocalInputContextGate` contains only `Gameplay` and `BookInteraction`. It is process-local, is never synchronized, and resets to `Gameplay` when the camera manager or Book menu controller is disabled or destroyed.
 - `CameraTransitionManager` lives at `Assets/scripts/Camera/CameraTransitionManager.cs`.
 - `MenuTransitionCamera` is the only rendering camera for menu navigation.
 - `BookMenuCamera`, `LobbyCamera`, and future menu viewpoints such as `CharacterCamera` are static destination Transforms only. They must not render during menu navigation.
@@ -872,6 +874,7 @@ Book menu item wiring:
 
 Book return interaction:
 
+- While `LocalInputContextGate` reports `BookInteraction`, the physical Book ignores hover and click callbacks. Existing Book UI colliders remain active and unaffected. Moving the camera away from the registered Book target restores physical Book hover and click automatically.
 - `BookMenuReturnInteractable` lives at `Assets/scripts/Book/BookMenuReturnInteractable.cs`.
 - Add it to the existing physical Book object that should be clickable from the Lobby camera view. Do not add it to `BookGhost`, and do not create a second gameplay book.
 - The Book must have an existing manually placed `BoxCollider` or other appropriate Collider on the same clickable object so Unity mouse events can reach the component. Size and position this Collider by hand in the scene; the script does not create, resize, enable, or repair Colliders.
@@ -902,6 +905,8 @@ Guidance:
 
 Add one `SpellHand` child beneath each authored Player that needs the local presentation prototype. Create three table slot Transforms, three raised pose Transforms, and one inspect pose Transform. Add `SpellHandController` to the `SpellHand` root.
 
+- Temporary spell-hand gameplay shortcuts run only in the local `Gameplay` input context. While the local camera controls the Book, `E`, card selection, visibility, and consume shortcuts are ignored without disabling Book UI keyboard input.
+- `NotebookInput` consumes the same local gameplay gate, preventing its `E` shortcut from competing with Book UI interaction while preserving its existing behavior in `Gameplay`.
 - `cardViews`: assign exactly three authored child cards in left, center, right order. Each card requires `SpellCardView`.
 - `cardSlots`: assign exactly three table resting poses in the same order.
 - `raisedPoses`: assign exactly three reading poses in the same order. These poses provide the base fan layout.

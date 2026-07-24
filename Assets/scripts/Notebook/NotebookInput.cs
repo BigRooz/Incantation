@@ -24,7 +24,9 @@ public class NotebookInput : MonoBehaviour
 
     private void Update()
     {
-        if (!inputEnabled || notebookController == null)
+        if (!inputEnabled ||
+            notebookController == null ||
+            !LocalInputContextGate.AllowsGameplayInput)
             return;
 
         if (ignoreInputWhenUiSelected && EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)

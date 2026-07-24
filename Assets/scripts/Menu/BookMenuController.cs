@@ -36,6 +36,11 @@ public class BookMenuController : MonoBehaviour
 
     private void Awake()
     {
+        if (cameraTransitionManager != null)
+        {
+            cameraTransitionManager.RegisterBookInteractionTarget(bookMenuCameraTarget);
+        }
+
         if (cameraTransitionManager == null || bookMenuCameraTarget == null)
         {
             Debug.LogWarning($"{nameof(BookMenuController)} cannot set the startup camera because {nameof(cameraTransitionManager)} or {nameof(bookMenuCameraTarget)} is not assigned.", this);
@@ -43,6 +48,18 @@ public class BookMenuController : MonoBehaviour
         }
 
         cameraTransitionManager.MoveToImmediate(bookMenuCameraTarget);
+    }
+
+    private void OnDisable()
+    {
+        if (cameraTransitionManager != null)
+        {
+            cameraTransitionManager.UnregisterBookInteractionTarget(bookMenuCameraTarget);
+        }
+        else
+        {
+            LocalInputContextGate.RestoreGameplay();
+        }
     }
 
     public void OpenPlayMenu()

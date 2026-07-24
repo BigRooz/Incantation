@@ -31,8 +31,17 @@ public class BookMenuReturnInteractable : MonoBehaviour
         CacheOriginalPropertyBlocks();
     }
 
+    private void OnEnable()
+    {
+        LocalInputContextGate.ContextChanged += HandleInputContextChanged;
+
+        if (LocalInputContextGate.IsBookInteractionActive)
+            StopHoverEffects();
+    }
+
     private void OnDisable()
     {
+        LocalInputContextGate.ContextChanged -= HandleInputContextChanged;
         StopHoverLightFade();
 
         if (hoverLight != null)
@@ -44,7 +53,7 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
     private void OnMouseEnter()
     {
-        if (!interactionEnabled)
+        if (!interactionEnabled || LocalInputContextGate.IsBookInteractionActive)
             return;
 
         isHovered = true;
@@ -61,13 +70,21 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
     private void OnMouseDown()
     {
-        if (!interactionEnabled || cameraTransitionManager == null)
+        if (!interactionEnabled ||
+            LocalInputContextGate.IsBookInteractionActive ||
+            cameraTransitionManager == null)
             return;
 
         if (bookRotationController != null)
             bookRotationController.RotateToFront();
 
         cameraTransitionManager.MoveTo(bookMenuTarget);
+    }
+
+    private void HandleInputContextChanged(LocalInputContext context)
+    {
+        if (context == LocalInputContext.BookInteraction)
+            StopHoverEffects();
     }
 
     public void SetInteractionEnabled(bool enabled)

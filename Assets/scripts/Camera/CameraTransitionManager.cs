@@ -11,6 +11,7 @@ public class CameraTransitionManager : MonoBehaviour
     [SerializeField] private Camera activeCamera;
 
     private Coroutine transitionRoutine;
+    private Transform bookInteractionTarget;
 
     public Camera ActiveCamera => activeCamera;
     public bool IsTransitioning => transitionRoutine != null;
@@ -18,6 +19,21 @@ public class CameraTransitionManager : MonoBehaviour
     private void OnDisable()
     {
         CancelCurrentTransition();
+        LocalInputContextGate.RestoreGameplay();
+    }
+
+    public void RegisterBookInteractionTarget(Transform target)
+    {
+        bookInteractionTarget = target;
+    }
+
+    public void UnregisterBookInteractionTarget(Transform target)
+    {
+        if (bookInteractionTarget != target)
+            return;
+
+        bookInteractionTarget = null;
+        LocalInputContextGate.RestoreGameplay();
     }
 
     public void MoveTo(Transform target)
@@ -26,6 +42,7 @@ public class CameraTransitionManager : MonoBehaviour
             return;
 
         CancelCurrentTransition();
+        ApplyInputContextForTarget(target);
 
         transitionRoutine = StartCoroutine(RunTransition(target));
     }
@@ -36,6 +53,7 @@ public class CameraTransitionManager : MonoBehaviour
             return;
 
         CancelCurrentTransition();
+        ApplyInputContextForTarget(target);
         activeCamera.transform.SetPositionAndRotation(target.position, target.rotation);
     }
 
@@ -112,6 +130,14 @@ public class CameraTransitionManager : MonoBehaviour
 
         StopCoroutine(transitionRoutine);
         transitionRoutine = null;
+    }
+
+    private void ApplyInputContextForTarget(Transform target)
+    {
+        LocalInputContextGate.SetContext(
+            bookInteractionTarget != null && target == bookInteractionTarget
+                ? LocalInputContext.BookInteraction
+                : LocalInputContext.Gameplay);
     }
 
     private float EvaluateTransitionCurve(float normalizedTime)

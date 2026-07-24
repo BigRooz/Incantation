@@ -81,7 +81,7 @@ public sealed class SpellHandController : MonoBehaviour
 
     private void Update()
     {
-        if (!enableDebugInput)
+        if (!enableDebugInput || !LocalInputContextGate.AllowsGameplayInput)
             return;
 
         if (Input.GetKeyDown(visibilityKey))
