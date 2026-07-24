@@ -751,6 +751,8 @@ Book state controller:
 
 Book right page controller:
 
+- The existing Book page layout is artist-authored and must be preserved. Functional tasks may update text content, visibility, interactivity, collider state, and state-based colors, but must not change TMP alignment, RectTransform anchors or pivots, positions, dimensions, margins, font sizing, autosizing, spacing, or visual hierarchy unless a task explicitly requests a layout redesign.
+- `BookRightPageController` uses the serialized scene and prefab layout directly. It must not center, reposition, resize, or otherwise restore layout values at runtime when changing Book states; avoiding those mutations also prevents placement flashes during transitions.
 - Add `BookRightPageController` to the existing Living Book/menu coordination object. It presents context for the state owned by `BookStateController`; it does not own or change Book state.
 - Manually create and position six right-page TextMeshPro objects: one title and five lines. Assign them to `rightTitle` and `rightLine1` through `rightLine5` in displayed order.
 - Add five new, independent `BookMenuItem` components for the five right-page lines. Assign them to `rightMenuItem1` through `rightMenuItem5` in matching order. Do not reuse `menuItem1` through `menuItem4` from the left page.

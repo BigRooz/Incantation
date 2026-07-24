@@ -39,10 +39,6 @@ public sealed class BookRightPageController : MonoBehaviour
 
     private readonly List<TMP_Text> transitionTexts = new List<TMP_Text>();
     private readonly List<string> transitionTargets = new List<string>();
-    private TextAlignmentOptions originalRightLine2Alignment;
-    private TextAlignmentOptions originalRightLine3Alignment;
-    private TextAlignmentOptions originalRightLine4Alignment;
-    private TextAlignmentOptions originalRightLine5Alignment;
     private Color validateButtonColor;
     private Coroutine buttonFadeCoroutine;
     private BookState preparedState;
@@ -50,10 +46,6 @@ public sealed class BookRightPageController : MonoBehaviour
 
     private void Awake()
     {
-        if (rightLine2 != null) originalRightLine2Alignment = rightLine2.alignment;
-        if (rightLine3 != null) originalRightLine3Alignment = rightLine3.alignment;
-        if (rightLine4 != null) originalRightLine4Alignment = rightLine4.alignment;
-        if (rightLine5 != null) originalRightLine5Alignment = rightLine5.alignment;
         if (rightLine3 != null) validateButtonColor = rightLine3.color;
     }
 
@@ -71,7 +63,6 @@ public sealed class BookRightPageController : MonoBehaviour
         List<string> targetStrings)
     {
         preparedState = state;
-        RestoreDefaultAlignment();
 
         switch (state)
         {
@@ -252,11 +243,6 @@ public sealed class BookRightPageController : MonoBehaviour
         bool canSubmit = bookMenuController != null && bookMenuController.CanSubmitSeal;
         string status = GetJoinStatus(service, seal, canSubmit);
 
-        if (rightLine1 != null) rightLine1.alignment = TextAlignmentOptions.Center;
-        if (rightLine2 != null) rightLine2.alignment = TextAlignmentOptions.Center;
-        if (rightLine3 != null) rightLine3.alignment = TextAlignmentOptions.Center;
-        if (rightLine4 != null) rightLine4.alignment = TextAlignmentOptions.Center;
-
         PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
         PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Seal", null);
         PrepareEntry(texts, targets, rightLine2, rightMenuItem2, FormatSealField(seal), null);
@@ -402,14 +388,6 @@ public sealed class BookRightPageController : MonoBehaviour
         rightLine3.color = to;
         rightMenuItem3?.CaptureAuthoredBaseline();
         buttonFadeCoroutine = null;
-    }
-
-    private void RestoreDefaultAlignment()
-    {
-        if (rightLine2 != null) rightLine2.alignment = originalRightLine2Alignment;
-        if (rightLine3 != null) rightLine3.alignment = originalRightLine3Alignment;
-        if (rightLine4 != null) rightLine4.alignment = originalRightLine4Alignment;
-        if (rightLine5 != null) rightLine5.alignment = originalRightLine5Alignment;
     }
 
     private void PrepareClearPage(List<TMP_Text> texts, List<string> targets)
