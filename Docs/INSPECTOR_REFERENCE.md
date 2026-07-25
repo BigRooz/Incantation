@@ -763,7 +763,8 @@ Book state controller:
 - `characterBookPageController`: assign `CharacterBookPageController` so Character category actions and the default Character right page can be refreshed when entering `CharacterMenu`.
 - `voiceBookPageController`: assign the `VoiceBookPageController` on the same Living Book coordination object. It supplies Voice-page values and controls without owning navigation or page transitions.
 - `textTransitionController`: assign the shared `BookTextTransitionController` used by both Book pages. `BookStateController` combines left- and right-page targets into one coordinated transition so a state change produces one paper sound, not one sound per page or line.
-- On `Start`, the controller displays `MainMenu`. `SetState(BookState)` reuses the assigned text entries, replaces their click actions, and does not create, move, restyle, or realign anything.
+- On `Start`, the controller displays the appropriate initial page. `ChangePage(BookState)` is the navigation path: it reuses the assigned text entries, prepares their click actions, and plays the coordinated left/right page transition. Calling it for the page that is already open delegates to `RefreshCurrentPageContent()` instead of replaying the transition.
+- `RefreshCurrentPageContent()` is the data-refresh path. It writes synchronized lobby counts, Ready/Unready labels and button state, Ritual Seal status, and other current-page values directly into the existing TMP entries. It does not call `BookTextTransitionController`, rebuild layout, replay fades or paper audio, reset focus, or disturb an unchanged hover state.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
 - `HostMenu` displays `CREATE RITUAL`, `Create Ritual`, and `Back`. Creation starts the host and opens `RitualCreated`; it does not start ritual gameplay.
 - Empty page lines remain assigned but display an empty string and have no click action. `Create Ritual` and `Join Ritual` are connected to the TASK-042 Book-owned LAN flow.
@@ -880,6 +881,11 @@ Network Ready presentation:
   The Book action must call the owner request on `NetworkPlayer`.
 - Ready presentation refreshes from `NetworkPlayer.CircleRosterChanged`; do not add Update
   polling, hierarchy searches, serialized counts, or a second roster.
+- Ready changes refresh only `Priests Ready (n / 8)` and the local Ready/Unready action.
+  Circle joins, disconnects, reconnects, and late joins refresh only the displayed player/Ready
+  values. These synchronized content changes never replay the Book page transition.
+- Synchronized appearance remains presented by `NetworkCharacterPresentation` through
+  `NetworkPlayer.AppearanceSlotChanged`; it does not request a Book page change or transition.
 - Reconnect defaults to Not Ready. No Inspector default or saved Book text may override it.
 
 Book menu controller:

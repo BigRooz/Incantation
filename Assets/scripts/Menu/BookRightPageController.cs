@@ -168,6 +168,21 @@ public sealed class BookRightPageController : MonoBehaviour
         PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
     }
 
+    public void RefreshLobbyContent(
+        string line1Text,
+        string line2Text,
+        string line3Text,
+        UnityAction line3Action)
+    {
+        ApplyTextImmediately(rightLine1, line1Text);
+        ApplyTextImmediately(rightLine2, line2Text);
+        ApplyTextImmediately(rightLine3, line3Text);
+
+        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(rightMenuItem2, null, false);
+        RefreshInteraction(rightMenuItem3, line3Action, line3Action != null);
+    }
+
     public void ClearRightPage()
     {
         transitionTexts.Clear();
@@ -542,6 +557,23 @@ public sealed class BookRightPageController : MonoBehaviour
 
         menuItem.RefreshVisualBaseline();
         menuItem.SetInteractionEnabled(textEntry != null && !string.IsNullOrEmpty(textEntry.text));
+    }
+
+    private static void RefreshInteraction(
+        BookMenuItem menuItem,
+        UnityAction action,
+        bool enabled)
+    {
+        if (menuItem == null)
+        {
+            return;
+        }
+
+        menuItem.SetOnClickAction(action);
+        if (menuItem.InteractionEnabled != enabled)
+        {
+            menuItem.SetInteractionEnabled(enabled);
+        }
     }
 
     private void LogInvitePlaceholder()

@@ -45,6 +45,7 @@ public sealed class BookStateController : MonoBehaviour
     private readonly List<string> transitionTargets = new List<string>();
     private BookState preparedState;
     private bool hasStarted;
+    private bool hasPreparedPage;
     private int lastRenderedCircleMemberCount = -1;
     private int lastRenderedReadyCount = -1;
 
@@ -91,20 +92,26 @@ public sealed class BookStateController : MonoBehaviour
         RitualSealService sealService = RitualSealService.Instance;
         if (ShouldDisplayJoinedCircle(sealService))
         {
-            SetState(BookState.Lobby);
+            ChangePage(BookState.Lobby);
         }
         else if (sealService != null && sealService.IsHostingRitual)
         {
-            SetState(BookState.RitualCreated);
+            ChangePage(BookState.RitualCreated);
         }
         else
         {
-            SetState(BookState.MainMenu);
+            ChangePage(BookState.MainMenu);
         }
     }
 
-    public void SetState(BookState state)
+    public void ChangePage(BookState state)
     {
+        if (hasPreparedPage && preparedState == state)
+        {
+            RefreshCurrentPageContent();
+            return;
+        }
+
         preparedState = state;
         if (state == BookState.Lobby)
         {
@@ -206,6 +213,8 @@ public sealed class BookStateController : MonoBehaviour
                 Debug.LogWarning($"{nameof(BookStateController)} cannot display unsupported state {state}.", this);
                 return;
         }
+
+        hasPreparedPage = true;
 
         if (rightPageController != null && state != BookState.Lobby)
         {
@@ -317,7 +326,7 @@ public sealed class BookStateController : MonoBehaviour
     {
         if (preparedState == BookState.Lobby)
         {
-            SetState(BookState.Lobby);
+            RefreshCurrentPageContent();
         }
     }
 
@@ -333,7 +342,7 @@ public sealed class BookStateController : MonoBehaviour
         }
         else if (preparedState == BookState.RitualCreated)
         {
-            SetState(preparedState);
+            RefreshCurrentPageContent();
         }
     }
 
@@ -355,13 +364,13 @@ public sealed class BookStateController : MonoBehaviour
                 if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount ||
                     lastRenderedReadyCount != NetworkPlayer.ReadyCircleMemberCount)
                 {
-                    SetState(BookState.Lobby);
+                    RefreshCurrentPageContent();
                 }
             }
             else
             {
                 Debug.Log("[Book Menu] Local Circle membership ended; returning to the main menu.", this);
-                SetState(BookState.MainMenu);
+                ChangePage(BookState.MainMenu);
             }
         }
     }
@@ -373,14 +382,124 @@ public sealed class BookStateController : MonoBehaviour
             if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount ||
                 lastRenderedReadyCount != NetworkPlayer.ReadyCircleMemberCount)
             {
-                SetState(BookState.Lobby);
+                RefreshCurrentPageContent();
             }
 
             return;
         }
 
         Debug.Log("[Book Menu] Transitioning to The Circle.", this);
-        SetState(BookState.Lobby);
+        ChangePage(BookState.Lobby);
+    }
+
+    public void RefreshCurrentPageContent()
+    {
+        switch (preparedState)
+        {
+            case BookState.Lobby:
+                RefreshLobbyContent();
+                break;
+
+            case BookState.JoinMenu:
+            case BookState.JoinSealEntry:
+                RefreshJoinSealPresentation();
+                break;
+
+            case BookState.RitualCreated:
+                RefreshRitualCreatedContent();
+                break;
+        }
+    }
+
+    private void RefreshLobbyContent()
+    {
+        LobbyPlayerState lobbyPlayerState = lobbyPlayerStateController != null
+            ? lobbyPlayerStateController.CurrentState
+            : LobbyPlayerState.NotSeated;
+        if (lobbyPlayerState == LobbyPlayerState.Ready)
+        {
+            lobbyPlayerState = LobbyPlayerState.Seated;
+        }
+
+        bool isLocalPlayerReady =
+            NetworkPlayer.LocalPlayer != null &&
+            NetworkPlayer.LocalPlayer.IsCircleMember &&
+            NetworkPlayer.LocalPlayer.IsReady;
+
+        if (lobbyPlayerState == LobbyPlayerState.NotSeated)
+        {
+            RefreshLeftEntry(line1, menuItem1, "Priest Name",
+                bookMenuController != null ? bookMenuController.EditPriestName : null);
+            RefreshLeftEntry(line2, menuItem2, "Character",
+                bookMenuController != null ? bookMenuController.OpenCharacter : null);
+            RefreshLeftEntry(line3, menuItem3, "Take Your Seat",
+                lobbyPlayerStateController != null ? TakeLobbySeat : null);
+            RefreshLeftEntry(line4, menuItem4, "Leave Ritual",
+                bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);
+
+            rightPageController?.RefreshLobbyContent(
+                "High Priest",
+                $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
+                "Invite a Priest",
+                bookMenuController != null ? bookMenuController.InvitePriest : null);
+        }
+        else
+        {
+            RefreshLeftEntry(line1, menuItem1, isLocalPlayerReady ? "Unready" : "Ready",
+                NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null);
+            RefreshLeftEntry(line2, menuItem2, "Leave Seat",
+                lobbyPlayerStateController != null ? LeaveLobbySeat : null);
+            RefreshLeftEntry(line3, menuItem3, string.Empty, null);
+            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+
+            rightPageController?.RefreshLobbyContent(
+                $"Priests Ready ({NetworkPlayer.ReadyCircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
+                "Waiting for High Priest to Start the Ritual",
+                string.Empty,
+                null);
+        }
+
+        lastRenderedCircleMemberCount = NetworkPlayer.CircleMemberCount;
+        lastRenderedReadyCount = NetworkPlayer.ReadyCircleMemberCount;
+    }
+
+    private void RefreshRitualCreatedContent()
+    {
+        string activeSeal = RitualSealService.Instance != null
+            ? RitualSealService.Instance.ActiveSeal
+            : string.Empty;
+        ApplyTextImmediately(line2, activeSeal);
+    }
+
+    private static void RefreshLeftEntry(
+        TMP_Text textEntry,
+        BookMenuItem menuItem,
+        string value,
+        UnityAction action)
+    {
+        ApplyTextImmediately(textEntry, value);
+        if (menuItem == null)
+        {
+            return;
+        }
+
+        menuItem.SetOnClickAction(action);
+        bool enabled = action != null && !string.IsNullOrEmpty(value);
+        if (menuItem.InteractionEnabled != enabled)
+        {
+            menuItem.SetInteractionEnabled(enabled);
+        }
+    }
+
+    private static void ApplyTextImmediately(TMP_Text textEntry, string value)
+    {
+        if (textEntry == null)
+        {
+            return;
+        }
+
+        textEntry.text = value ?? string.Empty;
+        textEntry.maxVisibleCharacters = int.MaxValue;
     }
 
     private static bool ShouldDisplayJoinedCircle(RitualSealService sealService)

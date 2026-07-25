@@ -22,6 +22,8 @@ public sealed class BookMenuItem : MonoBehaviour
     private bool isHovered;
     private bool interactionEnabled;
 
+    public bool InteractionEnabled => interactionEnabled;
+
     public void SetOnClickAction(UnityAction action)
     {
         onClick = new UnityEvent();

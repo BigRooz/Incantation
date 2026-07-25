@@ -64,12 +64,12 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenPlayMenu()
     {
-        bookStateController.SetState(BookState.PlayMenu);
+        bookStateController.ChangePage(BookState.PlayMenu);
     }
 
     public void OpenHostMenu()
     {
-        bookStateController.SetState(BookState.HostMenu);
+        bookStateController.ChangePage(BookState.HostMenu);
     }
 
     public void OpenJoinMenu()
@@ -78,7 +78,7 @@ public class BookMenuController : MonoBehaviour
         enteredSeal = string.Empty;
         sealHasSupportedCharacterOverflow = false;
         RitualSealService.Instance?.BeginJoinEntry();
-        bookStateController.SetState(BookState.JoinSealEntry);
+        bookStateController.ChangePage(BookState.JoinSealEntry);
     }
 
     public void CreateNetworkRitual()
@@ -90,14 +90,14 @@ public class BookMenuController : MonoBehaviour
             return;
         }
 
-        bookStateController.SetState(BookState.RitualCreated);
+        bookStateController.ChangePage(BookState.RitualCreated);
     }
 
     public void CancelJoinRitual()
     {
         enteredSeal = string.Empty;
         sealHasSupportedCharacterOverflow = false;
-        bookStateController.SetState(BookState.PlayMenu);
+        bookStateController.ChangePage(BookState.PlayMenu);
         RitualSealService.Instance?.CancelJoin();
     }
 
@@ -182,18 +182,18 @@ public class BookMenuController : MonoBehaviour
         if (bookRotationController != null)
             bookRotationController.RotateToFront();
 
-        bookStateController.SetState(BookState.MainMenu);
+        bookStateController.ChangePage(BookState.MainMenu);
     }
 
     public void ReturnFromCharacterView()
     {
-        bookStateController.SetState(characterReturnState);
+        bookStateController.ChangePage(characterReturnState);
         ReturnToBookMenu();
     }
 
     public void ReturnToPlayMenu()
     {
-        bookStateController.SetState(BookState.PlayMenu);
+        bookStateController.ChangePage(BookState.PlayMenu);
     }
 
     public void StartRitualFromBook()
@@ -228,7 +228,7 @@ public class BookMenuController : MonoBehaviour
             lobbyController.OpenLobby();
 
         if (bookStateController != null && bookStateController.CurrentState != BookState.Lobby)
-            bookStateController.SetState(BookState.Lobby);
+            bookStateController.ChangePage(BookState.Lobby);
 
         cameraTransitionManager.MoveTo(lobbyCameraTarget);
     }
@@ -262,7 +262,7 @@ public class BookMenuController : MonoBehaviour
     public void OpenCharacter()
     {
         characterReturnState = bookStateController.CurrentState;
-        bookStateController.SetState(BookState.CharacterMenu);
+        bookStateController.ChangePage(BookState.CharacterMenu);
     }
 
     public void ShowCharacter()
@@ -281,17 +281,17 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenOptions()
     {
-        bookStateController.SetState(BookState.OptionsMenu);
+        bookStateController.ChangePage(BookState.OptionsMenu);
     }
 
     public void OpenVoiceOptions()
     {
-        bookStateController.SetState(BookState.VoiceMenu);
+        bookStateController.ChangePage(BookState.VoiceMenu);
     }
 
     public void ReturnToOptions()
     {
-        bookStateController.SetState(BookState.OptionsMenu);
+        bookStateController.ChangePage(BookState.OptionsMenu);
     }
 
     public void OpenLeaderboard()
