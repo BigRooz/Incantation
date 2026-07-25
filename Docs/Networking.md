@@ -65,7 +65,35 @@ Technical diagnostics log directory resolution (including the resolved endpoint)
 acceptance, every FishNet client state callback, scene synchronization start/end, and local
 `NetworkPlayer` creation. The Book remains IP-free.
 
-`NetworkPlayer` is the permanent networking identity of every connected player. Its replicated state currently includes Priest Name, Lobby Player State, Ready State, and High Priest.
+NET-042.3 establishes Circle membership as server-owned state on each connection's existing
+`NetworkPlayer`. `NetworkPlayer.OnStartServer` registers that identity exactly once by setting
+the replicated `IsCircleMember` SyncVar, and server stop plus network-object despawn remove it.
+The authoritative roster is therefore the set of spawned, server-approved `NetworkPlayer`
+identities whose synchronized membership flag is true. It is not a Seat roster, Hierarchy
+count, display-name list, or Book-owned collection. `MaximumCircleMembers` owns the current
+capacity of eight and Seal availability uses the same synchronized member count.
+
+The confirmed pre-NET-042.3 failure was not transport or scene synchronization. A second
+`NetworkPlayer` spawned correctly, but no Circle-membership property or registration lifecycle
+existed. In parallel, `BookStateController` rendered a local serialized
+`currentLobbyPlayerCount` fixed at one and entered `BookState.Lobby` only through local menu
+navigation. The client consequently stopped at `Ritual joined.` and the host continued to render
+`Players (1 / 8)`.
+
+Every peer now maintains a read-only runtime view of the spawned network identities and counts
+only those with the replicated membership flag. `CircleRosterChanged` refreshes the Circle page
+when synchronized membership changes or a member despawns. `BookStateController` also queries
+`IsLocalPlayerCircleMember` and `CircleMemberCount` on startup and re-enable, so late UI
+subscription does not require the original event to repeat. A joined non-host displays
+`THE CIRCLE` only when both the existing Join lifecycle is complete and its local
+`NetworkPlayer` has authoritative synchronized Circle membership. The Host still chooses
+`Enter the Circle` after creation. Local-player despawn clears the joined Seal state before the
+Book returns to its existing main-menu state, preventing stale Circle membership after
+disconnect.
+
+`NetworkPlayer` is the permanent networking identity of every connected player. Its replicated
+state currently includes Circle membership, Priest Name, Lobby Player State, Ready State, Seat
+ID, and High Priest.
 
 Future systems should use `NetworkPlayer` as the authoritative multiplayer source whenever possible. Avoid creating duplicated lobby state outside `NetworkPlayer`; presentation components should observe or adapt its state instead of becoming competing authorities.
 
@@ -927,5 +955,23 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   deadlines are independent, terminal failures restore Validate, and the required Build setup
   remains Bootstrap first in Build Settings with Tugboat UDP port `7770` reachable through the
   host firewall.
+- NET-042.3 synchronizes Circle membership on each server-owned `NetworkPlayer`, drives Book
+  player count and capacity from that replicated roster, and automatically moves a joined client
+  from Join Ritual to `THE CIRCLE` after its local synchronized membership is confirmed.
+
+### NET-042.3 Manual Editor Host And Standalone Build Validation
+
+1. Start Bootstrap in the Unity Editor, create a Ritual, and select `Enter the Circle`. Confirm
+   `THE CIRCLE`, `Players (1 / 8)`, and one `[Circle] Member registered` diagnostic.
+2. Launch the standalone Build, enter the active Seal, and validate it. Confirm the local
+   `NetworkPlayer` spawn, synchronized membership confirmation, automatic Book transition, and
+   `Players (2 / 8)` on both peers without another click or duplicate registration.
+3. Close or disconnect the Build. Confirm the Host remains in `THE CIRCLE`, the diagnostic
+   reports member removal, and the Host returns to `Players (1 / 8)` without an exception.
+4. Relaunch and rejoin the same Ritual. Confirm both peers return to `Players (2 / 8)`, the
+   joining Book transitions once, and no stale entry produces `3 / 8`.
+5. During the normal flow, disable/re-enable the Book controller or complete the existing scene
+   transition before opening it. Confirm the current-state query restores the correct Circle
+   page and count without waiting for another membership event.
 
 Production Steam discovery, Steam transport, networked Book/ritual/voice/cosmetic state, and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.

@@ -19,6 +19,7 @@ namespace Incantation.Networking
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayer : NetworkBehaviour
     {
+        public const int MaximumCircleMembers = 8;
         public const int UnassignedSeatId = -1;
         public const int MaximumSeatId = 7;
         public const int DefaultCharacterCustomizationId = 0;
@@ -28,6 +29,7 @@ namespace Incantation.Networking
         private static readonly List<NetworkPlayer> activePlayers = new();
 
         private readonly SyncVar<bool> isHighPriest = new(false);
+        private readonly SyncVar<bool> isCircleMember = new(false);
         private readonly SyncVar<string> priestName = new(string.Empty);
         private readonly SyncVar<LobbyPlayerState> lobbyPlayerState = new(LobbyPlayerState.NotSeated);
         private readonly SyncVar<ReadyState> readyState = new(ReadyState.NotReady);
@@ -40,10 +42,12 @@ namespace Incantation.Networking
         public static event Action<NetworkPlayer> ActivePlayerAdded;
         public static event Action<NetworkPlayer> ActivePlayerRemoved;
         public static event Action<NetworkPlayer> LocalPlayerCreated;
+        public static event Action CircleRosterChanged;
 
         public NetworkConnection Connection => Owner;
         public bool IsLocalPlayer => IsOwner;
         public bool IsHighPriest => isHighPriest.Value;
+        public bool IsCircleMember => isCircleMember.Value;
         public string PriestName => priestName.Value;
         public LobbyPlayerState LobbyPlayerState => lobbyPlayerState.Value;
         public ReadyState ReadyState => readyState.Value;
@@ -52,6 +56,7 @@ namespace Incantation.Networking
         public bool HasAssignedSeat => seatId.Value != UnassignedSeatId;
 
         public event Action<bool, bool> HighPriestChanged;
+        public event Action<bool, bool> CircleMembershipChanged;
         public event Action<string, string> PriestNameChanged;
         public event Action<LobbyPlayerState, LobbyPlayerState> LobbyPlayerStateChanged;
         public event Action<ReadyState, ReadyState> ReadyStateChanged;
@@ -68,7 +73,23 @@ namespace Incantation.Networking
             {
                 activePlayers.Add(this);
                 ActivePlayerAdded?.Invoke(this);
+                CircleRosterChanged?.Invoke();
             }
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+
+            if (isCircleMember.Value)
+            {
+                return;
+            }
+
+            isCircleMember.Value = true;
+            Debug.Log(
+                $"[Circle] Member registered. Count: {CircleMemberCount}/{MaximumCircleMembers}.",
+                this);
         }
 
         public override void OnStartClient()
@@ -80,10 +101,32 @@ namespace Incantation.Networking
                 LocalPlayer = this;
                 Debug.Log($"Local NetworkPlayer created. ConnectionId: {Owner.ClientId}.", this);
                 LocalPlayerCreated?.Invoke(this);
+
+                if (isCircleMember.Value)
+                {
+                    Debug.Log("[Circle] Local membership confirmed.", this);
+                }
             }
 
             ClientStarted?.Invoke();
             Debug.Log($"NetworkPlayer spawned. ConnectionId: {Owner.ClientId}, IsLocalPlayer: {IsLocalPlayer}.");
+            CircleRosterChanged?.Invoke();
+            Debug.Log(
+                $"[Circle] Synchronized member count: {CircleMemberCount}/{MaximumCircleMembers}.",
+                this);
+        }
+
+        public override void OnStopServer()
+        {
+            if (isCircleMember.Value)
+            {
+                isCircleMember.Value = false;
+                Debug.Log(
+                    $"[Circle] Member removed. Count: {CircleMemberCount}/{MaximumCircleMembers}.",
+                    this);
+            }
+
+            base.OnStopServer();
         }
 
         public override void OnStopNetwork()
@@ -92,6 +135,7 @@ namespace Incantation.Networking
             if (activePlayers.Remove(this))
             {
                 ActivePlayerRemoved?.Invoke(this);
+                CircleRosterChanged?.Invoke();
             }
 
             if (LocalPlayer == this)
@@ -101,6 +145,28 @@ namespace Incantation.Networking
 
             base.OnStopNetwork();
         }
+
+        public static int CircleMemberCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (NetworkPlayer player in activePlayers)
+                {
+                    if (player != null && player.IsCircleMember)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public static bool IsLocalPlayerCircleMember =>
+            LocalPlayer != null &&
+            activePlayers.Contains(LocalPlayer) &&
+            LocalPlayer.IsCircleMember;
 
         /// <summary>
         /// Changes the replicated host role. Only the initialized server may mutate it.
@@ -286,6 +352,7 @@ namespace Incantation.Networking
         private void SubscribeToReplicatedState()
         {
             isHighPriest.OnChange += HandleHighPriestChanged;
+            isCircleMember.OnChange += HandleCircleMembershipChanged;
             priestName.OnChange += HandlePriestNameChanged;
             lobbyPlayerState.OnChange += HandleLobbyPlayerStateChanged;
             readyState.OnChange += HandleReadyStateChanged;
@@ -295,6 +362,7 @@ namespace Incantation.Networking
         private void UnsubscribeFromReplicatedState()
         {
             isHighPriest.OnChange -= HandleHighPriestChanged;
+            isCircleMember.OnChange -= HandleCircleMembershipChanged;
             priestName.OnChange -= HandlePriestNameChanged;
             lobbyPlayerState.OnChange -= HandleLobbyPlayerStateChanged;
             readyState.OnChange -= HandleReadyStateChanged;
@@ -306,6 +374,28 @@ namespace Incantation.Networking
             if (ShouldPublishChange(asServer))
             {
                 HighPriestChanged?.Invoke(previousValue, currentValue);
+            }
+        }
+
+        private void HandleCircleMembershipChanged(bool previousValue, bool currentValue, bool asServer)
+        {
+            if (ShouldPublishChange(asServer))
+            {
+                CircleMembershipChanged?.Invoke(previousValue, currentValue);
+            }
+
+            CircleRosterChanged?.Invoke();
+
+            if (!asServer)
+            {
+                Debug.Log(
+                    $"[Circle] Synchronized member count: {CircleMemberCount}/{MaximumCircleMembers}.",
+                    this);
+            }
+
+            if (currentValue && IsOwner)
+            {
+                Debug.Log("[Circle] Local membership confirmed.", this);
             }
         }
 

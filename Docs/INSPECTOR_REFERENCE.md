@@ -767,6 +767,15 @@ Book right page controller:
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
 - `PlayMenu` and `OptionsMenu` clear the right-page text and actions.
 - `HostMenu` displays `CREATE RITUAL`, with `Create Ritual` starting the Tugboat host and generating a four-character Seal. `RitualCreated` displays the Seal and `Waiting for other mages...`; `Enter the Circle` opens the existing lobby without starting gameplay.
+- `BookStateController` no longer has editable current/max lobby-count fields. `THE CIRCLE`
+  renders `Players (current / 8)` from `NetworkPlayer.CircleMemberCount` and
+  `NetworkPlayer.MaximumCircleMembers`; do not add a scene-local player-count override.
+- A joined client switches from `JoinSealEntry` to `Lobby` only after its owner-assigned
+  `NetworkPlayer.IsCircleMember` value is synchronized true. `BookStateController` observes
+  `NetworkPlayer.CircleRosterChanged` and queries current membership on `Start` and re-enable,
+  so no additional Inspector reference is required and late UI subscription is supported.
+- The Host keeps the existing explicit `Enter the Circle` action. Connected members are counted
+  before `Take Your Seat`; Circle membership must not be derived from Seat occupancy.
 - `JoinSealEntry` opens immediately when `Join Ritual` is selected and uses the existing artist-authored right-page TMP lines as one focused Book form: right line 1 shows the non-interactive `Seal` title, right line 2 is the interactive four-character field, right line 3 is the `Validate Seal` Book button, and right line 4 is the non-interactive status. Right line 5 remains empty and non-interactive. It never displays player count or duplicates the entered Seal outside the field.
 - Seal entry is focused as soon as the page opens. Input is normalized to the readable uppercase Seal alphabet, spaces and unsupported characters are ignored, and Backspace removes a character. `Validate Seal` is grey and non-interactive until exactly four characters are present, then fades to its authored gold color over `0.18` seconds. Enter is an optional shortcut and submits only while the button is enabled.
 - Validate Seal's disabled color and fade are temporary `JoinSealEntry` state visuals only. Leaving Join stops any active fade and restores right line 3's serialized color and shared material before the next page is prepared, so reused content such as `Players: 1 / 8` never inherits Join styling.

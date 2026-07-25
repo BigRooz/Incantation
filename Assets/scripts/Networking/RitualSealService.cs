@@ -68,6 +68,7 @@ namespace Incantation.Networking
             }
 
             NetworkPlayer.LocalPlayerCreated += HandleLocalPlayerCreated;
+            NetworkPlayer.ActivePlayerRemoved += HandleNetworkPlayerRemoved;
         }
 
         private void OnDisable()
@@ -80,6 +81,7 @@ namespace Incantation.Networking
             }
 
             NetworkPlayer.LocalPlayerCreated -= HandleLocalPlayerCreated;
+            NetworkPlayer.ActivePlayerRemoved -= HandleNetworkPlayerRemoved;
         }
 
         private void Update()
@@ -307,7 +309,7 @@ namespace Incantation.Networking
 
         private void BroadcastAvailability()
         {
-            bool isFull = NetworkPlayer.ActivePlayers.Count >= 8;
+            bool isFull = NetworkPlayer.CircleMemberCount >= NetworkPlayer.MaximumCircleMembers;
             Broadcast(isFull
                 ? $"FULL|{ActiveSeal}|{instanceId}"
                 : $"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
@@ -390,6 +392,19 @@ namespace Incantation.Networking
             endpointResolved = false;
             SetJoinStatus(RitualJoinStatus.Joined);
             Debug.Log("Ritual join completed after local NetworkPlayer creation.", this);
+        }
+
+        private void HandleNetworkPlayerRemoved(NetworkPlayer player)
+        {
+            if (player == null || player != NetworkPlayer.LocalPlayer ||
+                JoinStatus != RitualJoinStatus.Joined)
+            {
+                return;
+            }
+
+            ActiveSeal = string.Empty;
+            SetJoinStatus(RitualJoinStatus.None);
+            Debug.Log("[Circle] Disconnected local membership cleared.", this);
         }
 
         private void FailJoin(string reason)
