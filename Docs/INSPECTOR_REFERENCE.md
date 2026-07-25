@@ -869,6 +869,19 @@ Character selection group:
 - Keep each group focused on one category. Add separate components later for Beard, Horns, Face Paint, or Scars rather than mixing categories into one list.
 - `Awake()` applies the serialized current selection. `Select(index)` disables every configured target before enabling only the selected target; selecting a targetless entry leaves every target disabled.
 
+Network Ready presentation:
+
+- No new Inspector reference is required. `NetworkPlayer` owns the synchronized Ready state.
+- `BookStateController` uses `NetworkPlayer.LocalPlayer` for the Ready/Unready action and
+  `NetworkPlayer.ReadyCircleMemberCount` for `Priests Ready (n / 8)`.
+- Keep the existing `lobbyPlayerStateController` reference for local Seat-page presentation
+  during migration. It does not own, toggle, or count multiplayer Ready state.
+- Do not wire Ready UI directly to `LobbyPlayerStateController.TryReady()` or `TryUnready()`.
+  The Book action must call the owner request on `NetworkPlayer`.
+- Ready presentation refreshes from `NetworkPlayer.CircleRosterChanged`; do not add Update
+  polling, hierarchy searches, serialized counts, or a second roster.
+- Reconnect defaults to Not Ready. No Inspector default or saved Book text may override it.
+
 Book menu controller:
 
 - Add `BookMenuController` to the existing scene object that owns menu coordination. Do not create a second Book, camera, or menu UI object for this component.

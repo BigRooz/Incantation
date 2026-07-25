@@ -78,6 +78,7 @@ The current prototype includes:
 34. Independent character presentation for every observed `NetworkPlayer`.
 35. Book-driven creation and joining through four-character Ritual Seals for Tugboat LAN diagnostics.
 36. Server-authoritative player appearance data with local per-slot presentation and late-join synchronization.
+37. Server-authoritative Ready toggling and a synchronized Circle Ready counter.
 
 ## Ritual Creation
 
@@ -135,6 +136,11 @@ compatible; non-owning players receive independent visual instances with local c
 look input disabled. Character appearance uses a server-owned FishNet SyncList of compact
 slot/value entries. `CharacterAppearancePresentation` applies initial snapshots and changed
 slots through the existing customization components without synchronizing visual objects.
+
+Ready state is server-owned on each `NetworkPlayer`. Owners request a toggle, the server validates
+Circle membership, and every peer calculates the Book counter from synchronized Circle members
+whose Ready state is Ready. Late join, disconnect, and reconnect follow the `NetworkPlayer`
+replication lifecycle; reconnect starts Not Ready.
 
 ## Runtime Validation
 

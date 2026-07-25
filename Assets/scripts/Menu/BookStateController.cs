@@ -46,6 +46,7 @@ public sealed class BookStateController : MonoBehaviour
     private BookState preparedState;
     private bool hasStarted;
     private int lastRenderedCircleMemberCount = -1;
+    private int lastRenderedReadyCount = -1;
 
     public BookState CurrentState => preparedState;
 
@@ -108,6 +109,7 @@ public sealed class BookStateController : MonoBehaviour
         if (state == BookState.Lobby)
         {
             lastRenderedCircleMemberCount = NetworkPlayer.CircleMemberCount;
+            lastRenderedReadyCount = NetworkPlayer.ReadyCircleMemberCount;
         }
 
         if (voiceBookPageController != null)
@@ -225,7 +227,17 @@ public sealed class BookStateController : MonoBehaviour
 
     private void PrepareLobbyPage(LobbyPlayerState lobbyPlayerState)
     {
-        int readyPlayerCount = lobbyPlayerState == LobbyPlayerState.Ready ? 1 : 0;
+        int readyPlayerCount = NetworkPlayer.ReadyCircleMemberCount;
+        bool isLocalPlayerReady =
+            NetworkPlayer.LocalPlayer != null &&
+            NetworkPlayer.LocalPlayer.IsCircleMember &&
+            NetworkPlayer.LocalPlayer.IsReady;
+
+        if (lobbyPlayerState == LobbyPlayerState.Ready)
+        {
+            lobbyPlayerState = LobbyPlayerState.Seated;
+        }
+
         string rightLine1Text;
         string rightLine2Text;
         string rightLine3Text;
@@ -250,20 +262,8 @@ public sealed class BookStateController : MonoBehaviour
             case LobbyPlayerState.Seated:
                 PreparePage(
                     "THE CIRCLE",
-                    "Ready", lobbyPlayerStateController != null ? ReadyLobbyPlayer : null,
-                    "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
-                    string.Empty, null,
-                    string.Empty, null);
-                rightLine1Text =
-                    $"Priests Ready ({readyPlayerCount} / {NetworkPlayer.MaximumCircleMembers})";
-                rightLine2Text = "Waiting for High Priest to Start the Ritual";
-                rightLine3Text = string.Empty;
-                break;
-
-            case LobbyPlayerState.Ready:
-                PreparePage(
-                    "THE CIRCLE",
-                    "Unready", lobbyPlayerStateController != null ? UnreadyLobbyPlayer : null,
+                    isLocalPlayerReady ? "Unready" : "Ready",
+                    NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null,
                     "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
                     string.Empty, null,
                     string.Empty, null);
@@ -306,14 +306,9 @@ public sealed class BookStateController : MonoBehaviour
         }
     }
 
-    private void ReadyLobbyPlayer()
+    private void ToggleLocalReady()
     {
-        lobbyPlayerStateController.TryReady();
-    }
-
-    private void UnreadyLobbyPlayer()
-    {
-        lobbyPlayerStateController.TryUnready();
+        NetworkPlayer.LocalPlayer?.RequestToggleReady();
     }
 
     private void HandleLobbyPlayerStateChanged(
@@ -357,7 +352,8 @@ public sealed class BookStateController : MonoBehaviour
         {
             if (NetworkPlayer.IsLocalPlayerCircleMember)
             {
-                if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount)
+                if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount ||
+                    lastRenderedReadyCount != NetworkPlayer.ReadyCircleMemberCount)
                 {
                     SetState(BookState.Lobby);
                 }
@@ -374,7 +370,8 @@ public sealed class BookStateController : MonoBehaviour
     {
         if (preparedState == BookState.Lobby)
         {
-            if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount)
+            if (lastRenderedCircleMemberCount != NetworkPlayer.CircleMemberCount ||
+                lastRenderedReadyCount != NetworkPlayer.ReadyCircleMemberCount)
             {
                 SetState(BookState.Lobby);
             }

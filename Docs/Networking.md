@@ -97,6 +97,23 @@ ID, and High Priest.
 
 Future systems should use `NetworkPlayer` as the authoritative multiplayer source whenever possible. Avoid creating duplicated lobby state outside `NetworkPlayer`; presentation components should observe or adapt its state instead of becoming competing authorities.
 
+NET-042.5 makes the existing `NetworkPlayer.ReadyState` SyncVar the only multiplayer Ready
+authority. The owning client calls `RequestToggleReady`; a non-host owner sends one server RPC,
+and the server validates that the requesting player is still a Circle member before toggling
+between `NotReady` and `Ready`. Clients never write the SyncVar and no local prediction occurs.
+
+`ReadyCircleMemberCount` iterates the existing active `NetworkPlayer` roster and counts only
+players for whom both `IsCircleMember` and `IsReady` are true. `BookStateController` reads this
+value for the counter and reads the local synchronized `IsReady` value for the Ready/Unready
+action. Ready changes reuse `CircleRosterChanged`, so every open Book refreshes from synchronized
+state without polling. A late join receives each existing player's Ready SyncVar in the spawn
+snapshot. Despawn removes that player from the roster, and a reconnect creates a new
+`NetworkPlayer` whose default is `NotReady`.
+
+Future start logic may observe readiness without changing synchronization by requiring a
+non-empty Circle and comparing `ReadyCircleMemberCount == CircleMemberCount`. That consumer must
+not write Ready state or infer it from Book text.
+
 The current foundation has successfully validated host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown.
 
 Read next: `DECISIONS.md` for the durable decision summary, `Docs/TechnicalArchitecture.md` for current system ownership, or `Docs/NEXT_TASK.md` for the active production task.
@@ -957,6 +974,8 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - `PlayerSpawner` creates one owner-assigned `NetworkPlayer` prefab for each connection.
 - `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and appearance-slot data.
 - High-priest role, priest name, lobby state, and ready state use FishNet `SyncVar` storage and expose change events plus server-only mutation APIs.
+- Ready toggles use an owner request, server validation, SyncVar replication, and the existing
+  Circle roster. The Book counter counts synchronized Circle members whose Ready state is Ready.
 - Seat ID uses FishNet `SyncVar` storage. Owner requests are validated by the server,
   duplicate active Seat assignments are rejected, and every observer resolves occupancy
   from `NetworkPlayer.SeatId`.

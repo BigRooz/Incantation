@@ -36,6 +36,7 @@ namespace Incantation.Networking
         private readonly SyncVar<ReadyState> readyState = new(ReadyState.NotReady);
         private readonly SyncVar<int> seatId = new(UnassignedSeatId);
         private readonly SyncList<AppearanceSlotValue> appearanceSlots = new();
+        private bool isReadyRequestPending;
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
@@ -51,6 +52,7 @@ namespace Incantation.Networking
         public string PriestName => priestName.Value;
         public LobbyPlayerState LobbyPlayerState => lobbyPlayerState.Value;
         public ReadyState ReadyState => readyState.Value;
+        public bool IsReady => readyState.Value == ReadyState.Ready;
         public int SeatId => seatId.Value;
         public IReadOnlyList<AppearanceSlotValue> AppearanceSlots => appearanceSlots;
         public bool HasAssignedSeat => seatId.Value != UnassignedSeatId;
@@ -143,6 +145,7 @@ namespace Incantation.Networking
                 LocalPlayer = null;
             }
 
+            isReadyRequestPending = false;
             base.OnStopNetwork();
         }
 
@@ -154,6 +157,23 @@ namespace Incantation.Networking
                 foreach (NetworkPlayer player in activePlayers)
                 {
                     if (player != null && player.IsCircleMember)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public static int ReadyCircleMemberCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (NetworkPlayer player in activePlayers)
+                {
+                    if (player != null && player.IsCircleMember && player.IsReady)
                     {
                         count++;
                     }
@@ -229,6 +249,52 @@ namespace Incantation.Networking
             }
 
             readyState.Value = value;
+            return true;
+        }
+
+        /// <summary>
+        /// Requests that the server toggle the owning Circle member's authoritative Ready state.
+        /// No local prediction or direct client mutation is performed.
+        /// </summary>
+        public bool RequestToggleReady()
+        {
+            if (!IsOwner || !IsCircleMember || isReadyRequestPending)
+            {
+                return false;
+            }
+
+            isReadyRequestPending = true;
+            if (IsServerInitialized)
+            {
+                bool changed = TryToggleReady();
+                if (!changed)
+                {
+                    isReadyRequestPending = false;
+                }
+
+                return changed;
+            }
+
+            RequestToggleReadyServerRpc();
+            return true;
+        }
+
+        [ServerRpc]
+        private void RequestToggleReadyServerRpc()
+        {
+            TryToggleReady();
+        }
+
+        private bool TryToggleReady()
+        {
+            if (!CanMutateReplicatedState() || !isCircleMember.Value)
+            {
+                return false;
+            }
+
+            readyState.Value = readyState.Value == ReadyState.Ready
+                ? ReadyState.NotReady
+                : ReadyState.Ready;
             return true;
         }
 
@@ -473,7 +539,13 @@ namespace Incantation.Networking
         {
             if (ShouldPublishChange(asServer))
             {
+                if (IsOwner)
+                {
+                    isReadyRequestPending = false;
+                }
+
                 ReadyStateChanged?.Invoke(previousValue, currentValue);
+                CircleRosterChanged?.Invoke();
             }
         }
 
