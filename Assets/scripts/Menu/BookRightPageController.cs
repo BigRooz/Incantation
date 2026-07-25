@@ -331,6 +331,11 @@ public sealed class BookRightPageController : MonoBehaviour
             return "Joining ritual...";
         }
 
+        if (service != null && service.JoinStatus == RitualJoinStatus.Joined)
+        {
+            return "Ritual joined.";
+        }
+
         if (service != null && service.JoinStatus == RitualJoinStatus.CantJoin)
         {
             return AddPeriod(service.JoinFailureReason);

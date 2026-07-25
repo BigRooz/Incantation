@@ -41,14 +41,29 @@ The LAN Seal is a locator, never an identity, password, connection ID, or gamepl
 It is intentionally isolated so the future Steam lobby metadata or external directory can
 replace only lookup. No IP address or transport detail is displayed by the Book.
 
-The TASK-042.1 join flow distinguishes Seal lookup from FishNet connection lifecycle. A lookup
-first returns `ANNOUNCE`, `FULL`, or times out. `ANNOUNCE` starts a stopped client exactly once,
-or adopts an already starting/connected diagnostic client without issuing a duplicate start.
-The earlier TASK-042 implementation treated the lifecycle guard's synchronous `false` as a
-remote host rejection; no authenticator rejected the connection. The Book now reports
-`Joining...` while FishNet starts, `Can't Join / Ritual not found` on lookup timeout,
-`Can't Join / Ritual is full` on capacity response, and `Can't Join / Connection rejected`
-only when the client lifecycle actually fails.
+The NET-042.2 join flow distinguishes Seal lookup from the complete FishNet connection
+lifecycle. Validate normalizes the Seal, broadcasts one directory query, and waits for
+`ANNOUNCE`, `FULL`, or the configurable lookup deadline. `ANNOUNCE` supplies the sender address
+and advertised Tugboat port, starts a stopped client exactly once, and begins a separate
+configurable connection deadline. FishNet then reports transport state, synchronizes its global
+scene, and `PlayerSpawner` creates the owner-assigned local `NetworkPlayer`. Local player
+creation is the success boundary that clears the pending Join state.
+
+The confirmed indefinite `Joining ritual...` cause was state ownership inside
+`RitualSealService`: accepting `ANNOUNCE` cleared `pendingJoinSeal`, which was also the predicate
+for the only timeout, and FishNet `Started` raised a UI refresh without changing
+`RitualJoinStatus.Joining`. A successful connection therefore remained visibly pending, while a
+transport attempt without a terminal callback had no remaining deadline. NET-042.2 keeps an
+explicit attempt active across lookup, transport, scene synchronization, and local player spawn.
+It reports `Ritual not found` for lookup expiry, `Ritual is full` for capacity, `Connection
+rejected` for immediate or terminal FishNet failure, and `Connection timed out` only when an
+accepted connection attempt exceeds its deadline. Timeout safely stops the incomplete local
+client and makes Validate usable again. No authenticator or separate approval layer is currently
+configured.
+
+Technical diagnostics log directory resolution (including the resolved endpoint), client start
+acceptance, every FishNet client state callback, scene synchronization start/end, and local
+`NetworkPlayer` creation. The Book remains IP-free.
 
 `NetworkPlayer` is the permanent networking identity of every connected player. Its replicated state currently includes Priest Name, Lobby Player State, Ready State, and High Priest.
 
@@ -907,5 +922,10 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   `ReplaceOption.All`, preserving synchronization for the host and remote clients.
 - Runtime validation successfully covered host startup, client connection, `NetworkPlayer` spawning, local player ownership, remote player replication, disconnect, and shutdown. TASK-041 adds the independent presentation path; its two-instance visual acceptance checklist remains a required Unity Play Mode verification.
 - TASK-042 adds the first Book-owned Ritual Creation flow and a four-character Tugboat LAN Seal directory. Creating does not start ritual gameplay. Joining resolves the Seal internally and then uses the existing FishNet client lifecycle.
+- NET-042.2 makes the standalone Join attempt durable across lookup, Tugboat startup, FishNet
+  scene synchronization, and local `NetworkPlayer` creation. Lookup and complete-connection
+  deadlines are independent, terminal failures restore Validate, and the required Build setup
+  remains Bootstrap first in Build Settings with Tugboat UDP port `7770` reachable through the
+  host firewall.
 
 Production Steam discovery, Steam transport, networked Book/ritual/voice/cosmetic state, and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.

@@ -39,6 +39,7 @@ namespace Incantation.Networking
         public static NetworkPlayer LocalPlayer { get; private set; }
         public static event Action<NetworkPlayer> ActivePlayerAdded;
         public static event Action<NetworkPlayer> ActivePlayerRemoved;
+        public static event Action<NetworkPlayer> LocalPlayerCreated;
 
         public NetworkConnection Connection => Owner;
         public bool IsLocalPlayer => IsOwner;
@@ -77,6 +78,8 @@ namespace Incantation.Networking
             if (IsOwner)
             {
                 LocalPlayer = this;
+                Debug.Log($"Local NetworkPlayer created. ConnectionId: {Owner.ClientId}.", this);
+                LocalPlayerCreated?.Invoke(this);
             }
 
             ClientStarted?.Invoke();

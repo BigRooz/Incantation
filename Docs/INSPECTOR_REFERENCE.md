@@ -771,7 +771,17 @@ Book right page controller:
 - Seal entry is focused as soon as the page opens. Input is normalized to the readable uppercase Seal alphabet, spaces and unsupported characters are ignored, and Backspace removes a character. `Validate Seal` is grey and non-interactive until exactly four characters are present, then fades to its authored gold color over `0.18` seconds. Enter is an optional shortcut and submits only while the button is enabled.
 - Validate Seal's disabled color and fade are temporary `JoinSealEntry` state visuals only. Leaving Join stops any active fade and restores right line 3's serialized color and shared material before the next page is prepared, so reused content such as `Players: 1 / 8` never inherits Join styling.
 - Typing, deleting, status changes, and Validate state changes update the Join form immediately without replaying the Book page transition. Full text transitions run only when entering or leaving a Book state.
-- Join status text is concise: `Enter a ritual seal.`, `Ready to join.`, `Joining ritual...`, `Ritual not found.`, `Ritual is full.`, or `Connection rejected.` The discovery and FishNet client lifecycle remain owned by `RitualSealService`.
+- Join status text is concise: `Enter a ritual seal.`, `Ready to join.`, `Joining ritual...`, `Ritual joined.`, `Ritual not found.`, `Ritual is full.`, `Connection rejected.`, or `Connection timed out.` The discovery and FishNet client lifecycle remain owned by `RitualSealService`.
+- On the persistent `IncantationNetworkManager`, `RitualSealService.directoryLookupTimeout`
+  defaults to `5` seconds and covers only Seal discovery. `connectionAttemptTimeout` defaults to
+  `15` seconds and covers the resolved Tugboat connection, FishNet global-scene synchronization,
+  and owner-assigned local `NetworkPlayer` spawn. Keep both values at or above `1` second.
+- A complete-connection timeout stops only the incomplete client attempt, clears the resolved
+  ritual, reports `Connection timed out.`, and restores Validate interaction. FishNet stop or
+  rejection reports immediately and must not wait for this timeout.
+- Standalone builds must start from `Assets/Scenes/Bootstrap.unity`; `MainGame` remains the second
+  enabled Build Settings scene. Tugboat uses UDP port `7770`, and the host machine/firewall must
+  permit that port plus LAN directory UDP port `47742`. The Book never displays either endpoint.
 - `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` remain presentation hooks for the older right-page lobby layout. TASK-042's Seal state is owned by `RitualSealService`; Steam matchmaking and production player-list ownership remain future work.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
 

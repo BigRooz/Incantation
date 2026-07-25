@@ -67,6 +67,8 @@ namespace Incantation.Networking
         public string ServerFailureStatus => serverFailureStatus;
 
         public event Action StateChanged;
+        public event Action SceneSynchronizationStarted;
+        public event Action SceneSynchronizationCompleted;
 
         public static FishNetFoundationController Instance { get; private set; }
 
@@ -95,6 +97,8 @@ namespace Incantation.Networking
             RefreshInitialState();
             networkManager.ServerManager.OnServerConnectionState += HandleServerConnectionState;
             networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
+            networkManager.SceneManager.OnLoadStart += HandleSceneLoadStart;
+            networkManager.SceneManager.OnLoadEnd += HandleSceneLoadEnd;
 
             if (serverState == LocalConnectionState.Started)
             {
@@ -111,6 +115,8 @@ namespace Incantation.Networking
 
             networkManager.ServerManager.OnServerConnectionState -= HandleServerConnectionState;
             networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
+            networkManager.SceneManager.OnLoadStart -= HandleSceneLoadStart;
+            networkManager.SceneManager.OnLoadEnd -= HandleSceneLoadEnd;
         }
 
         private void OnDestroy()
@@ -179,7 +185,7 @@ namespace Incantation.Networking
 
         public bool StartClient(string address, ushort port)
         {
-            Debug.Log("Start Client requested.");
+            Debug.Log($"FishNet client start requested for {address}:{port}.", this);
 
             if (!CanStartClient)
             {
@@ -198,6 +204,7 @@ namespace Incantation.Networking
             GetTransport()?.SetPort(port);
             if (networkManager.ClientManager.StartConnection(address))
             {
+                Debug.Log("FishNet accepted the client start request.", this);
                 return true;
             }
 
@@ -205,6 +212,23 @@ namespace Incantation.Networking
             Debug.LogWarning("Start Client rejected: FishNet did not accept the connection request.");
             StateChanged?.Invoke();
             return false;
+        }
+
+        public void StopIncompleteClientAttempt()
+        {
+            bool hadPendingStart = clientStartPending;
+            clientStartPending = false;
+
+            if (hadPendingStart ||
+                clientState == LocalConnectionState.Starting ||
+                clientState == LocalConnectionState.Started ||
+                networkManager.ClientManager.Started)
+            {
+                Debug.Log("Stopping incomplete FishNet client attempt.", this);
+                networkManager.ClientManager.StopConnection();
+            }
+
+            StateChanged?.Invoke();
         }
 
         public bool Disconnect()
@@ -282,6 +306,7 @@ namespace Incantation.Networking
         private void HandleClientConnectionState(ClientConnectionStateArgs args)
         {
             clientState = args.ConnectionState;
+            Debug.Log($"FishNet client connection callback: {FormatState(clientState)}.", this);
 
             if (clientState == LocalConnectionState.Started)
             {
@@ -301,6 +326,18 @@ namespace Incantation.Networking
             }
 
             StateChanged?.Invoke();
+        }
+
+        private void HandleSceneLoadStart(SceneLoadStartEventArgs args)
+        {
+            Debug.Log("FishNet scene synchronization started.", this);
+            SceneSynchronizationStarted?.Invoke();
+        }
+
+        private void HandleSceneLoadEnd(SceneLoadEndEventArgs args)
+        {
+            Debug.Log("FishNet scene synchronization completed.", this);
+            SceneSynchronizationCompleted?.Invoke();
         }
 
         private void StartPendingHostClient()

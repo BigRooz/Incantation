@@ -11,6 +11,7 @@ namespace Incantation.Networking
         None,
         Waiting,
         Joining,
+        Joined,
         CantJoin
     }
 
@@ -23,15 +24,20 @@ namespace Incantation.Networking
     {
         private const int DirectoryPort = 47742;
         private const float AnnouncementInterval = 1f;
-        private const float JoinTimeout = 5f;
         private const string Alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         private const string ProtocolPrefix = "INCANTATION_RITUAL_V1";
+
+        [Header("Join Lifecycle")]
+        [SerializeField, Min(1f)] private float directoryLookupTimeout = 5f;
+        [SerializeField, Min(1f)] private float connectionAttemptTimeout = 15f;
 
         private UdpClient directorySocket;
         private FishNetFoundationController foundationController;
         private string pendingJoinSeal = string.Empty;
         private float nextAnnouncementTime;
         private float joinDeadline;
+        private bool joinAttemptActive;
+        private bool endpointResolved;
         private readonly string instanceId = Guid.NewGuid().ToString("N");
 
         public static RitualSealService Instance { get; private set; }
@@ -57,7 +63,11 @@ namespace Incantation.Networking
             if (foundationController != null)
             {
                 foundationController.StateChanged += HandleFoundationStateChanged;
+                foundationController.SceneSynchronizationStarted += HandleSceneSynchronizationStarted;
+                foundationController.SceneSynchronizationCompleted += HandleSceneSynchronizationCompleted;
             }
+
+            NetworkPlayer.LocalPlayerCreated += HandleLocalPlayerCreated;
         }
 
         private void OnDisable()
@@ -65,7 +75,11 @@ namespace Incantation.Networking
             if (foundationController != null)
             {
                 foundationController.StateChanged -= HandleFoundationStateChanged;
+                foundationController.SceneSynchronizationStarted -= HandleSceneSynchronizationStarted;
+                foundationController.SceneSynchronizationCompleted -= HandleSceneSynchronizationCompleted;
             }
+
+            NetworkPlayer.LocalPlayerCreated -= HandleLocalPlayerCreated;
         }
 
         private void Update()
@@ -79,10 +93,19 @@ namespace Incantation.Networking
                 nextAnnouncementTime = Time.unscaledTime + AnnouncementInterval;
             }
 
-            if (IsJoining && Time.unscaledTime >= joinDeadline)
+            if (joinAttemptActive && Time.unscaledTime >= joinDeadline)
             {
-                pendingJoinSeal = string.Empty;
-                SetJoinStatus(RitualJoinStatus.CantJoin, "Ritual not found");
+                if (endpointResolved)
+                {
+                    Debug.LogWarning("Ritual join timed out before the local NetworkPlayer was created.", this);
+                    foundationController?.StopIncompleteClientAttempt();
+                    FailJoin("Connection timed out");
+                }
+                else
+                {
+                    Debug.LogWarning($"Ritual Seal lookup expired without finding {pendingJoinSeal}.", this);
+                    FailJoin("Ritual not found");
+                }
             }
         }
 
@@ -119,6 +142,7 @@ namespace Incantation.Networking
         public bool JoinRitual(string seal)
         {
             string normalizedSeal = NormalizeSeal(seal);
+            Debug.Log($"Validate Seal requested. Normalized Seal: {normalizedSeal}.", this);
             if (normalizedSeal.Length != 4 || foundationController == null)
             {
                 SetJoinStatus(RitualJoinStatus.CantJoin, "Enter four characters");
@@ -131,8 +155,11 @@ namespace Incantation.Networking
             }
 
             pendingJoinSeal = normalizedSeal;
-            joinDeadline = Time.unscaledTime + JoinTimeout;
+            joinAttemptActive = true;
+            endpointResolved = false;
+            joinDeadline = Time.unscaledTime + directoryLookupTimeout;
             SetJoinStatus(RitualJoinStatus.Joining);
+            Debug.Log($"Ritual Seal directory lookup started for {pendingJoinSeal}.", this);
             Broadcast($"QUERY|{pendingJoinSeal}");
             return true;
         }
@@ -140,12 +167,16 @@ namespace Incantation.Networking
         public void BeginJoinEntry()
         {
             pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
             SetJoinStatus(RitualJoinStatus.Waiting);
         }
 
         public void CancelJoin()
         {
             pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
             JoinStatus = RitualJoinStatus.None;
             JoinFailureReason = string.Empty;
             StatusMessage = string.Empty;
@@ -222,10 +253,13 @@ namespace Incantation.Networking
                 {
                     string joinedSeal = pendingJoinSeal;
                     pendingJoinSeal = string.Empty;
+                    endpointResolved = true;
+                    joinDeadline = Time.unscaledTime + connectionAttemptTimeout;
+                    Debug.Log($"Ritual Seal found. Resolved endpoint: {sender.Address}:{port}.", this);
                     if (foundationController.IsClientConnected || foundationController.IsClientConnecting)
                     {
-                        ActiveSeal = joinedSeal;
-                        SetJoinStatus(RitualJoinStatus.Joining);
+                        Debug.LogWarning("Resolved Ritual Seal while a FishNet client was already started or starting.", this);
+                        FailJoin("Connection rejected");
                     }
                     else if (foundationController.StartClient(sender.Address.ToString(), port))
                     {
@@ -234,14 +268,15 @@ namespace Incantation.Networking
                     }
                     else
                     {
-                        SetJoinStatus(RitualJoinStatus.CantJoin, "Connection rejected");
+                        FailJoin("Connection rejected");
                     }
                 }
                 else if (parts[1] == "FULL" && IsJoining && parts[2] == pendingJoinSeal &&
                          parts.Length >= 4 && parts[3] != instanceId)
                 {
                     pendingJoinSeal = string.Empty;
-                    SetJoinStatus(RitualJoinStatus.CantJoin, "Ritual is full");
+                    Debug.Log($"Ritual Seal {parts[2]} was found, but the ritual is full.", this);
+                    FailJoin("Ritual is full");
                 }
                 else if (parts[1] == "ANNOUNCE" && HasActiveRitual && parts[2] == ActiveSeal &&
                          parts.Length >= 5 && parts[4] != instanceId && foundationController != null &&
@@ -318,14 +353,52 @@ namespace Incantation.Networking
 
             if (foundationController.IsClientConnected)
             {
-                pendingJoinSeal = string.Empty;
-                Changed?.Invoke();
+                Debug.Log("FishNet client reached Started; awaiting scene synchronization and local NetworkPlayer creation.", this);
             }
-            else if (!foundationController.IsClientConnecting && !string.IsNullOrEmpty(ActiveSeal))
+            else if (endpointResolved && !foundationController.IsClientConnecting)
             {
-                ActiveSeal = string.Empty;
-                SetJoinStatus(RitualJoinStatus.CantJoin, "Connection rejected");
+                Debug.LogWarning("FishNet client stopped before the ritual join completed.", this);
+                FailJoin("Connection rejected");
             }
+        }
+
+        private void HandleSceneSynchronizationStarted()
+        {
+            if (joinAttemptActive)
+            {
+                Debug.Log("Ritual join observed scene synchronization begin.", this);
+            }
+        }
+
+        private void HandleSceneSynchronizationCompleted()
+        {
+            if (joinAttemptActive)
+            {
+                Debug.Log("Ritual join observed scene synchronization complete; awaiting local NetworkPlayer.", this);
+            }
+        }
+
+        private void HandleLocalPlayerCreated(NetworkPlayer player)
+        {
+            if (!joinAttemptActive || player == null || !player.IsLocalPlayer)
+            {
+                return;
+            }
+
+            pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
+            SetJoinStatus(RitualJoinStatus.Joined);
+            Debug.Log("Ritual join completed after local NetworkPlayer creation.", this);
+        }
+
+        private void FailJoin(string reason)
+        {
+            pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
+            ActiveSeal = string.Empty;
+            SetJoinStatus(RitualJoinStatus.CantJoin, reason);
         }
     }
 }
