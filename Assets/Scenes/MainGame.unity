@@ -2951,6 +2951,7 @@ MonoBehaviour:
     target: {fileID: 0}
   - displayName: Pornstach
     target: {fileID: 1704972390}
+  appearanceSlot: 2
   currentIndex: 0
 --- !u!1001 &233275028
 PrefabInstance:

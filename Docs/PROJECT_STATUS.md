@@ -77,6 +77,7 @@ The current prototype includes:
 33. Automatic FishNet global-scene transition from Bootstrap into `MainGame`.
 34. Independent character presentation for every observed `NetworkPlayer`.
 35. Book-driven creation and joining through four-character Ritual Seals for Tugboat LAN diagnostics.
+36. Server-authoritative player appearance data with local per-slot presentation and late-join synchronization.
 
 ## Ritual Creation
 
@@ -122,6 +123,7 @@ The replicated state currently includes:
 - Ready State.
 - High Priest.
 - Seat assignment.
+- Appearance slot/value choices.
 
 `NetworkPlayer.SeatId` is the single authoritative multiplayer Seat assignment. `SeatManager`
 maps the configured clockwise physical order to stable zero-based Seat IDs and resolves
@@ -130,8 +132,9 @@ observes one `NetworkPlayer`, owns exactly one local visual character for it, an
 that character when its synchronized Seat ID changes. The owning player reuses the existing
 scene character so character preview, local camera, offline mode, and debug mode remain
 compatible; non-owning players receive independent visual instances with local camera and
-look input disabled. Character selection is the next planned lobby-state migration and is
-not yet synchronized.
+look input disabled. Character appearance uses a server-owned FishNet SyncList of compact
+slot/value entries. `CharacterAppearancePresentation` applies initial snapshots and changed
+slots through the existing customization components without synchronizing visual objects.
 
 ## Runtime Validation
 
@@ -167,11 +170,10 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 
 ## Known Missing Product Systems
 
-- Synchronized Character selection.
 - Synchronized Lobby UI.
 - Removal of duplicated local lobby state.
 - Book systems consuming `NetworkPlayer`.
-- Multiplayer gameplay synchronization beyond the validated connection and player-identity foundation. Book, ritual, voice, cosmetics, and gameplay state remain unsynchronized.
+- Multiplayer gameplay synchronization beyond the validated connection and player-identity foundation. Book, ritual, voice, and gameplay state remain unsynchronized.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
@@ -257,8 +259,11 @@ The phrase does not grow after every player.
 
 Read `Docs/NEXT_TASK.md`.
 
-Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of multiplayer lobby state. Synchronized Seat assignment is complete; the remaining sequence is Character selection, Lobby UI, removal of duplicated local lobby state, and transition of Book systems to read `NetworkPlayer`.
+Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
+multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
+sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
+read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-24 during TASK-040.5 automatic network scene loading.
+2026-07-25 during NET-042.4 synchronized player appearance.

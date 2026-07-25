@@ -28,10 +28,9 @@ Using `NetworkPlayer` as the shared authority keeps each connected player's iden
 
 ## Next Planned Milestones
 
-1. Synchronize Character selection.
-2. Make Book lobby counts, roles, and ready presentation observe active `NetworkPlayer` state.
-3. Remove duplicated local lobby state.
-4. Replace the diagnostic LAN Seal directory only when the Steam/platform lobby task is approved.
+1. Make Book lobby counts, roles, and ready presentation observe active `NetworkPlayer` state.
+2. Remove duplicated local lobby state.
+3. Replace the diagnostic LAN Seal directory only when the Steam/platform lobby task is approved.
 
 ## Out Of Scope
 

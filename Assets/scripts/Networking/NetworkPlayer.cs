@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
+using Incantation.Character;
 using UnityEngine;
 
 namespace Incantation.Networking
@@ -12,8 +13,8 @@ namespace Incantation.Networking
     /// FishNet owns its connection and object ownership; future lobby, Seat, character,
     /// Book, ritual, voice, and cosmetic systems consume this component through its
     /// read-only properties, mutation APIs, and events.
-    /// SeatId is the single authoritative network Seat assignment. Character customization
-    /// remains a future synchronized boundary.
+    /// SeatId is the single authoritative network Seat assignment. AppearanceSlots is the
+    /// server-owned, data-only appearance model.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
@@ -22,9 +23,9 @@ namespace Incantation.Networking
         public const int MaximumCircleMembers = 8;
         public const int UnassignedSeatId = -1;
         public const int MaximumSeatId = 7;
-        public const int DefaultCharacterCustomizationId = 0;
 
         private const int MaximumPriestNameLength = 32;
+        private const int MaximumAppearanceValueId = 65535;
 
         private static readonly List<NetworkPlayer> activePlayers = new();
 
@@ -34,8 +35,7 @@ namespace Incantation.Networking
         private readonly SyncVar<LobbyPlayerState> lobbyPlayerState = new(LobbyPlayerState.NotSeated);
         private readonly SyncVar<ReadyState> readyState = new(ReadyState.NotReady);
         private readonly SyncVar<int> seatId = new(UnassignedSeatId);
-
-        private int characterCustomizationId = DefaultCharacterCustomizationId;
+        private readonly SyncList<AppearanceSlotValue> appearanceSlots = new();
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
@@ -52,7 +52,7 @@ namespace Incantation.Networking
         public LobbyPlayerState LobbyPlayerState => lobbyPlayerState.Value;
         public ReadyState ReadyState => readyState.Value;
         public int SeatId => seatId.Value;
-        public int CharacterCustomizationId => characterCustomizationId;
+        public IReadOnlyList<AppearanceSlotValue> AppearanceSlots => appearanceSlots;
         public bool HasAssignedSeat => seatId.Value != UnassignedSeatId;
 
         public event Action<bool, bool> HighPriestChanged;
@@ -61,7 +61,7 @@ namespace Incantation.Networking
         public event Action<LobbyPlayerState, LobbyPlayerState> LobbyPlayerStateChanged;
         public event Action<ReadyState, ReadyState> ReadyStateChanged;
         public event Action<int, int> SeatIdChanged;
-        public event Action<int, int> CharacterCustomizationIdChanged;
+        public event Action<AppearanceSlotValue> AppearanceSlotChanged;
         public event Action ClientStarted;
 
         public override void OnStartNetwork()
@@ -318,33 +318,82 @@ namespace Incantation.Networking
         }
 
         /// <summary>
-        /// Stores the future validated character customization selection without synchronizing it.
-        /// This method does not create or modify character presentation.
+        /// Requests one appearance-slot change for the owning player. The server validates and
+        /// stores only the lightweight slot/value pair.
         /// </summary>
-        public bool TrySetCharacterCustomizationId(int value)
+        public bool RequestAppearanceSlot(AppearanceSlot slot, int valueId)
         {
-            if (!CanMutateServerOwnedState() || value < 0)
+            if (!IsOwner || !IsValidAppearanceValue(valueId))
             {
                 return false;
             }
 
-            int previousValue = characterCustomizationId;
-            if (previousValue == value)
+            if (IsServerInitialized)
             {
-                return true;
+                return TrySetAppearanceSlot(slot, valueId);
             }
 
-            characterCustomizationId = value;
-            CharacterCustomizationIdChanged?.Invoke(previousValue, characterCustomizationId);
+            RequestAppearanceSlotServerRpc(slot, valueId);
             return true;
         }
 
-        private bool CanMutateReplicatedState()
+        /// <summary>
+        /// Changes one authoritative appearance slot. Setting an existing slot produces one
+        /// SyncList delta rather than rebuilding or retransmitting unrelated choices.
+        /// </summary>
+        public bool TrySetAppearanceSlot(AppearanceSlot slot, int valueId)
         {
-            return IsServerInitialized;
+            if (!CanMutateReplicatedState() || !IsValidAppearanceValue(valueId))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < appearanceSlots.Count; i++)
+            {
+                if (appearanceSlots[i].Slot != slot)
+                {
+                    continue;
+                }
+
+                if (appearanceSlots[i].ValueId != valueId)
+                {
+                    appearanceSlots[i] = new AppearanceSlotValue(slot, valueId);
+                }
+
+                return true;
+            }
+
+            appearanceSlots.Add(new AppearanceSlotValue(slot, valueId));
+            return true;
         }
 
-        private bool CanMutateServerOwnedState()
+        public bool TryGetAppearanceSlot(AppearanceSlot slot, out int valueId)
+        {
+            for (int i = 0; i < appearanceSlots.Count; i++)
+            {
+                if (appearanceSlots[i].Slot == slot)
+                {
+                    valueId = appearanceSlots[i].ValueId;
+                    return true;
+                }
+            }
+
+            valueId = default;
+            return false;
+        }
+
+        [ServerRpc]
+        private void RequestAppearanceSlotServerRpc(AppearanceSlot slot, int valueId)
+        {
+            TrySetAppearanceSlot(slot, valueId);
+        }
+
+        private static bool IsValidAppearanceValue(int valueId)
+        {
+            return valueId >= 0 && valueId <= MaximumAppearanceValueId;
+        }
+
+        private bool CanMutateReplicatedState()
         {
             return IsServerInitialized;
         }
@@ -357,6 +406,7 @@ namespace Incantation.Networking
             lobbyPlayerState.OnChange += HandleLobbyPlayerStateChanged;
             readyState.OnChange += HandleReadyStateChanged;
             seatId.OnChange += HandleSeatIdChanged;
+            appearanceSlots.OnChange += HandleAppearanceSlotsChanged;
         }
 
         private void UnsubscribeFromReplicatedState()
@@ -367,6 +417,7 @@ namespace Incantation.Networking
             lobbyPlayerState.OnChange -= HandleLobbyPlayerStateChanged;
             readyState.OnChange -= HandleReadyStateChanged;
             seatId.OnChange -= HandleSeatIdChanged;
+            appearanceSlots.OnChange -= HandleAppearanceSlotsChanged;
         }
 
         private void HandleHighPriestChanged(bool previousValue, bool currentValue, bool asServer)
@@ -431,6 +482,20 @@ namespace Incantation.Networking
             if (ShouldPublishChange(asServer))
             {
                 SeatIdChanged?.Invoke(previousValue, currentValue);
+            }
+        }
+
+        private void HandleAppearanceSlotsChanged(
+            SyncListOperation operation,
+            int index,
+            AppearanceSlotValue previousValue,
+            AppearanceSlotValue currentValue,
+            bool asServer)
+        {
+            if ((operation == SyncListOperation.Add || operation == SyncListOperation.Set) &&
+                ShouldPublishChange(asServer))
+            {
+                AppearanceSlotChanged?.Invoke(currentValue);
             }
         }
 

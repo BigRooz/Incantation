@@ -913,6 +913,39 @@ Primary sources reviewed for this decision:
 - [Steamworks: matchmaking, lobbies, metadata, invitations, authentication, and voice boundary](https://partner.steamgames.com/doc/features/multiplayer/matchmaking)
 - [Steamworks: current networking APIs and Steam Datagram Relay](https://partner.steamgames.com/doc/features/multiplayer/networking)
 
+## Authoritative Player Appearance
+
+`NetworkPlayer` owns one server-authoritative `SyncList<AppearanceSlotValue>` for each connected
+player. Every entry contains only an `AppearanceSlot` and integer `ValueId`; no GameObject,
+Renderer, Material, mesh, prefab, or component reference crosses the network.
+
+The owner changes a cosmetic through the existing Character Book UI. `CharacterSkinPalette`
+and `CharacterSelectionGroup` publish selection events to `CharacterAppearancePresentation`.
+`NetworkCharacterPresentation` forwards the changed slot to its owning `NetworkPlayer`, which
+sends one server RPC when the owner is a remote client. The server validates the lightweight
+value and adds or replaces only that slot in the SyncList.
+
+FishNet sends the complete list with the `NetworkPlayer` spawn snapshot, so late joiners apply
+all current appearances without refresh, respawn, or menu interaction. Runtime changes use a
+single SyncList Add or Set delta and apply only the changed slot. Disconnecting despawns that
+player's `NetworkPlayer` and its presentation, so appearance data cannot leak to a later
+connection. A reconnecting owner republishes the appearance still selected by its local
+customization components to its new server-owned player object.
+
+`CharacterAppearancePresentation` is the local application boundary. It maps synchronized data
+onto the existing skin palette and selection-group components. `NetworkPlayer` contains no
+renderer, material, mesh, activation, or cosmetic presentation logic.
+
+To add a cosmetic slot:
+
+1. Add a stable value to `AppearanceSlot`; never renumber shipped values.
+2. Add or reuse a local presentation component/catalog whose integer indices are identical on
+   every client.
+3. Tag its `CharacterSelectionGroup` with that slot, or extend
+   `CharacterAppearancePresentation` for a different data type such as a palette color.
+4. Keep validation in the local catalog and server request boundary. The SyncList and late-join
+   lifecycle require no redesign.
+
 ## Status
 
 TASK-038 installed the FishNet foundation and TASK-039 established the permanent per-connection player architecture on 2026-07-23:
@@ -922,7 +955,7 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - `Assets/Scenes/Bootstrap.unity` contains one project-owned persistent `IncantationNetworkManager`.
 - The manager prefab explicitly configures FishNet's server, client, transport, time, scene, and observer managers.
 - `PlayerSpawner` creates one owner-assigned `NetworkPlayer` prefab for each connection.
-- `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and character customization ID.
+- `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and appearance-slot data.
 - High-priest role, priest name, lobby state, and ready state use FishNet `SyncVar` storage and expose change events plus server-only mutation APIs.
 - Seat ID uses FishNet `SyncVar` storage. Owner requests are validated by the server,
   duplicate active Seat assignments are rejected, and every observer resolves occupancy
@@ -941,7 +974,9 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   servers never receive that client callback and therefore do not create visual characters.
 - Remote character instances disable their cameras, audio listeners, and local look controls.
   The existing scene character, character preview, offline flow, and debug flow remain intact.
-- Character customization ID is intentionally not synchronized until its dedicated authoritative system is implemented.
+- Player appearance is synchronized as server-owned `(AppearanceSlot, ValueId)` data through a
+  FishNet SyncList. Local character presentation applies the initial snapshot and per-slot
+  runtime deltas through the existing customization components.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
 - Bootstrap remains the launcher and persistent network-composition owner. It now opens
@@ -974,4 +1009,6 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
    transition before opening it. Confirm the current-state query restores the correct Circle
    page and count without waiting for another membership event.
 
-Production Steam discovery, Steam transport, networked Book/ritual/voice/cosmetic state, and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.
+Production Steam discovery, Steam transport, networked Book/ritual/voice state, and authoritative
+shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not
+installed.

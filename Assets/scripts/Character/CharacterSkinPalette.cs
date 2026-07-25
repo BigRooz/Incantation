@@ -22,6 +22,8 @@ public sealed class CharacterSkinPalette : MonoBehaviour
 
     [SerializeField] private int currentIndex;
 
+    public event Action<int, int> SelectionChanged;
+
     private void Awake()
     {
         ApplySelection();
@@ -34,8 +36,14 @@ public sealed class CharacterSkinPalette : MonoBehaviour
             return;
         }
 
+        int previousIndex = currentIndex;
         currentIndex = index;
         ApplySelection();
+
+        if (previousIndex != currentIndex)
+        {
+            SelectionChanged?.Invoke(previousIndex, currentIndex);
+        }
     }
 
     public int GetCurrentIndex()

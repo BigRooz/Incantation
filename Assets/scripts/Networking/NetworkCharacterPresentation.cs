@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Incantation.Character;
 
 namespace Incantation.Networking
 {
@@ -18,6 +19,7 @@ namespace Incantation.Networking
         private GameObject characterInstance;
         private Seat occupiedSeat;
         private bool usesSceneCharacter;
+        private CharacterAppearancePresentation appearancePresentation;
 
         public GameObject CharacterInstance => characterInstance;
 
@@ -50,6 +52,7 @@ namespace Incantation.Networking
             {
                 networkPlayer.ClientStarted -= HandleClientStarted;
                 networkPlayer.SeatIdChanged -= HandleSeatIdChanged;
+                networkPlayer.AppearanceSlotChanged -= HandleAppearanceSlotChanged;
             }
 
             NetworkPlayer.ActivePlayerRemoved -= HandleNetworkPlayerRemoved;
@@ -59,6 +62,7 @@ namespace Incantation.Networking
                 Destroy(characterInstance);
 
             characterInstance = null;
+            DetachAppearancePresentation();
             seatManager = null;
         }
 
@@ -108,6 +112,7 @@ namespace Incantation.Networking
             if (characterInstance == null)
                 CreateOrClaimCharacter();
 
+            BindAppearancePresentation();
             ApplySeatId(networkPlayer.SeatId);
         }
 
@@ -117,6 +122,13 @@ namespace Incantation.Networking
             {
                 characterInstance = seatManager.LocalLobbyPlayer;
                 usesSceneCharacter = true;
+            }
+            else if (seatManager.LocalLobbyPlayer != null)
+            {
+                characterInstance = Instantiate(seatManager.LocalLobbyPlayer);
+                characterInstance.name = $"NetworkCharacter_{networkPlayer.Owner.ClientId}";
+                usesSceneCharacter = false;
+                DisableNonOwnerControls(characterInstance);
             }
             else if (characterPrefab != null)
             {
@@ -134,6 +146,64 @@ namespace Incantation.Networking
             }
 
             characterInstance.transform.SetParent(null, true);
+        }
+
+        private void BindAppearancePresentation()
+        {
+            if (characterInstance == null || appearancePresentation != null)
+            {
+                return;
+            }
+
+            appearancePresentation = characterInstance.GetComponent<CharacterAppearancePresentation>();
+            if (appearancePresentation == null)
+            {
+                appearancePresentation = characterInstance.AddComponent<CharacterAppearancePresentation>();
+            }
+
+            appearancePresentation.Initialize();
+            networkPlayer.AppearanceSlotChanged += HandleAppearanceSlotChanged;
+
+            foreach (AppearanceSlotValue value in networkPlayer.AppearanceSlots)
+            {
+                appearancePresentation.Apply(value);
+            }
+
+            if (!networkPlayer.IsOwner)
+            {
+                return;
+            }
+
+            appearancePresentation.LocalSelectionChanged += HandleLocalSelectionChanged;
+            foreach (AppearanceSlotValue value in appearancePresentation.CaptureSupportedAppearance())
+            {
+                networkPlayer.RequestAppearanceSlot(value.Slot, value.ValueId);
+            }
+        }
+
+        private void DetachAppearancePresentation()
+        {
+            if (networkPlayer != null)
+            {
+                networkPlayer.AppearanceSlotChanged -= HandleAppearanceSlotChanged;
+            }
+
+            if (appearancePresentation != null)
+            {
+                appearancePresentation.LocalSelectionChanged -= HandleLocalSelectionChanged;
+            }
+
+            appearancePresentation = null;
+        }
+
+        private void HandleAppearanceSlotChanged(AppearanceSlotValue value)
+        {
+            appearancePresentation?.Apply(value);
+        }
+
+        private void HandleLocalSelectionChanged(AppearanceSlot slot, int valueId)
+        {
+            networkPlayer.RequestAppearanceSlot(slot, valueId);
         }
 
         private void ApplySeatId(int seatId)

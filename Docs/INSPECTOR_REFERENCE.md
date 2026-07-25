@@ -714,6 +714,25 @@ Voice lip controller:
 - `SetOpenAmount(float amount)` clamps the supplied value to `0` through `1` and immediately applies it. With `useManualOpenAmount` enabled, that value remains the smoothed target for debugging and future animation systems.
 - The controller preserves each assigned lip's original local Y and Z rotation, animates only local X, smoothly returns to the closed angle during silence, and restores the complete original local rotations when disabled.
 
+## Character Appearance
+
+Player appearance is data-driven and requires no NetworkPlayer prefab cosmetic references.
+
+- `CharacterSkinPalette` owns the local Skin catalog and material application.
+- Each `CharacterSelectionGroup` must set `appearanceSlot` to the stable slot represented by
+  that group. The current Hair group uses `Hair`; the moustache/beard group uses `Beard`.
+- Entry ordering is network data. Keep the same entry index mapped to the same cosmetic on every
+  client and build.
+- `CharacterAppearancePresentation` is added and initialized at runtime by
+  `NetworkCharacterPresentation`. Do not add renderer, material, mesh, or cosmetic GameObject
+  fields to `NetworkPlayer`.
+- The current scene-authored local character is the source for observed character clones so the
+  existing customization components and their configured catalogs are preserved. Non-owner
+  camera, audio listener, and movement controls remain disabled.
+- New GameObject-based cosmetic slots should normally reuse `CharacterSelectionGroup`, set its
+  `appearanceSlot`, and keep its entry ordering stable. New material/palette data should extend
+  `CharacterAppearancePresentation` while continuing to synchronize only compact IDs.
+
 ## Camera
 
 Camera transition foundation:

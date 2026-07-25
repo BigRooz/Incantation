@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Incantation.Character;
 using UnityEngine;
 
 public sealed class CharacterSelectionGroup : MonoBehaviour
@@ -15,7 +16,11 @@ public sealed class CharacterSelectionGroup : MonoBehaviour
     }
 
     [SerializeField] private List<Entry> entries = new List<Entry>();
+    [SerializeField] private AppearanceSlot appearanceSlot = AppearanceSlot.Hair;
     [SerializeField] private int currentIndex;
+
+    public AppearanceSlot AppearanceSlot => appearanceSlot;
+    public event Action<AppearanceSlot, int, int> SelectionChanged;
 
     private void Awake()
     {
@@ -30,8 +35,14 @@ public sealed class CharacterSelectionGroup : MonoBehaviour
             return;
         }
 
+        int previousIndex = currentIndex;
         currentIndex = index;
         ApplySelection();
+
+        if (previousIndex != currentIndex)
+        {
+            SelectionChanged?.Invoke(appearanceSlot, previousIndex, currentIndex);
+        }
     }
 
     public int GetCurrentIndex()
