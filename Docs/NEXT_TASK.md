@@ -24,10 +24,12 @@ Synchronize the remaining lobby presentation and character selection through `Ne
 
 The FishNet foundation, permanent `NetworkPlayer` architecture, and Book-driven LAN Ritual Seal entry flow are implemented. The remaining lobby presentation and character choice still contain local or duplicated state that must be migrated onto this networking identity.
 
-Create Ritual now starts the authoritative Host immediately from `PlayMenu`; no pre-creation
-Host confirmation page remains in the live flow. Authoritative completion silently presents
-the active Host lobby. Its Seal and Circle count consume existing authorities, while the
-obsolete `RitualCreated` display state remains only for serialized compatibility.
+Create Ritual is genuine animated navigation from `PlayMenu`; no pre-creation confirmation
+page remains in the live flow. The existing Host request starts only at the transition's
+hidden-content callback. Fast completion supplies final lobby targets before reveal; slow
+completion reveals `Creating Ritual...` and later refreshes silently. Its Seal and Circle count
+consume existing authorities, while the obsolete `RitualCreated` display state remains only
+for serialized compatibility.
 This silent presentation rule also applies after every `Quit Ritual` cycle: shutdown restores
 `PlayMenu` and clears pending creation state through the service change notification. The menu
 must not repeat that same-state navigation while the Quit transition is active, because a

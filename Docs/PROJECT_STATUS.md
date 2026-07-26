@@ -89,10 +89,12 @@ in the lobby without starting ritual gameplay. Joining accepts and normalizes a 
 the matching LAN host through `RitualSealService`, and supplies the resolved address to FishNet
 without displaying it to the player.
 
-Selecting `Create Ritual` now invokes `CreateNetworkRitual()` immediately; the redundant
-pre-creation `HostMenu` confirmation is bypassed. The Play page disables the action while the
-existing FishNet Host startup is pending. Once the authoritative Seal exists and both local
-FishNet server and client are Started, the Book silently presents the active `HostMenu`.
+Selecting `Create Ritual` begins one genuine Book navigation transition; the redundant
+pre-creation confirmation remains bypassed. Host creation starts from the transition's
+hidden-content callback, after the Play text disappears and before destination targets are
+assigned. Fast authoritative success therefore reveals the final Host lobby directly. If
+FishNet startup remains pending, the destination reveals `Creating Ritual...`, then replaces
+it silently once the Seal exists and both local server and client are Started.
 Its left page contains `Enter the Circle`, `Invite a Priest`, and `Quit Ritual`. The right page
 reads the authoritative `RitualSealService.ActiveSeal` and synchronized
 `NetworkPlayer.CircleMemberCount`, displaying only the Seal, `X / 8`, and a count-based
@@ -301,4 +303,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 after runtime tracing of the repeated Host transition.
+2026-07-25 after sequencing Host creation with the Book transition.

@@ -245,6 +245,21 @@ public sealed class BookRightPageController : MonoBehaviour
         RefreshInteraction(rightMenuItem5, null, false);
     }
 
+    public void PrepareRitualCreationStatus(
+        BookState state,
+        string status,
+        List<TMP_Text> texts,
+        List<string> targetStrings)
+    {
+        preparedState = state;
+        PrepareEntry(texts, targetStrings, rightTitle, null, string.Empty, null);
+        PrepareEntry(texts, targetStrings, rightLine1, rightMenuItem1, status, null);
+        PrepareEntry(texts, targetStrings, rightLine2, rightMenuItem2, string.Empty, null);
+        PrepareEntry(texts, targetStrings, rightLine3, rightMenuItem3, string.Empty, null);
+        PrepareEntry(texts, targetStrings, rightLine4, rightMenuItem4, string.Empty, null);
+        PrepareEntry(texts, targetStrings, rightLine5, rightMenuItem5, string.Empty, null);
+    }
+
     public void ClearRightPage()
     {
         transitionTexts.Clear();

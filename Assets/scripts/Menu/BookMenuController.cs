@@ -83,14 +83,20 @@ public class BookMenuController : MonoBehaviour
 
     public void CreateNetworkRitual()
     {
+        if (bookStateController == null ||
+            !bookStateController.BeginHostCreationTransition(StartNetworkRitual))
+        {
+            Debug.LogWarning("The Create Ritual transition could not begin.", this);
+        }
+    }
+
+    private void StartNetworkRitual()
+    {
         RitualSealService service = RitualSealService.Instance;
         if (service == null || !service.CreateRitual())
         {
             Debug.LogWarning("The Ritual Seal service could not create a ritual.", this);
-            return;
         }
-
-        bookStateController.RefreshCurrentPageContent();
     }
 
     public void CancelJoinRitual()

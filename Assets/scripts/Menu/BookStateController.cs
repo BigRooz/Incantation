@@ -46,10 +46,13 @@ public sealed class BookStateController : MonoBehaviour
     private BookState preparedState;
     private bool hasStarted;
     private bool hasPreparedPage;
+    private bool hostCreationTransitionActive;
+    private bool hostCreationAwaitingResult;
     private int lastRenderedCircleMemberCount = -1;
     private int lastRenderedReadyCount = -1;
 
     public BookState CurrentState => preparedState;
+    public bool IsHostCreationTransitionActive => hostCreationTransitionActive;
 
     private void OnEnable()
     {
@@ -230,6 +233,38 @@ public sealed class BookStateController : MonoBehaviour
         }
     }
 
+    public bool BeginHostCreationTransition(System.Action startHostCreation)
+    {
+        if (hostCreationTransitionActive || preparedState != BookState.PlayMenu)
+        {
+            return false;
+        }
+
+        hostCreationTransitionActive = true;
+        hostCreationAwaitingResult = true;
+        preparedState = BookState.HostMenu;
+        PreparePendingHostCreationDestination(string.Empty);
+        hasPreparedPage = true;
+        DisableLeftPageInteraction();
+
+        if (textTransitionController != null)
+        {
+            textTransitionController.PlayTransition(
+                transitionTexts,
+                transitionTargets,
+                CompleteHostCreationTransition,
+                () => StartHostCreationWhileHidden(startHostCreation));
+        }
+        else
+        {
+            StartHostCreationWhileHidden(startHostCreation);
+            ApplyTargetsImmediately();
+            CompleteHostCreationTransition();
+        }
+
+        return true;
+    }
+
     private void PrepareLobbyPage(LobbyPlayerState lobbyPlayerState)
     {
         int readyPlayerCount = NetworkPlayer.ReadyCircleMemberCount;
@@ -305,6 +340,81 @@ public sealed class BookStateController : MonoBehaviour
             string.Empty, null);
     }
 
+    private void PrepareHostCreationDestination()
+    {
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+
+        RitualSealService service = RitualSealService.Instance;
+        if (service != null && service.IsHostingRitual)
+        {
+            preparedState = BookState.HostMenu;
+            PrepareHostPage();
+            rightPageController?.PrepareForState(
+                BookState.HostMenu, transitionTexts, transitionTargets);
+            return;
+        }
+
+        if (service != null && service.IsCreatingRitual)
+        {
+            PreparePendingHostCreationDestination(service.StatusMessage);
+            return;
+        }
+
+        preparedState = BookState.PlayMenu;
+        PreparePage(
+            "THE RITUAL",
+            "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
+            "Join Ritual", bookMenuController != null ? bookMenuController.OpenJoinMenu : null,
+            "Back", bookMenuController != null ? bookMenuController.ReturnToMainMenu : null,
+            string.Empty, null);
+        rightPageController?.PrepareRitualCreationStatus(
+            BookState.PlayMenu,
+            service != null ? service.StatusMessage : string.Empty,
+            transitionTexts,
+            transitionTargets);
+    }
+
+    private void PreparePendingHostCreationDestination(string status)
+    {
+        preparedState = BookState.HostMenu;
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        PreparePage(
+            "CREATE RITUAL",
+            "Creating Ritual...", null,
+            string.Empty, null,
+            string.Empty, null,
+            string.Empty, null);
+        rightPageController?.PrepareRitualCreationStatus(
+            BookState.HostMenu,
+            status, transitionTexts, transitionTargets);
+    }
+
+    private void StartHostCreationWhileHidden(System.Action startHostCreation)
+    {
+        startHostCreation?.Invoke();
+        PrepareHostCreationDestination();
+    }
+
+    private void CompleteHostCreationTransition()
+    {
+        hostCreationTransitionActive = false;
+        CompletePageTransition();
+
+        RitualSealService service = RitualSealService.Instance;
+        if (service != null && service.IsHostingRitual)
+        {
+            hostCreationAwaitingResult = false;
+            ShowHostLobbySilently();
+        }
+        else if (service == null || !service.IsCreatingRitual)
+        {
+            hostCreationAwaitingResult = false;
+            ShowPlayMenuSilently();
+        }
+    }
+
     private void TakeLobbySeat()
     {
         if (bookMenuController != null)
@@ -338,6 +448,11 @@ public sealed class BookStateController : MonoBehaviour
 
     private void HandleRitualSealChanged()
     {
+        if (hostCreationTransitionActive)
+        {
+            return;
+        }
+
         if (ShouldDisplayJoinedCircle(RitualSealService.Instance))
         {
             TransitionToCircle();
@@ -350,7 +465,18 @@ public sealed class BookStateController : MonoBehaviour
         {
             if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
             {
+                hostCreationAwaitingResult = false;
+                ShowHostLobbySilently();
+            }
+            else if (RitualSealService.Instance != null &&
+                     RitualSealService.Instance.IsCreatingRitual)
+            {
                 RefreshCurrentPageContent();
+            }
+            else if (hostCreationAwaitingResult)
+            {
+                hostCreationAwaitingResult = false;
+                ShowPlayMenuSilently();
             }
             else
             {
@@ -447,6 +573,19 @@ public sealed class BookStateController : MonoBehaviour
 
     private void RefreshHostContent()
     {
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null || !service.IsHostingRitual)
+        {
+            RefreshLeftEntry(line1, menuItem1, "Creating Ritual...", null);
+            RefreshLeftEntry(line2, menuItem2, string.Empty, null);
+            RefreshLeftEntry(line3, menuItem3, string.Empty, null);
+            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+            RefreshLeftEntry(line5, menuItem5, string.Empty, null);
+            rightPageController?.RefreshRitualCreationStatusSilently(
+                service != null ? service.StatusMessage : string.Empty);
+            return;
+        }
+
         RefreshLeftEntry(line1, menuItem1, "Enter the Circle",
             bookMenuController != null ? bookMenuController.OpenCirclePage : null);
         RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
@@ -470,8 +609,31 @@ public sealed class BookStateController : MonoBehaviour
             !isCreating && bookMenuController != null
                 ? bookMenuController.CreateNetworkRitual
                 : null);
+        RefreshLeftEntry(
+            line2,
+            menuItem2,
+            "Join Ritual",
+            bookMenuController != null ? bookMenuController.OpenJoinMenu : null);
+        RefreshLeftEntry(
+            line3,
+            menuItem3,
+            "Back",
+            bookMenuController != null ? bookMenuController.ReturnToMainMenu : null);
+        RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+        RefreshLeftEntry(line5, menuItem5, string.Empty, null);
         rightPageController?.RefreshRitualCreationStatusSilently(
             service != null ? service.StatusMessage : string.Empty);
+    }
+
+    private void ShowPlayMenuSilently()
+    {
+        preparedState = BookState.PlayMenu;
+        hasPreparedPage = true;
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        voiceBookPageController?.SetPageOpen(false);
+        ApplyTextImmediately(title, "THE RITUAL");
+        RefreshPlayMenuContent();
     }
 
     private void ShowHostLobbySilently()

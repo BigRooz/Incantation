@@ -26,7 +26,8 @@ public sealed class BookTextTransitionController : MonoBehaviour
     public void PlayTransition(
         IReadOnlyList<TMP_Text> texts,
         IReadOnlyList<string> targetStrings,
-        Action onCompleted = null)
+        Action onCompleted = null,
+        Action onContentHidden = null)
     {
         if (activeTransition != null)
         {
@@ -44,16 +45,19 @@ public sealed class BookTextTransitionController : MonoBehaviour
             audioSource.PlayOneShot(paperTransitionClip);
         }
 
-        activeTransition = StartCoroutine(RunTransition(texts, targetStrings, onCompleted));
+        activeTransition = StartCoroutine(
+            RunTransition(texts, targetStrings, onCompleted, onContentHidden));
     }
 
     private IEnumerator RunTransition(
         IReadOnlyList<TMP_Text> texts,
         IReadOnlyList<string> targetStrings,
-        Action onCompleted)
+        Action onCompleted,
+        Action onContentHidden = null)
     {
         yield return AnimateVisibility(texts, disappearDuration, false);
 
+        onContentHidden?.Invoke();
         AssignTargets(texts, targetStrings);
 
         if (delayBetweenPhases > 0f)
