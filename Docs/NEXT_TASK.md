@@ -28,6 +28,10 @@ Create Ritual now starts the authoritative Host immediately from `PlayMenu`; no 
 Host confirmation page remains in the live flow. Authoritative completion silently presents
 the active Host lobby. Its Seal and Circle count consume existing authorities, while the
 obsolete `RitualCreated` display state remains only for serialized compatibility.
+This silent presentation rule also applies after every `Quit Ritual` cycle: shutdown restores
+`PlayMenu` and clears pending creation state, and a recreated Book controller restores an
+already-authoritative Host directly without navigating through a compatibility state or
+replaying the text transition.
 
 Circle membership and physical Seat selection are also separate presentation stages:
 `Enter the Circle` opens the Circle Book page, while `Take My Seat` alone enters the existing

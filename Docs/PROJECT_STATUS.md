@@ -95,9 +95,16 @@ existing FishNet Host startup is pending. Once the authoritative Seal exists and
 FishNet server and client are Started, the Book silently presents the active `HostMenu`.
 Its left page contains `Enter the Circle`, `Invite a Priest`, and `Quit Ritual`. The right page
 reads the authoritative `RitualSealService.ActiveSeal` and synchronized
-`NetworkPlayer.CircleMemberCount`, displaying only the Seal, a count-based waiting message,
-and `X / 8`. Roster changes silently refresh those existing entries. `RitualCreated` remains
+`NetworkPlayer.CircleMemberCount`, displaying only the Seal, `X / 8`, and a count-based
+waiting message. Roster changes silently refresh those existing entries. `RitualCreated` remains
 in the enum only for serialized compatibility and redirects to `HostMenu`.
+
+Repeated Host creation uses the same silent presentation path as initial creation. If FishNet
+scene startup recreates the Book controller while the Host is already authoritative, startup
+restores the active Host content directly instead of navigating through `HostMenu` and replaying
+the Book text transition. `Quit Ritual` clears the pending Host request and restores
+`PlayMenu`, so later Create/Quit cycles cannot inherit stale Host presentation or transition
+targets.
 
 `Enter the Circle` now separates Circle membership from physical Seat selection. It navigates
 to the existing `THE CIRCLE` Book page while keeping the Book camera and `BookInteraction`
@@ -293,4 +300,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 during the streamlined Host ritual flow.
+2026-07-25 during the repeated Host creation flow fix.

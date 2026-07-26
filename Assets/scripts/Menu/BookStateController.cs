@@ -96,7 +96,7 @@ public sealed class BookStateController : MonoBehaviour
         }
         else if (sealService != null && sealService.IsHostingRitual)
         {
-            ChangePage(BookState.HostMenu);
+            ShowHostLobbySilently();
         }
         else
         {
@@ -454,6 +454,7 @@ public sealed class BookStateController : MonoBehaviour
         RefreshLeftEntry(line3, menuItem3, "Quit Ritual",
             bookMenuController != null ? bookMenuController.QuitHostedRitual : null);
         RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+        RefreshLeftEntry(line5, menuItem5, string.Empty, null);
 
         rightPageController?.RefreshHostPageSilently();
     }
@@ -476,6 +477,10 @@ public sealed class BookStateController : MonoBehaviour
     private void ShowHostLobbySilently()
     {
         preparedState = BookState.HostMenu;
+        hasPreparedPage = true;
+        transitionTexts.Clear();
+        transitionTargets.Clear();
+        voiceBookPageController?.SetPageOpen(false);
         ApplyTextImmediately(title, "CREATE RITUAL");
         RefreshHostContent();
     }
