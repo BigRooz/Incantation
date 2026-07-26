@@ -132,10 +132,13 @@ public class LobbyController : MonoBehaviour
             && seatManager.GetLobbySeatForPlayer(localLobbyPlayer) != null;
     }
 
-    public void OpenLobby()
+    public void BeginSeatSelection()
     {
         if (bookMenuReturnInteractable != null)
             bookMenuReturnInteractable.EnableInteraction();
+
+        if (seatManager != null)
+            seatManager.SetLobbySeatSelectionEnabled(true);
 
         if (cameraTransitionManager != null && lobbyCameraTarget != null)
             cameraTransitionManager.MoveTo(lobbyCameraTarget);
@@ -215,7 +218,7 @@ public class LobbyController : MonoBehaviour
             bookMenuReturnInteractable.EnableInteraction();
 
         if (seatManager != null)
-            seatManager.SetLobbySeatSelectionEnabled(true);
+            seatManager.SetLobbySeatSelectionEnabled(false);
 
         CacheAndDisableGameplayInputBehaviours();
         EnableMenuCameraRendering();

@@ -51,7 +51,7 @@ Runtime behavior:
 - On scene start, `LobbyController` shows the lobby and keeps the game in `Lobby` state.
 - If no lobby UI is assigned, it creates a simple `LobbyCanvas` with title `Incantation` and buttons `Start Ritual`, `Options`, and `Quit Game`.
 - While in lobby, the cursor is forced visible and unlocked, and configured gameplay input behaviours are disabled.
-- While in lobby, `LobbyController` calls `bookMenuReturnInteractable.EnableInteraction()`, calls `cameraTransitionManager.EnableRendering()`, requests `cameraTransitionManager.MoveTo(lobbyCameraTarget)`, and disables only the assigned `localPlayerCamera`. Book interaction therefore remains available while moving between the Lobby and Book Menu views. It does not enable or disable `BookMenuCamera`, `LobbyCamera`, or other menu destination cameras.
+- Entering the Circle Book page does not move the camera or enable Seat interaction. `LobbyController.BeginSeatSelection()` runs only from `Take My Seat`: it enables the Book return interaction, enables Seat selection, and requests `cameraTransitionManager.MoveTo(lobbyCameraTarget)`. It does not enable or disable `BookMenuCamera`, `LobbyCamera`, or other menu destination cameras.
 - While in lobby, chair clicks are routed through `LobbyController.TrySelectLobbySeat(seat)`, which asks `SeatManager.TryLobbySit(...)` to seat or move `localLobbyPlayer`.
 - `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
 - The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
@@ -747,7 +747,7 @@ Camera transition foundation:
 - `transitionCurve`: curve evaluated from 0 to 1 across the move. Use it to shape ease-in, ease-out, or theatrical camera travel without changing target Transforms.
 - `activeCamera`: assign `MenuTransitionCamera`.
 - `MoveTo(target)` and `MoveToImmediate(target)` are the only camera movement API. Menu, lobby, and book interactions pass destination Transforms into this generic mover.
-- Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform. Book page changes do not move it. `OpenLobby()` requests movement to the `LobbyCamera` Transform, and clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
+- Expected menu flow: `MenuTransitionCamera` starts at the `BookMenuCamera` Transform. `Enter the Circle` changes only the Book page and keeps the `BookInteraction` context. `Take My Seat` calls `BeginSeatSelection()` and requests movement to the `LobbyCamera` Transform. Clicking the physical Book requests movement back to the `BookMenuCamera` Transform.
 
 Book state controller:
 
@@ -797,8 +797,13 @@ Book right page controller:
   `NetworkPlayer.IsCircleMember` value is synchronized true. `BookStateController` observes
   `NetworkPlayer.CircleRosterChanged` and queries current membership on `Start` and re-enable,
   so no additional Inspector reference is required and late UI subscription is supported.
-- The Host keeps the existing explicit `Enter the Circle` action. Connected members are counted
-  before `Take Your Seat`; Circle membership must not be derived from Seat occupancy.
+- The Host keeps the explicit `Enter the Circle` action. It calls `OpenCirclePage()`, changes
+  only to the existing `Lobby`/`THE CIRCLE` Book page, and leaves the Book camera and
+  `BookInteraction` input context active. Connected members are counted before `Take My Seat`;
+  Circle membership must not be derived from Seat occupancy.
+- `Take My Seat` is the only Book action that calls `BeginSeatSelection()`. That path enables
+  Seat interaction and moves the local menu camera to the Lobby viewpoint. It does not change
+  another player's camera and does not assign a Seat until the existing Seat click path succeeds.
 - `JoinSealEntry` opens immediately when `Join Ritual` is selected and uses the existing artist-authored right-page TMP lines as one focused Book form: right line 1 shows the non-interactive `Seal` title, right line 2 is the interactive four-character field, right line 3 is the `Validate Seal` Book button, and right line 4 is the non-interactive status. Right line 5 remains empty and non-interactive. It never displays player count or duplicates the entered Seal outside the field.
 - Seal entry is focused as soon as the page opens. Input is normalized to the readable uppercase Seal alphabet, spaces and unsupported characters are ignored, and Backspace removes a character. `Validate Seal` is grey and non-interactive until exactly four characters are present, then fades to its authored gold color over `0.18` seconds. Enter is an optional shortcut and submits only while the button is enabled.
 - Validate Seal's disabled color and fade are temporary `JoinSealEntry` state visuals only. Leaving Join stops any active fade and restores right line 3's serialized color and shared material before the next page is prepared, so reused content such as `Players: 1 / 8` never inherits Join styling.
@@ -897,10 +902,10 @@ Book menu controller:
 - `bookStateController`: assign the `BookStateController` on the Living Book coordinator.
 - `bookTextModeController`: assign the same `BookTextModeController` used by `BookStateController`.
 - `cameraTransitionManager`: assign the scene `CameraTransitionManager` that owns `MenuTransitionCamera`.
-- `lobbyCameraTarget`: assign the authored Lobby viewpoint Transform.
+- The former `BookMenuController.lobbyCameraTarget` value remains serialized but hidden for scene compatibility. It is not read at runtime; `LobbyController` owns the active Seat-selection camera target.
 - `characterCameraTarget`: assign the authored Character viewpoint Transform. `ShowCharacter()` uses this target; `OpenCharacter()` does not move the camera.
 - `bookMenuCameraTarget`: assign the authored Book Menu viewpoint Transform.
-- `lobbyController`: assign the scene `LobbyController`. `OpenLobby()` asks it to keep the existing Lobby interaction active, then requests the validated camera transition. It does not start the ritual, move the player, or lock seat selection.
+- `lobbyController`: assign the scene `LobbyController`. `OpenCirclePage()` changes only Book state. `BeginSeatSelection()` delegates the single physical Seat-selection entry to `LobbyController`; camera and Seat-selection activation are not duplicated in `BookMenuController`.
 - `discordUrl`: optionally assign the full Discord destination URL. `OpenDiscord()` logs `Discord URL is not assigned.` and does nothing when this field is empty; otherwise it passes the assigned value to `Application.OpenURL(...)`. No Discord URL is hardcoded.
 - `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before changing anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a selected Seat, it calls `BookTextModeController.ShowRitualTexts()` and delegates to `LobbyController.StartLobbyRitual()`.
 - `OpenPlayMenu()`, `OpenHostMenu()`, `OpenJoinMenu()`, `ReturnToMainMenu()`, and `ReturnToPlayMenu()` only request the matching state from `BookStateController`.

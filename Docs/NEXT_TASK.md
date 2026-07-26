@@ -29,6 +29,10 @@ count consume existing authorities and refresh silently; the obsolete `RitualCre
 state is retained only for serialized compatibility. This removes one presentation duplication
 without changing the remaining lobby migration priority.
 
+Circle membership and physical Seat selection are also separate presentation stages:
+`Enter the Circle` opens the Circle Book page, while `Take My Seat` alone enters the existing
+local camera and Seat-selection flow. Future lobby migration must preserve that separation.
+
 Using `NetworkPlayer` as the shared authority keeps each connected player's identity and lobby state in one place and prevents local lobby models from diverging across peers.
 
 ## Next Planned Milestones

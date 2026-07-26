@@ -249,7 +249,7 @@ public sealed class BookStateController : MonoBehaviour
                     "THE CIRCLE",
                     "Priest Name", bookMenuController != null ? bookMenuController.EditPriestName : null,
                     "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
-                    "Take Your Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
+                    "Take My Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
                     "Leave Ritual", bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);
                 rightLine1Text = "High Priest";
                 rightLine2Text =
@@ -296,7 +296,7 @@ public sealed class BookStateController : MonoBehaviour
         {
             PreparePage(
                 "CREATE RITUAL",
-                "Enter the Circle", bookMenuController != null ? bookMenuController.OpenLobby : null,
+                "Enter the Circle", bookMenuController != null ? bookMenuController.OpenCirclePage : null,
                 "Invite a Priest", bookMenuController != null ? bookMenuController.InvitePriest : null,
                 "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
                 string.Empty, null);
@@ -315,7 +315,7 @@ public sealed class BookStateController : MonoBehaviour
     {
         if (bookMenuController != null)
         {
-            bookMenuController.OpenLobby();
+            bookMenuController.BeginSeatSelection();
         }
     }
 
@@ -437,7 +437,7 @@ public sealed class BookStateController : MonoBehaviour
         if (isHostingRitual)
         {
             RefreshLeftEntry(line1, menuItem1, "Enter the Circle",
-                bookMenuController != null ? bookMenuController.OpenLobby : null);
+                bookMenuController != null ? bookMenuController.OpenCirclePage : null);
             RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
                 bookMenuController != null ? bookMenuController.InvitePriest : null);
             RefreshLeftEntry(line3, menuItem3, "Back",
@@ -478,7 +478,7 @@ public sealed class BookStateController : MonoBehaviour
                 bookMenuController != null ? bookMenuController.EditPriestName : null);
             RefreshLeftEntry(line2, menuItem2, "Character",
                 bookMenuController != null ? bookMenuController.OpenCharacter : null);
-            RefreshLeftEntry(line3, menuItem3, "Take Your Seat",
+            RefreshLeftEntry(line3, menuItem3, "Take My Seat",
                 lobbyPlayerStateController != null ? TakeLobbySeat : null);
             RefreshLeftEntry(line4, menuItem4, "Leave Ritual",
                 bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);

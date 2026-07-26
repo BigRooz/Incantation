@@ -9,7 +9,7 @@ public class BookMenuController : MonoBehaviour
 
     [Header("Camera References")]
     [SerializeField] private CameraTransitionManager cameraTransitionManager;
-    [SerializeField] private Transform lobbyCameraTarget;
+    [SerializeField, HideInInspector] private Transform lobbyCameraTarget;
     [SerializeField] private Transform characterCameraTarget;
     [SerializeField] private Transform bookMenuCameraTarget;
 
@@ -216,21 +216,29 @@ public class BookMenuController : MonoBehaviour
         lobbyController.StartLobbyRitual();
     }
 
-    public void OpenLobby()
+    public void OpenCirclePage()
     {
-        if (cameraTransitionManager == null || lobbyCameraTarget == null)
+        if (bookStateController != null)
         {
-            Debug.LogWarning($"{nameof(BookMenuController)} cannot open the Lobby because {nameof(cameraTransitionManager)} or {nameof(lobbyCameraTarget)} is not assigned.", this);
+            bookStateController.ChangePage(BookState.Lobby);
+        }
+    }
+
+    public void BeginSeatSelection()
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogWarning($"{nameof(BookMenuController)} cannot begin seat selection because no {nameof(LobbyController)} is assigned.", this);
             return;
         }
 
-        if (lobbyController != null)
-            lobbyController.OpenLobby();
+        lobbyController.BeginSeatSelection();
+    }
 
-        if (bookStateController != null && bookStateController.CurrentState != BookState.Lobby)
-            bookStateController.ChangePage(BookState.Lobby);
-
-        cameraTransitionManager.MoveTo(lobbyCameraTarget);
+    [System.Obsolete("Use BeginSeatSelection for the physical Seat-selection flow.")]
+    public void OpenLobby()
+    {
+        BeginSeatSelection();
     }
 
     public void EditPriestName()

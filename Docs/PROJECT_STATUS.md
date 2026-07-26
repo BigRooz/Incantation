@@ -97,6 +97,12 @@ reads the authoritative `RitualSealService.ActiveSeal` and synchronized
 and `X / 8`. Roster changes silently refresh those existing entries. `RitualCreated` remains
 in the enum only for serialized compatibility and redirects to `HostMenu`.
 
+`Enter the Circle` now separates Circle membership from physical Seat selection. It navigates
+to the existing `THE CIRCLE` Book page while keeping the Book camera and `BookInteraction`
+context active. `Take My Seat` is the sole action that enables Seat interaction and moves the
+local menu camera to the Lobby viewpoint. A player can therefore remain an unseated Circle
+member, review Book options, and continue contributing to the authoritative Circle count.
+
 The current Seal directory is deliberately a Tugboat LAN diagnostic implementation. It is not
 authentication and does not replace the planned Steam lobby metadata or external production
 directory. The diagnostic FishNet HUD remains available for debug mode only.
@@ -280,4 +286,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 during the merged Create Ritual host-lobby Book flow.
+2026-07-25 during the Circle navigation and Seat-selection separation.
