@@ -204,10 +204,10 @@ public sealed class BookRightPageController : MonoBehaviour
             int playerCount = NetworkPlayer.CircleMemberCount;
             ApplyTextImmediately(rightTitle, string.Empty);
             ApplyTextImmediately(rightLine1, $"Seal: {service.ActiveSeal}");
-            ApplyTextImmediately(rightLine2, GetHostWaitingMessage(playerCount));
             ApplyTextImmediately(
-                rightLine3,
+                rightLine2,
                 $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}");
+            ApplyTextImmediately(rightLine3, GetHostWaitingMessage(playerCount));
             ApplyTextImmediately(rightLine4, string.Empty);
             ApplyTextImmediately(rightLine5, string.Empty);
         }
@@ -306,14 +306,14 @@ public sealed class BookRightPageController : MonoBehaviour
             int playerCount = NetworkPlayer.CircleMemberCount;
             PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
             PrepareEntry(texts, targets, rightLine1, rightMenuItem1, $"Seal: {service.ActiveSeal}", null);
-            PrepareEntry(texts, targets, rightLine2, rightMenuItem2, GetHostWaitingMessage(playerCount), null);
             PrepareEntry(
                 texts,
                 targets,
-                rightLine3,
-                rightMenuItem3,
+                rightLine2,
+                rightMenuItem2,
                 $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}",
                 null);
+            PrepareEntry(texts, targets, rightLine3, rightMenuItem3, GetHostWaitingMessage(playerCount), null);
             PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
             PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
             return;
