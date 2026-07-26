@@ -96,7 +96,7 @@ public sealed class BookStateController : MonoBehaviour
         }
         else if (sealService != null && sealService.IsHostingRitual)
         {
-            ChangePage(BookState.RitualCreated);
+            ChangePage(BookState.HostMenu);
         }
         else
         {
@@ -106,6 +106,11 @@ public sealed class BookStateController : MonoBehaviour
 
     public void ChangePage(BookState state)
     {
+        if (state == BookState.RitualCreated)
+        {
+            state = BookState.HostMenu;
+        }
+
         if (hasPreparedPage && preparedState == state)
         {
             RefreshCurrentPageContent();
@@ -148,12 +153,7 @@ public sealed class BookStateController : MonoBehaviour
                 break;
 
             case BookState.HostMenu:
-                PreparePage(
-                    "CREATE RITUAL",
-                    "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
-                    string.Empty, null,
-                    string.Empty, null);
+                PrepareHostPage();
                 break;
 
             case BookState.JoinMenu:
@@ -164,16 +164,6 @@ public sealed class BookStateController : MonoBehaviour
                     string.Empty, null,
                     string.Empty, null,
                     "Back", bookMenuController != null ? bookMenuController.CancelJoinRitual : null);
-                break;
-
-            case BookState.RitualCreated:
-                string activeSeal = RitualSealService.Instance != null ? RitualSealService.Instance.ActiveSeal : string.Empty;
-                PreparePage(
-                    "RITUAL CREATED",
-                    "SEAL", null,
-                    activeSeal, null,
-                    "Waiting for other mages...", null,
-                    "Enter the Circle", bookMenuController != null ? bookMenuController.OpenLobby : null);
                 break;
 
             case BookState.Lobby:
@@ -299,6 +289,28 @@ public sealed class BookStateController : MonoBehaviour
         }
     }
 
+    private void PrepareHostPage()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service != null && service.IsHostingRitual)
+        {
+            PreparePage(
+                "CREATE RITUAL",
+                "Enter the Circle", bookMenuController != null ? bookMenuController.OpenLobby : null,
+                "Invite a Priest", bookMenuController != null ? bookMenuController.InvitePriest : null,
+                "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
+                string.Empty, null);
+            return;
+        }
+
+        PreparePage(
+            "CREATE RITUAL",
+            "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
+            "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
+            string.Empty, null,
+            string.Empty, null);
+    }
+
     private void TakeLobbySeat()
     {
         if (bookMenuController != null)
@@ -340,7 +352,7 @@ public sealed class BookStateController : MonoBehaviour
         {
             RefreshJoinSealPresentation();
         }
-        else if (preparedState == BookState.RitualCreated)
+        else if (preparedState == BookState.HostMenu)
         {
             RefreshCurrentPageContent();
         }
@@ -372,6 +384,12 @@ public sealed class BookStateController : MonoBehaviour
                 Debug.Log("[Book Menu] Local Circle membership ended; returning to the main menu.", this);
                 ChangePage(BookState.MainMenu);
             }
+        }
+        else if (preparedState == BookState.HostMenu &&
+                 RitualSealService.Instance != null &&
+                 RitualSealService.Instance.IsHostingRitual)
+        {
+            RefreshCurrentPageContent();
         }
     }
 
@@ -405,10 +423,38 @@ public sealed class BookStateController : MonoBehaviour
                 RefreshJoinSealPresentation();
                 break;
 
-            case BookState.RitualCreated:
-                RefreshRitualCreatedContent();
+            case BookState.HostMenu:
+                RefreshHostContent();
                 break;
         }
+    }
+
+    private void RefreshHostContent()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        bool isHostingRitual = service != null && service.IsHostingRitual;
+
+        if (isHostingRitual)
+        {
+            RefreshLeftEntry(line1, menuItem1, "Enter the Circle",
+                bookMenuController != null ? bookMenuController.OpenLobby : null);
+            RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
+                bookMenuController != null ? bookMenuController.InvitePriest : null);
+            RefreshLeftEntry(line3, menuItem3, "Back",
+                bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null);
+            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+        }
+        else
+        {
+            RefreshLeftEntry(line1, menuItem1, "Create Ritual",
+                bookMenuController != null ? bookMenuController.CreateNetworkRitual : null);
+            RefreshLeftEntry(line2, menuItem2, "Back",
+                bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null);
+            RefreshLeftEntry(line3, menuItem3, string.Empty, null);
+            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+        }
+
+        rightPageController?.RefreshHostPageSilently();
     }
 
     private void RefreshLobbyContent()
@@ -461,14 +507,6 @@ public sealed class BookStateController : MonoBehaviour
 
         lastRenderedCircleMemberCount = NetworkPlayer.CircleMemberCount;
         lastRenderedReadyCount = NetworkPlayer.ReadyCircleMemberCount;
-    }
-
-    private void RefreshRitualCreatedContent()
-    {
-        string activeSeal = RitualSealService.Instance != null
-            ? RitualSealService.Instance.ActiveSeal
-            : string.Empty;
-        ApplyTextImmediately(line2, activeSeal);
     }
 
     private static void RefreshLeftEntry(

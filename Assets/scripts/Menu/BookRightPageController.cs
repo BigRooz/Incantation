@@ -120,6 +120,17 @@ public sealed class BookRightPageController : MonoBehaviour
         {
             ConfigureJoinSealInteractions();
         }
+        else if (preparedState == BookState.HostMenu &&
+                 RitualSealService.Instance != null &&
+                 RitualSealService.Instance.IsHostingRitual)
+        {
+            RefreshInteraction(rightMenuItem1, null, false);
+            RefreshInteraction(rightMenuItem2, null, false);
+            RefreshInteraction(rightMenuItem3, null, false);
+            RefreshInteraction(rightMenuItem4, null, false);
+            RefreshInteraction(rightMenuItem5, null, false);
+            validateButtonWasEnabled = false;
+        }
         else
         {
             SetMenuItemInteraction(rightMenuItem1, rightLine1);
@@ -181,6 +192,40 @@ public sealed class BookRightPageController : MonoBehaviour
         RefreshInteraction(rightMenuItem1, null, false);
         RefreshInteraction(rightMenuItem2, null, false);
         RefreshInteraction(rightMenuItem3, line3Action, line3Action != null);
+    }
+
+    public void RefreshHostPageSilently()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        bool isHostingRitual = service != null && service.IsHostingRitual;
+
+        if (isHostingRitual)
+        {
+            int playerCount = NetworkPlayer.CircleMemberCount;
+            ApplyTextImmediately(rightTitle, string.Empty);
+            ApplyTextImmediately(rightLine1, $"Seal: {service.ActiveSeal}");
+            ApplyTextImmediately(rightLine2, GetHostWaitingMessage(playerCount));
+            ApplyTextImmediately(
+                rightLine3,
+                $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}");
+            ApplyTextImmediately(rightLine4, string.Empty);
+            ApplyTextImmediately(rightLine5, string.Empty);
+        }
+        else
+        {
+            ApplyTextImmediately(rightTitle, "THE CIRCLE");
+            ApplyTextImmediately(rightLine1, "Invite a Mage");
+            ApplyTextImmediately(rightLine2, "Seal: ----");
+            ApplyTextImmediately(rightLine3, "Players: 1 / 8");
+            ApplyTextImmediately(rightLine4, "Host Name");
+            ApplyTextImmediately(rightLine5, string.Empty);
+        }
+
+        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(rightMenuItem2, null, false);
+        RefreshInteraction(rightMenuItem3, null, false);
+        RefreshInteraction(rightMenuItem4, null, false);
+        RefreshInteraction(rightMenuItem5, null, false);
     }
 
     public void ClearRightPage()
@@ -255,12 +300,56 @@ public sealed class BookRightPageController : MonoBehaviour
 
     private void PrepareHostPage(List<TMP_Text> texts, List<string> targets)
     {
+        RitualSealService service = RitualSealService.Instance;
+        if (service != null && service.IsHostingRitual)
+        {
+            int playerCount = NetworkPlayer.CircleMemberCount;
+            PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
+            PrepareEntry(texts, targets, rightLine1, rightMenuItem1, $"Seal: {service.ActiveSeal}", null);
+            PrepareEntry(texts, targets, rightLine2, rightMenuItem2, GetHostWaitingMessage(playerCount), null);
+            PrepareEntry(
+                texts,
+                targets,
+                rightLine3,
+                rightMenuItem3,
+                $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}",
+                null);
+            PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
+            PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+            return;
+        }
+
         PrepareEntry(texts, targets, rightTitle, null, "THE CIRCLE", null);
         PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Invite a Mage", LogInvitePlaceholder);
         PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal: ----", null);
         PrepareEntry(texts, targets, rightLine3, rightMenuItem3, "Players: 1 / 8", null);
         PrepareEntry(texts, targets, rightLine4, rightMenuItem4, "Host Name", null);
         PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+    }
+
+    private static string GetHostWaitingMessage(int playerCount)
+    {
+        if (playerCount >= NetworkPlayer.MaximumCircleMembers)
+        {
+            return "The circle is complete.";
+        }
+
+        if (playerCount == 7)
+        {
+            return "One priest remains...";
+        }
+
+        if (playerCount >= 4)
+        {
+            return "More priests are gathering...";
+        }
+
+        if (playerCount >= 2)
+        {
+            return "The circle begins to form...";
+        }
+
+        return "Waiting for other priests...";
     }
 
     private void PrepareJoinSealPage(List<TMP_Text> texts, List<string> targets)

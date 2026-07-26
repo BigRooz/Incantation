@@ -766,9 +766,9 @@ Book state controller:
 - On `Start`, the controller displays the appropriate initial page. `ChangePage(BookState)` is the navigation path: it reuses the assigned text entries, prepares their click actions, and plays the coordinated left/right page transition. Calling it for the page that is already open delegates to `RefreshCurrentPageContent()` instead of replaying the transition.
 - `RefreshCurrentPageContent()` is the data-refresh path. It writes synchronized lobby counts, Ready/Unready labels and button state, Ritual Seal status, and other current-page values directly into the existing TMP entries. It does not call `BookTextTransitionController`, rebuild layout, replay fades or paper audio, reset focus, or disturb an unchanged hover state.
 - `PlayMenu` displays `THE RITUAL` with `Create Ritual`, `Join Ritual`, `Back`, and an empty fourth line on the four existing left-page lines. `Create Ritual` opens `HostMenu`.
-- `HostMenu` displays `CREATE RITUAL`, `Create Ritual`, and `Back`. Creation starts the host and opens `RitualCreated`; it does not start ritual gameplay.
+- `HostMenu` is the single dynamic creation/host-lobby page. Before creation it displays `CREATE RITUAL`, `Create Ritual`, and `Back`. Successful creation keeps `HostMenu` open and silently replaces the left actions with `Enter the Circle`, `Invite a Priest`, and `Back`; it does not start ritual gameplay or replay the Book transition.
 - Empty page lines remain assigned but display an empty string and have no click action. `Create Ritual` and `Join Ritual` are connected to the TASK-042 Book-owned LAN flow.
-- States include `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `JoinSealEntry`, `RitualCreated`, `CharacterMenu`, `OptionsMenu`, `VoiceMenu`, and `Lobby`. Voice detail selection stays inside `VoiceMenu` and does not trigger another state transition.
+- States include `MainMenu`, `PlayMenu`, `HostMenu`, `JoinMenu`, `JoinSealEntry`, `RitualCreated`, `CharacterMenu`, `OptionsMenu`, `VoiceMenu`, and `Lobby`. `RitualCreated` remains in the serialized enum for compatibility but is obsolete as a displayed page; requests for it resolve to `HostMenu`. Voice detail selection stays inside `VoiceMenu` and does not trigger another state transition.
 - Selecting `Join Ritual` opens `JoinSealEntry` directly. The left page shows only `JOIN RITUAL` and the dedicated bottom-left `Back` line. `Back` clears input and join status and returns to `PlayMenu` without disconnecting an established client.
 
 Book right page controller:
@@ -786,7 +786,10 @@ Book right page controller:
 - `MainMenu` clears the right title, displays `Leaderboard` on right line 1 and `Discord` on right line 2, and clears right lines 3 through 5. These actions use the existing independently assigned right-page `BookMenuItem` components and Colliders.
 - `Leaderboard` calls `BookMenuController.OpenLeaderboard()` and logs `Leaderboard is not implemented yet.` as a placeholder. `Discord` calls `BookMenuController.OpenDiscord()`.
 - `PlayMenu` and `OptionsMenu` clear the right-page text and actions.
-- `HostMenu` displays `CREATE RITUAL`, with `Create Ritual` starting the Tugboat host and generating a four-character Seal. `RitualCreated` displays the Seal and `Waiting for other mages...`; `Enter the Circle` opens the existing lobby without starting gameplay.
+- `HostMenu` displays `CREATE RITUAL`, with `Create Ritual` starting the Tugboat host and generating one authoritative four-character Seal. After success, the same page's right side shows only `Seal: XXXX`, the count-based waiting message, and the synchronized `X / 8` Circle membership count. No duplicate Seal or local player counter is stored by the Book.
+- Host-lobby waiting text is presentation-only and centralized in `BookRightPageController`: 0–1 members use `Waiting for other priests...`; 2–3 use `The circle begins to form...`; 4–6 use `More priests are gathering...`; 7 uses `One priest remains...`; and 8 uses `The circle is complete.`.
+- Seal availability, joins, disconnects, and waiting-message/count changes use `RefreshCurrentPageContent()` and `RefreshHostPageSilently()`. They update existing TMP entries without invoking `BookTextTransitionController`.
+- `Invite a Priest` remains a safe placeholder that logs its unimplemented status. It is reserved for future invitation integration and does not add clipboard, platform, or external social behavior.
 - `BookStateController` no longer has editable current/max lobby-count fields. `THE CIRCLE`
   renders `Players (current / 8)` from `NetworkPlayer.CircleMemberCount` and
   `NetworkPlayer.MaximumCircleMembers`; do not add a scene-local player-count override.

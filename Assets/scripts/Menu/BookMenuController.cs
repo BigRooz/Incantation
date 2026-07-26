@@ -90,7 +90,7 @@ public class BookMenuController : MonoBehaviour
             return;
         }
 
-        bookStateController.ChangePage(BookState.RitualCreated);
+        bookStateController.RefreshCurrentPageContent();
     }
 
     public void CancelJoinRitual()
