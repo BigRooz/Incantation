@@ -49,6 +49,8 @@ Using `NetworkPlayer` as the shared authority keeps each connected player's iden
 Priest Name editing now consumes that authority through an owner ServerRpc and SyncVar. Host Seal
 editing remains explicitly best-effort on the decentralized LAN directory: it preserves the
 current Seal during validation and does not claim atomic uniqueness between simultaneous Hosts.
+Future menu changes must preserve the generic Quit dispatcher: Host shutdown and joined-client
+leave are deliberately separate operations with different state ownership.
 
 ## Next Planned Milestones
 

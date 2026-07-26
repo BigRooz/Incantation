@@ -1057,3 +1057,13 @@ during the configured discovery window. A competing announcement rejects the can
 without restarting FishNet. This is best-effort discovery, not an atomic global reservation;
 simultaneous Hosts can still select the same Seal. A centralized online directory may replace
 it with Internet matchmaking later.
+
+## Ritual Exit Ownership
+
+The Book exposes one generic `QuitRitual()` action but dispatches by local role. A Host or
+Host-in-creation uses `RitualSealService.QuitHostedRitual()`, which releases the hosted Seal and
+stops both local FishNet portions. A joined non-host uses `LeaveJoinedRitual()`, which clears
+only local join/transient Seal state and requests the existing foundation disconnect. Because
+the client owns no local server, FishNet stops only its `ClientManager`; the remote Host, its
+Seal, and other clients are unaffected. A pending-leave guard rejects repeat submissions until
+the local connection is stopped.

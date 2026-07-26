@@ -338,7 +338,7 @@ public sealed class BookStateController : MonoBehaviour
             "CREATE RITUAL",
             "Enter the Circle", bookMenuController != null ? bookMenuController.OpenCirclePage : null,
             "Invite a Priest", bookMenuController != null ? bookMenuController.InvitePriest : null,
-            "Quit Ritual", bookMenuController != null ? bookMenuController.QuitHostedRitual : null,
+            "Quit Ritual", bookMenuController != null ? bookMenuController.QuitRitual : null,
             string.Empty, null);
     }
 
@@ -611,7 +611,7 @@ public sealed class BookStateController : MonoBehaviour
         RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
             bookMenuController != null ? bookMenuController.InvitePriest : null);
         RefreshLeftEntry(line3, menuItem3, "Quit Ritual",
-            bookMenuController != null ? bookMenuController.QuitHostedRitual : null);
+            bookMenuController != null ? bookMenuController.QuitRitual : null);
         RefreshLeftEntry(line4, menuItem4, string.Empty, null);
         RefreshLeftEntry(line5, menuItem5, string.Empty, null);
 

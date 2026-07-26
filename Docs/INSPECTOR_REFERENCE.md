@@ -924,6 +924,9 @@ Book menu controller:
 - `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before changing anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a selected Seat, it calls `BookTextModeController.ShowRitualTexts()` and delegates to `LobbyController.StartLobbyRitual()`.
 - `OpenHostMenu()` remains as a serialized compatibility entry point but now delegates to `CreateNetworkRitual()` instead of displaying the obsolete pre-creation Host page.
 - `QuitHostedRitual()` is destructive and distinct from Back. It delegates shutdown and Seal cleanup to `RitualSealService.QuitHostedRitual()`, disables local Seat selection, returns the camera to the Book, and restores `PlayMenu` with Create/Join actions.
+- Wire visible `Quit Ritual` actions to `BookMenuController.QuitRitual()`. It dispatches Hosts
+  to the existing hosted shutdown and joined clients to client-only leave. Client leave never
+  releases the remote Host Seal or stops a server.
 - `OpenCharacter()` only displays `CharacterMenu`, keeping the camera on the Book. `ShowCharacter()` is the explicit Character-camera transition. `OpenOptions()` displays `OptionsMenu`, `OpenVoiceOptions()` displays `VoiceMenu`, and `ReturnToOptions()` returns from Voice to Options without moving a camera.
 - `OpenLeaderboard()` is a placeholder that logs `Leaderboard is not implemented yet.`. `OpenDiscord()` opens only the URL authored in `discordUrl`.
 - `ReturnToBookMenu()` calls `BookTextModeController.ShowMenuTexts()` and requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.

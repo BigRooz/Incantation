@@ -41,6 +41,7 @@ namespace Incantation.Networking
         private bool endpointResolved;
         private bool hostCreationPending;
         private bool sealReplacementPending;
+        private bool clientLeavePending;
         private float sealReplacementDeadline;
         private string pendingReplacementSeal = string.Empty;
         private readonly Dictionary<string, float> knownLanSeals = new();
@@ -54,6 +55,7 @@ namespace Incantation.Networking
         public bool IsHostingRitual => HasActiveRitual && foundationController != null && foundationController.IsHostRunning;
         public bool IsCreatingRitual => hostCreationPending;
         public bool IsReplacingSeal => sealReplacementPending;
+        public bool IsLeavingJoinedRitual => clientLeavePending;
         public RitualJoinStatus JoinStatus { get; private set; }
         public string JoinFailureReason { get; private set; } = string.Empty;
 
@@ -192,6 +194,33 @@ namespace Incantation.Networking
             bool disconnectRequested = foundationController.Disconnect();
             Changed?.Invoke();
             return disconnectRequested;
+        }
+
+        public bool LeaveJoinedRitual()
+        {
+            if (clientLeavePending || foundationController == null ||
+                IsHostingRitual || JoinStatus != RitualJoinStatus.Joined)
+            {
+                return false;
+            }
+
+            clientLeavePending = true;
+            pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
+            ActiveSeal = string.Empty;
+            JoinStatus = RitualJoinStatus.None;
+            JoinFailureReason = string.Empty;
+            StatusMessage = string.Empty;
+
+            bool disconnectRequested = foundationController.Disconnect();
+            if (!disconnectRequested)
+            {
+                clientLeavePending = false;
+            }
+
+            Changed?.Invoke();
+            return disconnectRequested || !foundationController.CanDisconnect;
         }
 
         public bool JoinRitual(string seal)
@@ -456,6 +485,17 @@ namespace Incantation.Networking
         {
             if (foundationController == null)
             {
+                return;
+            }
+
+            if (clientLeavePending)
+            {
+                if (!foundationController.CanDisconnect)
+                {
+                    clientLeavePending = false;
+                    Changed?.Invoke();
+                }
+
                 return;
             }
 

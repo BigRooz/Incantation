@@ -498,6 +498,44 @@ public class BookMenuController : MonoBehaviour
         ReturnToBookMenu();
     }
 
+    public void QuitRitual()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null)
+        {
+            ReturnToBookMenu();
+            bookStateController.ChangePage(BookState.PlayMenu);
+            return;
+        }
+
+        if (service.IsHostingRitual || service.IsCreatingRitual)
+        {
+            QuitHostedRitual();
+            return;
+        }
+
+        if (service.JoinStatus == RitualJoinStatus.Joined)
+        {
+            if (!service.LeaveJoinedRitual())
+            {
+                if (!service.IsLeavingJoinedRitual)
+                {
+                    Debug.LogWarning("The joined ritual could not be left.", this);
+                }
+
+                return;
+            }
+
+            lobbyController?.EndSeatSelection();
+            ReturnToBookMenu();
+            bookStateController.ChangePage(BookState.PlayMenu);
+            return;
+        }
+
+        ReturnToBookMenu();
+        bookStateController.ChangePage(BookState.PlayMenu);
+    }
+
     public void InvitePriest()
     {
         Debug.Log("Invite a Priest is not implemented yet.", this);

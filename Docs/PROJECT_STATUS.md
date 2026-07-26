@@ -179,6 +179,10 @@ supports a silent right-page editor and no longer displays the unused High Pries
 The Host can edit its active Seal through a best-effort LAN collision window; the old Seal stays
 active until validation succeeds, and FishNet connections are not restarted.
 
+`Quit Ritual` is role-aware. Hosts retain the existing Seal-release plus server/client shutdown
+path. Joined non-hosts clear only their local join state, stop their local FishNet client, and
+return to Play while the remote Host and other clients continue.
+
 ## Runtime Validation
 
 The following networking behaviors have been successfully validated:
