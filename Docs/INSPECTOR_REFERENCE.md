@@ -776,6 +776,14 @@ Book state controller:
 
 Book right page controller:
 
+- The normal Circle right page displays the local synchronized Priest Name, player count, and
+  Invite action. The obsolete `High Priest` presentation is not displayed.
+- Selecting `Priest Name` silently replaces only the right-page content with the name editor;
+  Confirm submits one owner ServerRpc and Cancel restores synchronized content without a request.
+- On the active Host page, `Seal: XXXX` is selectable only through the local Host presentation.
+  Its editor uses the existing four-character input rules. Replacement status occupies the
+  reserved line between Seal and player count; a conflict displays exactly `Seal already used`.
+
 - The existing Book page layout is artist-authored and must be preserved. Functional tasks may update text content, visibility, interactivity, collider state, and state-based colors, but must not change TMP alignment, RectTransform anchors or pivots, positions, dimensions, margins, font sizing, autosizing, spacing, or visual hierarchy unless a task explicitly requests a layout redesign.
 - `BookRightPageController` uses the serialized scene and prefab layout directly. It must not center, reposition, resize, or otherwise restore layout values at runtime when changing Book states; avoiding those mutations also prevents placement flashes during transitions.
 - Add `BookRightPageController` to the existing Living Book/menu coordination object. It presents context for the state owned by `BookStateController`; it does not own or change Book state.

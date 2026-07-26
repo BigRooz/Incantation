@@ -205,11 +205,11 @@ public sealed class BookRightPageController : MonoBehaviour
             int playerCount = NetworkPlayer.CircleMemberCount;
             ApplyTextImmediately(rightTitle, string.Empty);
             ApplyTextImmediately(rightLine1, $"Seal: {service.ActiveSeal}");
+            ApplyTextImmediately(rightLine2, GetSealReplacementStatus(service));
             ApplyTextImmediately(
-                rightLine2,
+                rightLine3,
                 $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}");
-            ApplyTextImmediately(rightLine3, GetHostWaitingMessage(playerCount));
-            ApplyTextImmediately(rightLine4, string.Empty);
+            ApplyTextImmediately(rightLine4, GetHostWaitingMessage(playerCount));
             ApplyTextImmediately(rightLine5, string.Empty);
         }
         else
@@ -222,7 +222,10 @@ public sealed class BookRightPageController : MonoBehaviour
             ApplyTextImmediately(rightLine5, string.Empty);
         }
 
-        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(
+            rightMenuItem1,
+            bookMenuController != null ? bookMenuController.EditHostedSeal : null,
+            bookMenuController != null);
         RefreshInteraction(rightMenuItem2, null, false);
         RefreshInteraction(rightMenuItem3, null, false);
         RefreshInteraction(rightMenuItem4, null, false);
@@ -242,6 +245,44 @@ public sealed class BookRightPageController : MonoBehaviour
         RefreshInteraction(rightMenuItem2, null, false);
         RefreshInteraction(rightMenuItem3, null, false);
         RefreshInteraction(rightMenuItem4, null, false);
+        RefreshInteraction(rightMenuItem5, null, false);
+    }
+
+    public void ShowPriestNameEditor(
+        string value,
+        string status,
+        UnityAction confirmAction,
+        UnityAction cancelAction)
+    {
+        ApplyTextImmediately(rightTitle, "PRIEST NAME");
+        ApplyTextImmediately(rightLine1, value);
+        ApplyTextImmediately(rightLine2, status);
+        ApplyTextImmediately(rightLine3, "Confirm");
+        ApplyTextImmediately(rightLine4, "Cancel");
+        ApplyTextImmediately(rightLine5, string.Empty);
+        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(rightMenuItem2, null, false);
+        RefreshInteraction(rightMenuItem3, confirmAction, confirmAction != null);
+        RefreshInteraction(rightMenuItem4, cancelAction, cancelAction != null);
+        RefreshInteraction(rightMenuItem5, null, false);
+    }
+
+    public void ShowHostedSealEditor(
+        string value,
+        string status,
+        UnityAction confirmAction,
+        UnityAction cancelAction)
+    {
+        ApplyTextImmediately(rightTitle, "RITUAL SEAL");
+        ApplyTextImmediately(rightLine1, $"Seal: {value}");
+        ApplyTextImmediately(rightLine2, status);
+        ApplyTextImmediately(rightLine3, "Confirm");
+        ApplyTextImmediately(rightLine4, "Cancel");
+        ApplyTextImmediately(rightLine5, string.Empty);
+        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(rightMenuItem2, null, false);
+        RefreshInteraction(rightMenuItem3, confirmAction, confirmAction != null);
+        RefreshInteraction(rightMenuItem4, cancelAction, cancelAction != null);
         RefreshInteraction(rightMenuItem5, null, false);
     }
 
@@ -337,16 +378,17 @@ public sealed class BookRightPageController : MonoBehaviour
         {
             int playerCount = NetworkPlayer.CircleMemberCount;
             PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
-            PrepareEntry(texts, targets, rightLine1, rightMenuItem1, $"Seal: {service.ActiveSeal}", null);
+            PrepareEntry(texts, targets, rightLine1, rightMenuItem1, $"Seal: {service.ActiveSeal}",
+                bookMenuController != null ? bookMenuController.EditHostedSeal : null);
+            PrepareEntry(texts, targets, rightLine2, rightMenuItem2, GetSealReplacementStatus(service), null);
             PrepareEntry(
                 texts,
                 targets,
-                rightLine2,
-                rightMenuItem2,
+                rightLine3,
+                rightMenuItem3,
                 $"{playerCount} / {NetworkPlayer.MaximumCircleMembers}",
                 null);
-            PrepareEntry(texts, targets, rightLine3, rightMenuItem3, GetHostWaitingMessage(playerCount), null);
-            PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
+            PrepareEntry(texts, targets, rightLine4, rightMenuItem4, GetHostWaitingMessage(playerCount), null);
             PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
             return;
         }
@@ -377,6 +419,14 @@ public sealed class BookRightPageController : MonoBehaviour
         }
 
         return "Waiting for other priests...";
+    }
+
+    private static string GetSealReplacementStatus(RitualSealService service)
+    {
+        return service != null &&
+               (service.IsReplacingSeal || service.StatusMessage == "Seal already used")
+            ? service.StatusMessage
+            : string.Empty;
     }
 
     private void PrepareJoinSealPage(List<TMP_Text> texts, List<string> targets)

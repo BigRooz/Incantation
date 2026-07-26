@@ -1042,3 +1042,18 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 Production Steam discovery, Steam transport, networked Book/ritual/voice state, and authoritative
 shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not
 installed.
+## Synchronized Priest Names And LAN Seal Editing
+
+`NetworkPlayer.PriestName` is the authoritative synchronized display name. A new server-spawned
+player receives `Priest {connection number}`. The owner submits through a ServerRpc; the server
+trims and validates a non-empty maximum-24-character value containing only letters (including
+accented letters), numbers, spaces, apostrophes, or hyphens before writing the SyncVar. Spawn
+state supplies current names to late joiners.
+
+Hosted Ritual Seal replacement remains a LAN prototype feature. `RitualSealService` keeps the
+current Seal active while querying the decentralized UDP directory for the normalized candidate
+during the configured discovery window. A competing announcement rejects the candidate with
+`Seal already used`; otherwise the service switches future announcements to the candidate
+without restarting FishNet. This is best-effort discovery, not an atomic global reservation;
+simultaneous Hosts can still select the same Seal. A centralized online directory may replace
+it with Internet matchmaking later.

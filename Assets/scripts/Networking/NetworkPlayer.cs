@@ -24,7 +24,7 @@ namespace Incantation.Networking
         public const int UnassignedSeatId = -1;
         public const int MaximumSeatId = 7;
 
-        private const int MaximumPriestNameLength = 32;
+        public const int MaximumPriestNameLength = 24;
         private const int MaximumAppearanceValueId = 65535;
 
         private static readonly List<NetworkPlayer> activePlayers = new();
@@ -37,6 +37,7 @@ namespace Incantation.Networking
         private readonly SyncVar<int> seatId = new(UnassignedSeatId);
         private readonly SyncList<AppearanceSlotValue> appearanceSlots = new();
         private bool isReadyRequestPending;
+        private bool isPriestNameRequestPending;
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
@@ -56,6 +57,7 @@ namespace Incantation.Networking
         public int SeatId => seatId.Value;
         public IReadOnlyList<AppearanceSlotValue> AppearanceSlots => appearanceSlots;
         public bool HasAssignedSeat => seatId.Value != UnassignedSeatId;
+        public bool IsPriestNameRequestPending => isPriestNameRequestPending;
 
         public event Action<bool, bool> HighPriestChanged;
         public event Action<bool, bool> CircleMembershipChanged;
@@ -82,6 +84,11 @@ namespace Incantation.Networking
         public override void OnStartServer()
         {
             base.OnStartServer();
+
+            if (string.IsNullOrWhiteSpace(priestName.Value))
+            {
+                priestName.Value = $"Priest {Owner.ClientId + 1}";
+            }
 
             if (isCircleMember.Value)
             {
@@ -213,14 +220,65 @@ namespace Incantation.Networking
                 return false;
             }
 
-            string normalizedName = (value ?? string.Empty).Trim();
-            if (normalizedName.Length > MaximumPriestNameLength)
+            if (!TryNormalizePriestName(value, out string normalizedName, out _))
             {
-                normalizedName = normalizedName.Substring(0, MaximumPriestNameLength);
+                return false;
             }
 
             priestName.Value = normalizedName;
             return true;
+        }
+
+        public bool RequestPriestName(string value)
+        {
+            if (!IsOwner || isPriestNameRequestPending ||
+                !TryNormalizePriestName(value, out string normalizedName, out _))
+            {
+                return false;
+            }
+
+            isPriestNameRequestPending = true;
+            RequestPriestNameServerRpc(normalizedName);
+            return true;
+        }
+
+        public static bool TryNormalizePriestName(
+            string value,
+            out string normalizedName,
+            out string validationMessage)
+        {
+            normalizedName = (value ?? string.Empty).Trim();
+            validationMessage = string.Empty;
+            if (normalizedName.Length == 0)
+            {
+                validationMessage = "Enter a Priest Name";
+                return false;
+            }
+
+            if (normalizedName.Length > MaximumPriestNameLength)
+            {
+                validationMessage = "Maximum 24 characters";
+                return false;
+            }
+
+            for (int i = 0; i < normalizedName.Length; i++)
+            {
+                char character = normalizedName[i];
+                if (!char.IsLetterOrDigit(character) &&
+                    character != ' ' && character != '\'' && character != '-')
+                {
+                    validationMessage = "Use letters, numbers, spaces, apostrophes, or hyphens";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        [ServerRpc]
+        private void RequestPriestNameServerRpc(string value)
+        {
+            TrySetPriestName(value);
         }
 
         /// <summary>
@@ -518,9 +576,15 @@ namespace Incantation.Networking
 
         private void HandlePriestNameChanged(string previousValue, string currentValue, bool asServer)
         {
+            if (!asServer && IsOwner)
+            {
+                isPriestNameRequestPending = false;
+            }
+
             if (ShouldPublishChange(asServer))
             {
                 PriestNameChanged?.Invoke(previousValue, currentValue);
+                CircleRosterChanged?.Invoke();
             }
         }
 

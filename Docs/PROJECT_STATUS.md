@@ -173,6 +173,12 @@ Circle membership, and every peer calculates the Book counter from synchronized 
 whose Ready state is Ready. Late join, disconnect, and reconnect follow the `NetworkPlayer`
 replication lifecycle; reconnect starts Not Ready.
 
+Priest Name is likewise server-owned on each `NetworkPlayer`: owners submit validated names by
+ServerRpc and all peers consume its SyncVar, including spawn state for late join. The Circle Book
+supports a silent right-page editor and no longer displays the unused High Priest label.
+The Host can edit its active Seal through a best-effort LAN collision window; the old Seal stays
+active until validation succeeds, and FishNet connections are not restarted.
+
 ## Runtime Validation
 
 The following networking behaviors have been successfully validated:

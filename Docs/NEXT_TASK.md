@@ -46,6 +46,10 @@ menu work must not merge those semantics.
 
 Using `NetworkPlayer` as the shared authority keeps each connected player's identity and lobby state in one place and prevents local lobby models from diverging across peers.
 
+Priest Name editing now consumes that authority through an owner ServerRpc and SyncVar. Host Seal
+editing remains explicitly best-effort on the decentralized LAN directory: it preserves the
+current Seal during validation and does not claim atomic uniqueness between simultaneous Hosts.
+
 ## Next Planned Milestones
 
 1. Make remaining Book lobby roles and name presentation observe active `NetworkPlayer` state.

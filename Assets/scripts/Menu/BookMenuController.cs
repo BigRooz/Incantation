@@ -25,6 +25,10 @@ public class BookMenuController : MonoBehaviour
     private BookState characterReturnState = BookState.MainMenu;
     private string enteredSeal = string.Empty;
     private bool sealHasSupportedCharacterOverflow;
+    private string editorValue = string.Empty;
+    private string editorStatus = string.Empty;
+    private bool editingPriestName;
+    private bool editingHostedSeal;
 
     public string EnteredSeal => enteredSeal;
     public bool HasValidSeal => !sealHasSupportedCharacterOverflow &&
@@ -50,8 +54,26 @@ public class BookMenuController : MonoBehaviour
         cameraTransitionManager.MoveToImmediate(bookMenuCameraTarget);
     }
 
+    private void OnEnable()
+    {
+        if (RitualSealService.Instance != null)
+        {
+            RitualSealService.Instance.Changed += HandleRitualSealServiceChanged;
+        }
+    }
+
     private void OnDisable()
     {
+        if (RitualSealService.Instance != null)
+        {
+            RitualSealService.Instance.Changed -= HandleRitualSealServiceChanged;
+        }
+
+        if (NetworkPlayer.LocalPlayer != null)
+        {
+            NetworkPlayer.LocalPlayer.PriestNameChanged -= HandleLocalPriestNameChanged;
+        }
+
         if (cameraTransitionManager != null)
         {
             cameraTransitionManager.UnregisterBookInteractionTarget(bookMenuCameraTarget);
@@ -120,6 +142,12 @@ public class BookMenuController : MonoBehaviour
 
     private void Update()
     {
+        if (editingPriestName || editingHostedSeal)
+        {
+            HandleEditorInput();
+            return;
+        }
+
         if (bookStateController == null || bookStateController.CurrentState != BookState.JoinSealEntry)
         {
             return;
@@ -249,7 +277,199 @@ public class BookMenuController : MonoBehaviour
 
     public void EditPriestName()
     {
-        Debug.Log("Priest Name editing is not implemented yet.", this);
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null)
+        {
+            return;
+        }
+
+        editingPriestName = true;
+        editingHostedSeal = false;
+        editorValue = localPlayer.PriestName;
+        editorStatus = string.Empty;
+        localPlayer.PriestNameChanged -= HandleLocalPriestNameChanged;
+        localPlayer.PriestNameChanged += HandleLocalPriestNameChanged;
+        RefreshActiveEditor();
+    }
+
+    public void EditHostedSeal()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null || !service.IsHostingRitual)
+        {
+            return;
+        }
+
+        editingHostedSeal = true;
+        editingPriestName = false;
+        editorValue = service.ActiveSeal;
+        editorStatus = string.Empty;
+        RefreshActiveEditor();
+    }
+
+    public void ConfirmActiveEditor()
+    {
+        if (editingPriestName)
+        {
+            if (!NetworkPlayer.TryNormalizePriestName(
+                    editorValue, out string normalizedName, out editorStatus))
+            {
+                RefreshActiveEditor();
+                return;
+            }
+
+            if (NetworkPlayer.LocalPlayer != null &&
+                NetworkPlayer.LocalPlayer.PriestName == normalizedName)
+            {
+                CancelActiveEditor();
+                return;
+            }
+
+            if (NetworkPlayer.LocalPlayer == null ||
+                !NetworkPlayer.LocalPlayer.RequestPriestName(normalizedName))
+            {
+                editorStatus = "Unable to save name";
+                RefreshActiveEditor();
+                return;
+            }
+            editorStatus = "Saving...";
+            RefreshActiveEditor();
+            return;
+        }
+
+        if (editingHostedSeal)
+        {
+            RitualSealService service = RitualSealService.Instance;
+            if (service == null || !service.RequestSealReplacement(editorValue))
+            {
+                editorStatus = service != null ? service.StatusMessage : "Seal service unavailable";
+            }
+            else
+            {
+                editorStatus = service.StatusMessage;
+            }
+
+            RefreshActiveEditor();
+        }
+    }
+
+    public void CancelActiveEditor()
+    {
+        if (NetworkPlayer.LocalPlayer != null)
+        {
+            NetworkPlayer.LocalPlayer.PriestNameChanged -= HandleLocalPriestNameChanged;
+        }
+
+        editingPriestName = false;
+        editingHostedSeal = false;
+        editorStatus = string.Empty;
+        bookStateController.RefreshCurrentPageContent();
+    }
+
+    private void HandleEditorInput()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            CancelActiveEditor();
+            return;
+        }
+
+        string input = Input.inputString;
+        bool changed = false;
+        for (int i = 0; i < input.Length; i++)
+        {
+            char character = input[i];
+            if (character == '\b')
+            {
+                if (editorValue.Length > 0)
+                {
+                    editorValue = editorValue.Substring(0, editorValue.Length - 1);
+                    changed = true;
+                }
+            }
+            else if (character == '\n' || character == '\r')
+            {
+                ConfirmActiveEditor();
+                return;
+            }
+            else if (editingHostedSeal)
+            {
+                string normalized = RitualSealService.NormalizeSeal(character.ToString());
+                if (normalized.Length == 1 && editorValue.Length < 4)
+                {
+                    editorValue += normalized;
+                    changed = true;
+                }
+            }
+            else if (!char.IsControl(character))
+            {
+                editorValue += character;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            editorStatus = string.Empty;
+            RefreshActiveEditor();
+        }
+    }
+
+    private void RefreshActiveEditor()
+    {
+        if (editingPriestName)
+        {
+            bookStateController.ShowPriestNameEditor(
+                editorValue, editorStatus, ConfirmActiveEditor, CancelActiveEditor);
+        }
+        else if (editingHostedSeal)
+        {
+            RitualSealService service = RitualSealService.Instance;
+            if (service != null && service.StatusMessage == "Seal already used")
+            {
+                editorStatus = service.StatusMessage;
+            }
+
+            bookStateController.ShowHostedSealEditor(
+                editorValue, editorStatus, ConfirmActiveEditor, CancelActiveEditor);
+        }
+    }
+
+    private void HandleLocalPriestNameChanged(string previousName, string currentName)
+    {
+        if (!editingPriestName)
+        {
+            return;
+        }
+
+        CancelActiveEditor();
+    }
+
+    private void HandleRitualSealServiceChanged()
+    {
+        if (!editingHostedSeal)
+        {
+            return;
+        }
+
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null)
+        {
+            editorStatus = "Seal service unavailable";
+            RefreshActiveEditor();
+            return;
+        }
+
+        string normalized = RitualSealService.NormalizeSeal(editorValue);
+        if (!service.IsReplacingSeal && service.ActiveSeal == normalized &&
+            string.IsNullOrEmpty(service.StatusMessage))
+        {
+            CancelActiveEditor();
+            return;
+        }
+
+        editorStatus = service.StatusMessage;
+        RefreshActiveEditor();
     }
 
     public void LeaveLobbyRitual()

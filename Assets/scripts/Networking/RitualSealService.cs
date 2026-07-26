@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -39,6 +40,10 @@ namespace Incantation.Networking
         private bool joinAttemptActive;
         private bool endpointResolved;
         private bool hostCreationPending;
+        private bool sealReplacementPending;
+        private float sealReplacementDeadline;
+        private string pendingReplacementSeal = string.Empty;
+        private readonly Dictionary<string, float> knownLanSeals = new();
         private readonly string instanceId = Guid.NewGuid().ToString("N");
 
         public static RitualSealService Instance { get; private set; }
@@ -48,6 +53,7 @@ namespace Incantation.Networking
         public bool IsJoining => !string.IsNullOrEmpty(pendingJoinSeal);
         public bool IsHostingRitual => HasActiveRitual && foundationController != null && foundationController.IsHostRunning;
         public bool IsCreatingRitual => hostCreationPending;
+        public bool IsReplacingSeal => sealReplacementPending;
         public RitualJoinStatus JoinStatus { get; private set; }
         public string JoinFailureReason { get; private set; } = string.Empty;
 
@@ -111,6 +117,15 @@ namespace Incantation.Networking
                     FailJoin("Ritual not found");
                 }
             }
+
+            if (sealReplacementPending && Time.unscaledTime >= sealReplacementDeadline)
+            {
+                ActiveSeal = pendingReplacementSeal;
+                pendingReplacementSeal = string.Empty;
+                sealReplacementPending = false;
+                SetStatus(string.Empty);
+                BroadcastAvailability();
+            }
         }
 
         private void OnDestroy()
@@ -168,6 +183,8 @@ namespace Incantation.Networking
             joinAttemptActive = false;
             endpointResolved = false;
             hostCreationPending = false;
+            sealReplacementPending = false;
+            pendingReplacementSeal = string.Empty;
             JoinStatus = RitualJoinStatus.None;
             JoinFailureReason = string.Empty;
             StatusMessage = string.Empty;
@@ -236,6 +253,47 @@ namespace Incantation.Networking
             return result.ToString();
         }
 
+        public bool RequestSealReplacement(string requestedSeal)
+        {
+            string normalizedSeal = NormalizeSeal(requestedSeal);
+            if (!IsHostingRitual)
+            {
+                SetStatus("Seal service unavailable");
+                return false;
+            }
+
+            if (normalizedSeal.Length != 4)
+            {
+                SetStatus("Enter four characters");
+                return false;
+            }
+
+            if (normalizedSeal == ActiveSeal)
+            {
+                SetStatus(string.Empty);
+                return true;
+            }
+
+            if (sealReplacementPending)
+            {
+                return false;
+            }
+
+            if (knownLanSeals.TryGetValue(normalizedSeal, out float lastSeen) &&
+                Time.unscaledTime - lastSeen <= directoryLookupTimeout)
+            {
+                SetStatus("Seal already used");
+                return false;
+            }
+
+            pendingReplacementSeal = normalizedSeal;
+            sealReplacementPending = true;
+            sealReplacementDeadline = Time.unscaledTime + directoryLookupTimeout;
+            SetStatus("Checking Seal...");
+            Broadcast($"QUERY|{normalizedSeal}");
+            return true;
+        }
+
         private void OpenDirectorySocket()
         {
             try
@@ -279,6 +337,18 @@ namespace Incantation.Networking
                 if (parts.Length < 3 || parts[0] != ProtocolPrefix)
                 {
                     continue;
+                }
+
+                if ((parts[1] == "ANNOUNCE" || parts[1] == "FULL") &&
+                    parts.Length >= 4 && parts[^1] != instanceId)
+                {
+                    knownLanSeals[parts[2]] = Time.unscaledTime;
+                    if (sealReplacementPending && parts[2] == pendingReplacementSeal)
+                    {
+                        pendingReplacementSeal = string.Empty;
+                        sealReplacementPending = false;
+                        SetStatus("Seal already used");
+                    }
                 }
 
                 if (parts[1] == "QUERY" && HasActiveRitual && parts[2] == ActiveSeal &&

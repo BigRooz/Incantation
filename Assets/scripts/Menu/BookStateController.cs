@@ -292,7 +292,9 @@ public sealed class BookStateController : MonoBehaviour
                     "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
                     "Take My Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
-                rightLine1Text = "High Priest";
+                rightLine1Text = NetworkPlayer.LocalPlayer != null
+                    ? NetworkPlayer.LocalPlayer.PriestName
+                    : "Priest";
                 rightLine2Text =
                     $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})";
                 rightLine3Text = "Invite a Priest";
@@ -309,7 +311,7 @@ public sealed class BookStateController : MonoBehaviour
                     "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
                 rightLine1Text =
                     $"Priests Ready ({readyPlayerCount} / {NetworkPlayer.MaximumCircleMembers})";
-                rightLine2Text = "Waiting for High Priest to Start the Ritual";
+                rightLine2Text = "Waiting for Host to Start the Ritual";
                 rightLine3Text = string.Empty;
                 break;
 
@@ -571,6 +573,24 @@ public sealed class BookStateController : MonoBehaviour
         }
     }
 
+    public void ShowPriestNameEditor(
+        string value,
+        string status,
+        UnityAction confirmAction,
+        UnityAction cancelAction)
+    {
+        rightPageController?.ShowPriestNameEditor(value, status, confirmAction, cancelAction);
+    }
+
+    public void ShowHostedSealEditor(
+        string value,
+        string status,
+        UnityAction confirmAction,
+        UnityAction cancelAction)
+    {
+        rightPageController?.ShowHostedSealEditor(value, status, confirmAction, cancelAction);
+    }
+
     private void RefreshHostContent()
     {
         RitualSealService service = RitualSealService.Instance;
@@ -674,7 +694,9 @@ public sealed class BookStateController : MonoBehaviour
                 bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
 
             rightPageController?.RefreshLobbyContent(
-                "High Priest",
+                NetworkPlayer.LocalPlayer != null
+                    ? NetworkPlayer.LocalPlayer.PriestName
+                    : "Priest",
                 $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
                 "Invite a Priest",
                 bookMenuController != null ? bookMenuController.InvitePriest : null);
@@ -691,7 +713,7 @@ public sealed class BookStateController : MonoBehaviour
 
             rightPageController?.RefreshLobbyContent(
                 $"Priests Ready ({NetworkPlayer.ReadyCircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
-                "Waiting for High Priest to Start the Ritual",
+                "Waiting for Host to Start the Ritual",
                 string.Empty,
                 null);
         }
