@@ -69,7 +69,7 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenHostMenu()
     {
-        bookStateController.ChangePage(BookState.HostMenu);
+        CreateNetworkRitual();
     }
 
     public void OpenJoinMenu()
@@ -248,7 +248,29 @@ public class BookMenuController : MonoBehaviour
 
     public void LeaveLobbyRitual()
     {
-        ReturnToPlayMenu();
+        ReturnToActiveHostLobby();
+    }
+
+    public void ReturnToActiveHostLobby()
+    {
+        if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
+        {
+            bookStateController.ChangePage(BookState.HostMenu);
+        }
+    }
+
+    public void QuitHostedRitual()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null || !service.QuitHostedRitual())
+        {
+            Debug.LogWarning("The hosted ritual could not be stopped.", this);
+            return;
+        }
+
+        lobbyController?.EndSeatSelection();
+        ReturnToBookMenu();
+        bookStateController.ChangePage(BookState.PlayMenu);
     }
 
     public void InvitePriest()

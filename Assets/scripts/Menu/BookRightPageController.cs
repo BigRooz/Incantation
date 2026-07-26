@@ -196,6 +196,7 @@ public sealed class BookRightPageController : MonoBehaviour
 
     public void RefreshHostPageSilently()
     {
+        preparedState = BookState.HostMenu;
         RitualSealService service = RitualSealService.Instance;
         bool isHostingRitual = service != null && service.IsHostingRitual;
 
@@ -213,13 +214,29 @@ public sealed class BookRightPageController : MonoBehaviour
         }
         else
         {
-            ApplyTextImmediately(rightTitle, "THE CIRCLE");
-            ApplyTextImmediately(rightLine1, "Invite a Mage");
-            ApplyTextImmediately(rightLine2, "Seal: ----");
-            ApplyTextImmediately(rightLine3, "Players: 1 / 8");
-            ApplyTextImmediately(rightLine4, "Host Name");
+            ApplyTextImmediately(rightTitle, string.Empty);
+            ApplyTextImmediately(rightLine1, string.Empty);
+            ApplyTextImmediately(rightLine2, string.Empty);
+            ApplyTextImmediately(rightLine3, string.Empty);
+            ApplyTextImmediately(rightLine4, string.Empty);
             ApplyTextImmediately(rightLine5, string.Empty);
         }
+
+        RefreshInteraction(rightMenuItem1, null, false);
+        RefreshInteraction(rightMenuItem2, null, false);
+        RefreshInteraction(rightMenuItem3, null, false);
+        RefreshInteraction(rightMenuItem4, null, false);
+        RefreshInteraction(rightMenuItem5, null, false);
+    }
+
+    public void RefreshRitualCreationStatusSilently(string status)
+    {
+        ApplyTextImmediately(rightTitle, string.Empty);
+        ApplyTextImmediately(rightLine1, status);
+        ApplyTextImmediately(rightLine2, string.Empty);
+        ApplyTextImmediately(rightLine3, string.Empty);
+        ApplyTextImmediately(rightLine4, string.Empty);
+        ApplyTextImmediately(rightLine5, string.Empty);
 
         RefreshInteraction(rightMenuItem1, null, false);
         RefreshInteraction(rightMenuItem2, null, false);
@@ -319,12 +336,7 @@ public sealed class BookRightPageController : MonoBehaviour
             return;
         }
 
-        PrepareEntry(texts, targets, rightTitle, null, "THE CIRCLE", null);
-        PrepareEntry(texts, targets, rightLine1, rightMenuItem1, "Invite a Mage", LogInvitePlaceholder);
-        PrepareEntry(texts, targets, rightLine2, rightMenuItem2, "Seal: ----", null);
-        PrepareEntry(texts, targets, rightLine3, rightMenuItem3, "Players: 1 / 8", null);
-        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, "Host Name", null);
-        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareClearPage(texts, targets);
     }
 
     private static string GetHostWaitingMessage(int playerCount)
@@ -663,11 +675,6 @@ public sealed class BookRightPageController : MonoBehaviour
         {
             menuItem.SetInteractionEnabled(enabled);
         }
-    }
-
-    private void LogInvitePlaceholder()
-    {
-        Debug.Log("Invite a Mage is not implemented yet.", this);
     }
 
     private void ClearRightPageActions()

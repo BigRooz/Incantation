@@ -144,6 +144,12 @@ public class LobbyController : MonoBehaviour
             cameraTransitionManager.MoveTo(lobbyCameraTarget);
     }
 
+    public void EndSeatSelection()
+    {
+        if (seatManager != null)
+            seatManager.SetLobbySeatSelectionEnabled(false);
+    }
+
     public bool TrySelectLobbySeat(Seat seat)
     {
         if (CurrentState != LocalGameState.Lobby)

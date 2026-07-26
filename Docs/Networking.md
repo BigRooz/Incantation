@@ -86,10 +86,21 @@ when synchronized membership changes or a member despawns. `BookStateController`
 `IsLocalPlayerCircleMember` and `CircleMemberCount` on startup and re-enable, so late UI
 subscription does not require the original event to repeat. A joined non-host displays
 `THE CIRCLE` only when both the existing Join lifecycle is complete and its local
-`NetworkPlayer` has authoritative synchronized Circle membership. The Host still chooses
-`Enter the Circle` after creation. Local-player despawn clears the joined Seal state before the
+`NetworkPlayer` has authoritative synchronized Circle membership. Selecting `Create Ritual`
+now calls the existing `RitualSealService.CreateRitual()` path immediately from the Play page.
+The Book treats Host creation as complete only when `RitualSealService.IsHostingRitual` confirms
+an active Seal plus Started FishNet server and local client; pending and failure status refresh
+on the same page without a second Host-start request. The Host still chooses `Enter the Circle`
+after creation. Local-player despawn clears the joined Seal state before the
 Book returns to its existing main-menu state, preventing stale Circle membership after
 disconnect.
+
+Host shutdown is owned by `RitualSealService.QuitHostedRitual()`. It clears the authoritative
+Seal and pending join/creation presentation, then delegates to
+`FishNetFoundationController.Disconnect()`, which stops the local client and calls the FishNet
+server stop path with remote-client shutdown enabled. The Book's `Quit Ritual` action invokes
+that authority and restores the Play page. Circle `Back` never calls this path; it only returns
+to the active Host Book page and preserves the session.
 
 `NetworkPlayer` is the permanent networking identity of every connected player. Its replicated
 state currently includes Circle membership, Priest Name, Lobby Player State, Ready State, Seat

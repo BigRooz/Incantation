@@ -360,6 +360,7 @@ namespace Incantation.Networking
             {
                 clientStartPending = false;
                 Debug.LogWarning("Start Host rejected: FishNet did not accept the local client connection request.");
+                networkManager.ServerManager.StopConnection(true);
             }
         }
 

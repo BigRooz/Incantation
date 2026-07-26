@@ -111,6 +111,12 @@ public sealed class BookStateController : MonoBehaviour
             state = BookState.HostMenu;
         }
 
+        if (state == BookState.HostMenu &&
+            (RitualSealService.Instance == null || !RitualSealService.Instance.IsHostingRitual))
+        {
+            state = BookState.PlayMenu;
+        }
+
         if (hasPreparedPage && preparedState == state)
         {
             RefreshCurrentPageContent();
@@ -146,7 +152,7 @@ public sealed class BookStateController : MonoBehaviour
             case BookState.PlayMenu:
                 PreparePage(
                     "THE RITUAL",
-                    "Create Ritual", bookMenuController != null ? bookMenuController.OpenHostMenu : null,
+                    "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
                     "Join Ritual", bookMenuController != null ? bookMenuController.OpenJoinMenu : null,
                     "Back", bookMenuController != null ? bookMenuController.ReturnToMainMenu : null,
                     string.Empty, null);
@@ -250,7 +256,7 @@ public sealed class BookStateController : MonoBehaviour
                     "Priest Name", bookMenuController != null ? bookMenuController.EditPriestName : null,
                     "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
                     "Take My Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
-                    "Leave Ritual", bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);
+                    "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
                 rightLine1Text = "High Priest";
                 rightLine2Text =
                     $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})";
@@ -265,7 +271,7 @@ public sealed class BookStateController : MonoBehaviour
                     NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null,
                     "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
                     string.Empty, null,
-                    string.Empty, null);
+                    "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
                 rightLine1Text =
                     $"Priests Ready ({readyPlayerCount} / {NetworkPlayer.MaximumCircleMembers})";
                 rightLine2Text = "Waiting for High Priest to Start the Ritual";
@@ -291,23 +297,11 @@ public sealed class BookStateController : MonoBehaviour
 
     private void PrepareHostPage()
     {
-        RitualSealService service = RitualSealService.Instance;
-        if (service != null && service.IsHostingRitual)
-        {
-            PreparePage(
-                "CREATE RITUAL",
-                "Enter the Circle", bookMenuController != null ? bookMenuController.OpenCirclePage : null,
-                "Invite a Priest", bookMenuController != null ? bookMenuController.InvitePriest : null,
-                "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
-                string.Empty, null);
-            return;
-        }
-
         PreparePage(
             "CREATE RITUAL",
-            "Create Ritual", bookMenuController != null ? bookMenuController.CreateNetworkRitual : null,
-            "Back", bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null,
-            string.Empty, null,
+            "Enter the Circle", bookMenuController != null ? bookMenuController.OpenCirclePage : null,
+            "Invite a Priest", bookMenuController != null ? bookMenuController.InvitePriest : null,
+            "Quit Ritual", bookMenuController != null ? bookMenuController.QuitHostedRitual : null,
             string.Empty, null);
     }
 
@@ -354,7 +348,25 @@ public sealed class BookStateController : MonoBehaviour
         }
         else if (preparedState == BookState.HostMenu)
         {
-            RefreshCurrentPageContent();
+            if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
+            {
+                RefreshCurrentPageContent();
+            }
+            else
+            {
+                ChangePage(BookState.PlayMenu);
+            }
+        }
+        else if (preparedState == BookState.PlayMenu)
+        {
+            if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
+            {
+                ShowHostLobbySilently();
+            }
+            else
+            {
+                RefreshCurrentPageContent();
+            }
         }
     }
 
@@ -423,6 +435,10 @@ public sealed class BookStateController : MonoBehaviour
                 RefreshJoinSealPresentation();
                 break;
 
+            case BookState.PlayMenu:
+                RefreshPlayMenuContent();
+                break;
+
             case BookState.HostMenu:
                 RefreshHostContent();
                 break;
@@ -431,30 +447,37 @@ public sealed class BookStateController : MonoBehaviour
 
     private void RefreshHostContent()
     {
-        RitualSealService service = RitualSealService.Instance;
-        bool isHostingRitual = service != null && service.IsHostingRitual;
-
-        if (isHostingRitual)
-        {
-            RefreshLeftEntry(line1, menuItem1, "Enter the Circle",
-                bookMenuController != null ? bookMenuController.OpenCirclePage : null);
-            RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
-                bookMenuController != null ? bookMenuController.InvitePriest : null);
-            RefreshLeftEntry(line3, menuItem3, "Back",
-                bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null);
-            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
-        }
-        else
-        {
-            RefreshLeftEntry(line1, menuItem1, "Create Ritual",
-                bookMenuController != null ? bookMenuController.CreateNetworkRitual : null);
-            RefreshLeftEntry(line2, menuItem2, "Back",
-                bookMenuController != null ? bookMenuController.ReturnToPlayMenu : null);
-            RefreshLeftEntry(line3, menuItem3, string.Empty, null);
-            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
-        }
+        RefreshLeftEntry(line1, menuItem1, "Enter the Circle",
+            bookMenuController != null ? bookMenuController.OpenCirclePage : null);
+        RefreshLeftEntry(line2, menuItem2, "Invite a Priest",
+            bookMenuController != null ? bookMenuController.InvitePriest : null);
+        RefreshLeftEntry(line3, menuItem3, "Quit Ritual",
+            bookMenuController != null ? bookMenuController.QuitHostedRitual : null);
+        RefreshLeftEntry(line4, menuItem4, string.Empty, null);
 
         rightPageController?.RefreshHostPageSilently();
+    }
+
+    private void RefreshPlayMenuContent()
+    {
+        RitualSealService service = RitualSealService.Instance;
+        bool isCreating = service != null && service.IsCreatingRitual;
+        RefreshLeftEntry(
+            line1,
+            menuItem1,
+            isCreating ? "Creating Ritual..." : "Create Ritual",
+            !isCreating && bookMenuController != null
+                ? bookMenuController.CreateNetworkRitual
+                : null);
+        rightPageController?.RefreshRitualCreationStatusSilently(
+            service != null ? service.StatusMessage : string.Empty);
+    }
+
+    private void ShowHostLobbySilently()
+    {
+        preparedState = BookState.HostMenu;
+        ApplyTextImmediately(title, "CREATE RITUAL");
+        RefreshHostContent();
     }
 
     private void RefreshLobbyContent()
@@ -480,8 +503,8 @@ public sealed class BookStateController : MonoBehaviour
                 bookMenuController != null ? bookMenuController.OpenCharacter : null);
             RefreshLeftEntry(line3, menuItem3, "Take My Seat",
                 lobbyPlayerStateController != null ? TakeLobbySeat : null);
-            RefreshLeftEntry(line4, menuItem4, "Leave Ritual",
-                bookMenuController != null ? bookMenuController.LeaveLobbyRitual : null);
+            RefreshLeftEntry(line4, menuItem4, "Back",
+                bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
 
             rightPageController?.RefreshLobbyContent(
                 "High Priest",
@@ -496,7 +519,8 @@ public sealed class BookStateController : MonoBehaviour
             RefreshLeftEntry(line2, menuItem2, "Leave Seat",
                 lobbyPlayerStateController != null ? LeaveLobbySeat : null);
             RefreshLeftEntry(line3, menuItem3, string.Empty, null);
-            RefreshLeftEntry(line4, menuItem4, string.Empty, null);
+            RefreshLeftEntry(line4, menuItem4, "Back",
+                bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
 
             rightPageController?.RefreshLobbyContent(
                 $"Priests Ready ({NetworkPlayer.ReadyCircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",

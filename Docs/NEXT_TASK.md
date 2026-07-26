@@ -24,14 +24,17 @@ Synchronize the remaining lobby presentation and character selection through `Ne
 
 The FishNet foundation, permanent `NetworkPlayer` architecture, and Book-driven LAN Ritual Seal entry flow are implemented. The remaining lobby presentation and character choice still contain local or duplicated state that must be migrated onto this networking identity.
 
-Create Ritual and the active host lobby now share one dynamic Book page. Its Seal and Circle
-count consume existing authorities and refresh silently; the obsolete `RitualCreated` display
-state is retained only for serialized compatibility. This removes one presentation duplication
-without changing the remaining lobby migration priority.
+Create Ritual now starts the authoritative Host immediately from `PlayMenu`; no pre-creation
+Host confirmation page remains in the live flow. Authoritative completion silently presents
+the active Host lobby. Its Seal and Circle count consume existing authorities, while the
+obsolete `RitualCreated` display state remains only for serialized compatibility.
 
 Circle membership and physical Seat selection are also separate presentation stages:
 `Enter the Circle` opens the Circle Book page, while `Take My Seat` alone enters the existing
 local camera and Seat-selection flow. Future lobby migration must preserve that separation.
+Circle `Back` is non-destructive Book navigation to the active Host lobby. `Quit Ritual` is the
+distinct destructive path that clears the Seal and stops both FishNet Host portions. Future
+menu work must not merge those semantics.
 
 Using `NetworkPlayer` as the shared authority keeps each connected player's identity and lobby state in one place and prevents local lobby models from diverging across peers.
 

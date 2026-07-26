@@ -38,6 +38,7 @@ namespace Incantation.Networking
         private float joinDeadline;
         private bool joinAttemptActive;
         private bool endpointResolved;
+        private bool hostCreationPending;
         private readonly string instanceId = Guid.NewGuid().ToString("N");
 
         public static RitualSealService Instance { get; private set; }
@@ -46,6 +47,7 @@ namespace Incantation.Networking
         public bool HasActiveRitual => !string.IsNullOrEmpty(ActiveSeal);
         public bool IsJoining => !string.IsNullOrEmpty(pendingJoinSeal);
         public bool IsHostingRitual => HasActiveRitual && foundationController != null && foundationController.IsHostRunning;
+        public bool IsCreatingRitual => hostCreationPending;
         public RitualJoinStatus JoinStatus { get; private set; }
         public string JoinFailureReason { get; private set; } = string.Empty;
 
@@ -128,6 +130,11 @@ namespace Incantation.Networking
                 return false;
             }
 
+            if (IsHostingRitual || IsCreatingRitual)
+            {
+                return false;
+            }
+
             if (!foundationController.IsHostRunning && !foundationController.StartHost())
             {
                 SetStatus("The ritual could not be created.");
@@ -136,9 +143,38 @@ namespace Incantation.Networking
 
             ActiveSeal = GenerateSeal();
             pendingJoinSeal = string.Empty;
-            SetStatus("Waiting for other mages...");
-            Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+            hostCreationPending = !foundationController.IsHostRunning;
+            SetStatus(foundationController.IsHostRunning
+                ? "Waiting for other mages..."
+                : "Creating ritual...");
+
+            if (foundationController.IsHostRunning)
+            {
+                Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+            }
+
             return true;
+        }
+
+        public bool QuitHostedRitual()
+        {
+            if (foundationController == null || (!IsHostingRitual && !IsCreatingRitual))
+            {
+                return false;
+            }
+
+            ActiveSeal = string.Empty;
+            pendingJoinSeal = string.Empty;
+            joinAttemptActive = false;
+            endpointResolved = false;
+            hostCreationPending = false;
+            JoinStatus = RitualJoinStatus.None;
+            JoinFailureReason = string.Empty;
+            StatusMessage = string.Empty;
+
+            bool disconnectRequested = foundationController.Disconnect();
+            Changed?.Invoke();
+            return disconnectRequested;
         }
 
         public bool JoinRitual(string seal)
@@ -348,7 +384,53 @@ namespace Incantation.Networking
 
         private void HandleFoundationStateChanged()
         {
-            if (JoinStatus != RitualJoinStatus.Joining || foundationController == null)
+            if (foundationController == null)
+            {
+                return;
+            }
+
+            if (hostCreationPending)
+            {
+                if (foundationController.IsHostRunning)
+                {
+                    hostCreationPending = false;
+                    SetStatus("Waiting for other mages...");
+                    Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+                }
+                else if (!foundationController.CanDisconnect ||
+                         (!foundationController.IsClientConnecting &&
+                          foundationController.ServerState == FishNet.Transporting.LocalConnectionState.Started))
+                {
+                    hostCreationPending = false;
+                    ActiveSeal = string.Empty;
+                    if (foundationController.CanDisconnect)
+                    {
+                        foundationController.Disconnect();
+                    }
+
+                    SetStatus(string.IsNullOrEmpty(foundationController.ServerFailureStatus)
+                        ? "The ritual could not be created."
+                        : foundationController.ServerFailureStatus);
+                }
+
+                return;
+            }
+
+            if (HasActiveRitual && foundationController.IsHostRunning)
+            {
+                return;
+            }
+
+            if (HasActiveRitual &&
+                JoinStatus == RitualJoinStatus.None &&
+                !foundationController.CanDisconnect)
+            {
+                ActiveSeal = string.Empty;
+                Changed?.Invoke();
+                return;
+            }
+
+            if (JoinStatus != RitualJoinStatus.Joining)
             {
                 return;
             }

@@ -89,9 +89,11 @@ in the lobby without starting ritual gameplay. Joining accepts and normalizes a 
 the matching LAN host through `RitualSealService`, and supplies the resolved address to FishNet
 without displaying it to the player.
 
-Creation and active hosting share one dynamic `HostMenu` Book page. Successful creation does
-not navigate to the obsolete `RitualCreated` presentation or replay a page transition. The
-left page silently becomes `Enter the Circle`, `Invite a Priest`, and `Back`. The right page
+Selecting `Create Ritual` now invokes `CreateNetworkRitual()` immediately; the redundant
+pre-creation `HostMenu` confirmation is bypassed. The Play page disables the action while the
+existing FishNet Host startup is pending. Once the authoritative Seal exists and both local
+FishNet server and client are Started, the Book silently presents the active `HostMenu`.
+Its left page contains `Enter the Circle`, `Invite a Priest`, and `Quit Ritual`. The right page
 reads the authoritative `RitualSealService.ActiveSeal` and synchronized
 `NetworkPlayer.CircleMemberCount`, displaying only the Seal, a count-based waiting message,
 and `X / 8`. Roster changes silently refresh those existing entries. `RitualCreated` remains
@@ -102,6 +104,11 @@ to the existing `THE CIRCLE` Book page while keeping the Book camera and `BookIn
 context active. `Take My Seat` is the sole action that enables Seat interaction and moves the
 local menu camera to the Lobby viewpoint. A player can therefore remain an unseated Circle
 member, review Book options, and continue contributing to the authoritative Circle count.
+The Circle `Back` action returns to the active Host lobby without disconnecting or changing
+membership. `Quit Ritual` is the separate destructive action: `RitualSealService` clears the
+Seal and pending state, uses `FishNetFoundationController.Disconnect()` to stop both local
+client and server, and the Book restores the Play page. Connected clients follow FishNet's
+existing disconnect/despawn cleanup and cannot retain the stopped Host's Circle roster entry.
 
 The current Seal directory is deliberately a Tugboat LAN diagnostic implementation. It is not
 authentication and does not replace the planned Steam lobby metadata or external production
@@ -286,4 +293,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 during the Circle navigation and Seat-selection separation.
+2026-07-25 during the streamlined Host ritual flow.
