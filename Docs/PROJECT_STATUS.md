@@ -99,12 +99,13 @@ reads the authoritative `RitualSealService.ActiveSeal` and synchronized
 waiting message. Roster changes silently refresh those existing entries. `RitualCreated` remains
 in the enum only for serialized compatibility and redirects to `HostMenu`.
 
-Repeated Host creation uses the same silent presentation path as initial creation. If FishNet
-scene startup recreates the Book controller while the Host is already authoritative, startup
-restores the active Host content directly instead of navigating through `HostMenu` and replaying
-the Book text transition. `Quit Ritual` clears the pending Host request and restores
-`PlayMenu`, so later Create/Quit cycles cannot inherit stale Host presentation or transition
-targets.
+Repeated Host creation uses the same silent presentation path as initial creation. On shutdown,
+`RitualSealService.Changed` performs the one intentional `HostMenu` to `PlayMenu` navigation.
+`BookMenuController.QuitHostedRitual()` no longer repeats `ChangePage(PlayMenu)` in the same
+frame. That redundant same-state call previously refreshed and re-enabled Create while the Quit
+transition still displayed Host content, allowing a new Host success to rewrite content during
+the active Play reveal. Create remains unavailable until the Quit transition completes, after
+which later Host success updates the existing page silently.
 
 `Enter the Circle` now separates Circle membership from physical Seat selection. It navigates
 to the existing `THE CIRCLE` Book page while keeping the Book camera and `BookInteraction`
@@ -300,4 +301,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 during the repeated Host creation flow fix.
+2026-07-25 after runtime tracing of the repeated Host transition.

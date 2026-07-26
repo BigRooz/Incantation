@@ -270,7 +270,6 @@ public class BookMenuController : MonoBehaviour
 
         lobbyController?.EndSeatSelection();
         ReturnToBookMenu();
-        bookStateController.ChangePage(BookState.PlayMenu);
     }
 
     public void InvitePriest()
