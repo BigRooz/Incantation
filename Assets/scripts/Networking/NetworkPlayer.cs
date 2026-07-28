@@ -38,6 +38,7 @@ namespace Incantation.Networking
         private readonly SyncList<AppearanceSlotValue> appearanceSlots = new();
         private bool isReadyRequestPending;
         private bool isPriestNameRequestPending;
+        private bool ritualStartAuthorized;
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
@@ -45,6 +46,7 @@ namespace Incantation.Networking
         public static event Action<NetworkPlayer> ActivePlayerRemoved;
         public static event Action<NetworkPlayer> LocalPlayerCreated;
         public static event Action CircleRosterChanged;
+        public static event Action RitualStartAuthorized;
 
         public NetworkConnection Connection => Owner;
         public bool IsLocalPlayer => IsOwner;
@@ -354,6 +356,90 @@ namespace Incantation.Networking
                 ? ReadyState.NotReady
                 : ReadyState.Ready;
             return true;
+        }
+
+        /// <summary>
+        /// Requests an authoritative ritual start from the hosting player's owned identity.
+        /// The server verifies the request came from its local Host connection and that every
+        /// currently connected Circle member is Ready before notifying every observer.
+        /// </summary>
+        public bool RequestRitualStart()
+        {
+            RitualSealService service = RitualSealService.Instance;
+            FishNetFoundationController foundation = FishNetFoundationController.Instance;
+            if (!IsOwner ||
+                service == null ||
+                !service.IsHostingRitual ||
+                foundation == null ||
+                !foundation.IsHostRunning)
+            {
+                Debug.LogWarning("Ritual start rejected locally: only the active Host may request it.", this);
+                return false;
+            }
+
+            if (IsServerInitialized)
+            {
+                return TryAuthorizeRitualStart();
+            }
+
+            RequestRitualStartServerRpc();
+            return true;
+        }
+
+        [ServerRpc]
+        private void RequestRitualStartServerRpc()
+        {
+            TryAuthorizeRitualStart();
+        }
+
+        private bool TryAuthorizeRitualStart()
+        {
+            FishNetFoundationController foundation = FishNetFoundationController.Instance;
+            if (!CanMutateReplicatedState() ||
+                ritualStartAuthorized ||
+                Owner == null ||
+                !Owner.IsLocalClient ||
+                foundation == null ||
+                !foundation.IsHostRunning)
+            {
+                Debug.LogWarning("Ritual start rejected by the server: the requester is not the active Host.", this);
+                return false;
+            }
+
+            int participatingPriestCount = 0;
+            foreach (NetworkPlayer player in activePlayers)
+            {
+                if (player == null || !player.IsCircleMember)
+                {
+                    continue;
+                }
+
+                participatingPriestCount++;
+                if (!player.IsReady)
+                {
+                    Debug.LogWarning(
+                        $"Ritual start rejected by the server: connected Priest {player.Owner.ClientId} is not Ready.",
+                        this);
+                    return false;
+                }
+            }
+
+            if (participatingPriestCount == 0)
+            {
+                Debug.LogWarning("Ritual start rejected by the server: no participating Priests are connected.", this);
+                return false;
+            }
+
+            ritualStartAuthorized = true;
+            BroadcastRitualStartObserversRpc();
+            return true;
+        }
+
+        [ObserversRpc]
+        private void BroadcastRitualStartObserversRpc()
+        {
+            Debug.Log("Authoritative ritual start received.", this);
+            RitualStartAuthorized?.Invoke();
         }
 
         /// <summary>

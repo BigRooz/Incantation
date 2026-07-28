@@ -930,6 +930,23 @@ Network Ready presentation:
   `NetworkPlayer.AppearanceSlotChanged`; it does not request a Book page change or transition.
 - Reconnect defaults to Not Ready. No Inspector default or saved Book text may override it.
 
+Authoritative ritual start:
+
+- No new Inspector reference is required. The existing scene `BookMenuController.lobbyController`
+  assignment remains the local handoff target on every peer.
+- `Start Ritual` is presentation only until the Host-owned `NetworkPlayer` submits its
+  `RequestRitualStart()` request. Do not wire the Book action directly to
+  `LobbyController.StartLobbyRitual()`.
+- The server accepts the request only from its local Host connection while
+  `FishNetFoundationController.IsHostRunning` is true and every member of the current non-empty
+  synchronized Circle roster is Ready.
+- The accepted request is sent to all observers through one FishNet ObserversRpc. Every peer then
+  calls the same `BookTextModeController.ShowRitualTexts()` and
+  `LobbyController.StartLobbyRitual()` path. Do not add a second ritual initialization,
+  Book-closing, timer, incantation, or gameplay-start path.
+- The start RPC is not buffered. Players who join after gameplay has started are not introduced
+  into the current gameplay flow by this handoff.
+
 Book menu controller:
 
 - Add `BookMenuController` to the existing scene object that owns menu coordination. Do not create a second Book, camera, or menu UI object for this component.
@@ -941,7 +958,13 @@ Book menu controller:
 - `bookMenuCameraTarget`: assign the authored Book Menu viewpoint Transform.
 - `lobbyController`: assign the scene `LobbyController`. `OpenCirclePage()` changes only Book state. `BeginSeatSelection()` delegates the single physical Seat-selection entry to `LobbyController`; camera and Seat-selection activation are not duplicated in `BookMenuController`.
 - `discordUrl`: optionally assign the full Discord destination URL. `OpenDiscord()` logs `Discord URL is not assigned.` and does nothing when this field is empty; otherwise it passes the assigned value to `Application.OpenURL(...)`. No Discord URL is hardcoded.
-- `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before changing anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a selected Seat, it calls `BookTextModeController.ShowRitualTexts()` and delegates to `LobbyController.StartLobbyRitual()`.
+- `StartRitualFromBook()` requires `lobbyController.HasSelectedLobbySeat()` before requesting
+  anything. If no Seat is selected, it logs `Cannot start ritual: the local player has not
+  selected a seat.` and does not switch text, cameras, interaction, or ritual state. With a
+  selected Seat, it asks the local Host-owned `NetworkPlayer` for an authoritative start.
+  `HandleAuthorizedRitualStart()` is the only response path: after the server broadcast reaches
+  each peer, it calls `BookTextModeController.ShowRitualTexts()` and delegates to
+  `LobbyController.StartLobbyRitual()`.
 - `OpenHostMenu()` remains as a serialized compatibility entry point but now delegates to `CreateNetworkRitual()` instead of displaying the obsolete pre-creation Host page.
 - `QuitHostedRitual()` is destructive and distinct from Back. It delegates shutdown and Seal cleanup to `RitualSealService.QuitHostedRitual()`, disables local Seat selection, returns the camera to the Book, and restores `PlayMenu` with Create/Join actions.
 - Wire visible `Quit Ritual` actions to `BookMenuController.QuitRitual()`. It dispatches Hosts

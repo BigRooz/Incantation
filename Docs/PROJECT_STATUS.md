@@ -79,6 +79,8 @@ The current prototype includes:
 35. Book-driven creation and joining through four-character Ritual Seals for Tugboat LAN diagnostics.
 36. Server-authoritative player appearance data with local per-slot presentation and late-join synchronization.
 37. Server-authoritative Ready toggling and a synchronized Circle Ready counter.
+38. Server-authoritative ritual start with synchronized gameplay handoff to every connected
+    Circle participant.
 
 ## Ritual Creation
 
@@ -181,14 +183,24 @@ Circle membership, and every peer calculates the Book counter from synchronized 
 whose Ready state is Ready. Late join, disconnect, and reconnect follow the `NetworkPlayer`
 replication lifecycle; reconnect starts Not Ready.
 
+Ritual start is also server-authoritative. `BookMenuController.StartRitualFromBook()` only asks
+the local Host-owned `NetworkPlayer` to start. The server rejects requests that do not come from
+its local Host connection, confirms FishNet is still running as Host, and evaluates the current
+connected Circle roster so disconnected players are not retained by the Ready gate. A non-empty
+roster must be entirely Ready. On success, one FishNet ObserversRpc notifies every participant,
+and each peer executes the existing Book-text and `LobbyController.StartLobbyRitual()` handoff.
+`LobbyController` remains the single gameplay startup implementation for camera, Book
+interaction, Seat preference, ritual initialization, and `RitualController.StartRitual()`.
+
 The seated Circle page presents readiness by local ritual role. The Host sees `RITUAL STATUS`,
 `Waiting for Priests to Ready Up`, and `Ready: X / Y`, where `Y` is the current connected
 Circle-member count rather than maximum capacity. When the non-empty Circle is fully Ready, the
 message becomes `All Priests are Ready` and `Start Ritual` appears as the final right-page
 action. Any Ready, join, or disconnect change recalculates the condition and silently removes
 or restores that action. Joined clients never receive Start authority; a Ready client continues
-to see `Waiting for Host to Start the Ritual...`. The action still delegates to the existing
-Book-to-`LobbyController.StartLobbyRitual()` flow without changing gameplay startup.
+to see `Waiting for Host to Start the Ritual...`. The action submits the authoritative request;
+only the server broadcast delegates every peer to the existing
+Book-to-`LobbyController.StartLobbyRitual()` flow.
 
 Priest Name is likewise server-owned on each `NetworkPlayer`: owners submit validated names by
 ServerRpc and all peers consume its SyncVar, including spawn state for late join. The Circle Book
@@ -211,6 +223,8 @@ The following networking behaviors have been successfully validated:
 - Remote player replication.
 - Disconnect.
 - Shutdown.
+- Authoritative synchronized ritual start still requires Host/client multiplayer Play Mode
+  validation.
 
 ## Network Startup Scene Flow
 
@@ -237,7 +251,8 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - Synchronized Lobby UI.
 - Removal of duplicated local lobby state.
 - Book systems consuming `NetworkPlayer`.
-- Multiplayer gameplay synchronization beyond the validated connection and player-identity foundation. Book, ritual, voice, and gameplay state remain unsynchronized.
+- Multiplayer gameplay synchronization beyond the authoritative start handoff. Ongoing Book,
+  ritual, voice, timer, phrase, turn, and gameplay state remain unsynchronized.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
@@ -330,4 +345,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-25 after sequencing Host creation with the Book transition.
+2026-07-28 after adding authoritative synchronized ritual start.

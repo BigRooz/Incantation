@@ -56,6 +56,8 @@ public class BookMenuController : MonoBehaviour
 
     private void OnEnable()
     {
+        NetworkPlayer.RitualStartAuthorized += HandleAuthorizedRitualStart;
+
         if (RitualSealService.Instance != null)
         {
             RitualSealService.Instance.Changed += HandleRitualSealServiceChanged;
@@ -64,6 +66,8 @@ public class BookMenuController : MonoBehaviour
 
     private void OnDisable()
     {
+        NetworkPlayer.RitualStartAuthorized -= HandleAuthorizedRitualStart;
+
         if (RitualSealService.Instance != null)
         {
             RitualSealService.Instance.Changed -= HandleRitualSealServiceChanged;
@@ -242,13 +246,31 @@ public class BookMenuController : MonoBehaviour
     {
         if (lobbyController == null)
         {
-            Debug.LogWarning($"{nameof(BookMenuController)} cannot start the ritual because no {nameof(LobbyController)} is assigned.", this);
+            Debug.LogWarning($"{nameof(BookMenuController)} cannot request ritual start because no {nameof(LobbyController)} is assigned.", this);
+            return;
+        }
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null)
+        {
+            Debug.LogWarning("Cannot request ritual start because no local NetworkPlayer exists.", this);
             return;
         }
 
         if (!lobbyController.HasSelectedLobbySeat())
         {
             Debug.LogWarning("Cannot start ritual: the local player has not selected a seat.", this);
+            return;
+        }
+
+        localPlayer.RequestRitualStart();
+    }
+
+    private void HandleAuthorizedRitualStart()
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogWarning($"{nameof(BookMenuController)} cannot start the authorized ritual because no {nameof(LobbyController)} is assigned.", this);
             return;
         }
 
