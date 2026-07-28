@@ -250,22 +250,37 @@ Notes:
 
 ## NetworkBookAuthority
 
-Required `BookModel` scene-object setup:
+Required persistent presentation setup:
 
-- One FishNet `NetworkObject` on the same `BookModel` GameObject as `BookMover`.
-- `NetworkObject` has no client owner and is a scene object synchronized with `MainGame`.
-- One FishNet `NetworkTransform` on that GameObject.
+- `BookModel` remains the one always-active visible presentation object.
+- `BookModel` contains the existing `BookMover` and presentation components.
+- Do not put `NetworkObject` or `NetworkTransform` on `BookModel`; FishNet deactivates unstarted
+  scene network objects, which would hide the menu Book before Host/client startup.
+- Do not create an offline Book, network Book visual, or per-player Book.
+
+Required `SharedBookNetworkAuthority` scene-object setup:
+
+- One separate, invisible root GameObject named `SharedBookNetworkAuthority`.
+- One FishNet `NetworkObject` with no client owner, configured as a `MainGame` scene object.
+- One FishNet `NetworkTransform` on the proxy GameObject.
 - `NetworkTransform` client authority: disabled.
 - `NetworkTransform` synchronize position: enabled.
 - `NetworkTransform` synchronize rotation: enabled.
 - `NetworkTransform` synchronize scale: disabled.
 - `NetworkTransform` interpolation: `3`.
 - `NetworkTransform` extrapolation: disabled.
-- One `NetworkBookAuthority` on that GameObject.
+- One `NetworkBookAuthority` on the proxy GameObject.
+- `bookMover`: assign the existing `BookMover` on the persistent `BookModel`.
+- `presentationTransform`: assign the existing visible `BookModel` Transform.
 
 Runtime ownership:
 
+- Offline: FishNet may deactivate only the invisible proxy. `BookModel` remains visible,
+  interactive, and locally usable.
 - The Host/server is the only Book simulation and destination authority.
+- Host: `NetworkBookAuthority` copies `BookModel` position/rotation into the network proxy.
+- Client: `NetworkBookAuthority` applies the authoritative proxy position/rotation to its
+  existing `BookModel`; it never creates another presentation.
 - `TargetSeatId` is replicated from `SeatManager`'s stable configured physical-order ID.
 - `MovementSequence` identifies every authoritative move, including consecutive redirects, and
   `IsMoving` synchronizes the server-owned start/arrival lifecycle.
@@ -275,6 +290,8 @@ Runtime ownership:
 - Future demon-hand, page-turn, mood, ritual-reaction, and VFX state belongs on or behind this
   same authoritative Book boundary. Do not add local gameplay state to `BookGhost` or create
   another physical/network Book.
+- Disconnect: the proxy may deactivate with FishNet, but `BookModel` stays active so normal
+  local Book navigation can resume without an orphaned or duplicate object.
 
 ## BookController
 

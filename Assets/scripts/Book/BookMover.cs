@@ -21,7 +21,7 @@ public class BookMover : MonoBehaviour
 
     private void Awake()
     {
-        networkAuthority = GetComponent<NetworkBookAuthority>();
+        ResolveNetworkAuthority();
     }
 
     public void MoveToSeat(Seat seat)
@@ -29,9 +29,10 @@ public class BookMover : MonoBehaviour
         if (seat == null)
             return;
 
-        if (networkAuthority != null && networkAuthority.IsNetworkSessionActive)
+        NetworkBookAuthority resolvedNetworkAuthority = ResolveNetworkAuthority();
+        if (resolvedNetworkAuthority != null && resolvedNetworkAuthority.IsNetworkSessionActive)
         {
-            networkAuthority.TryMoveToSeat(seat);
+            resolvedNetworkAuthority.TryMoveToSeat(seat);
             return;
         }
 
@@ -99,5 +100,21 @@ public class BookMover : MonoBehaviour
             return;
 
         Debug.Log(message);
+    }
+
+    private NetworkBookAuthority ResolveNetworkAuthority()
+    {
+        if (networkAuthority == null)
+        {
+            networkAuthority = NetworkBookAuthority.Instance;
+        }
+
+        if (networkAuthority == null)
+        {
+            networkAuthority = FindFirstObjectByType<NetworkBookAuthority>(
+                FindObjectsInactive.Include);
+        }
+
+        return networkAuthority;
     }
 }

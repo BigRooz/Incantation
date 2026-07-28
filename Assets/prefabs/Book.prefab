@@ -677,6 +677,7 @@ Transform:
   - {fileID: 3270623303871137568}
   - {fileID: 4984051210712276474}
   - {fileID: 8481756555246402426}
+  - {fileID: 3097208461705823995}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8894539677979503619
@@ -1246,15 +1247,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 947664418748905057, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 9062903957076353211}
-    - targetCorrespondingSourceObject: {fileID: 947664418748905057, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3097208461705823991}
-    - targetCorrespondingSourceObject: {fileID: 947664418748905057, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3097208461705823992}
-    - targetCorrespondingSourceObject: {fileID: 947664418748905057, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3097208461705823993}
   m_SourcePrefab: {fileID: 100100000, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
 --- !u!4 &1584409711859025143 stripped
 Transform:
@@ -1310,13 +1302,47 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bookMover: {fileID: 8578042831731458037}
+--- !u!1 &3097208461705823994
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3097208461705823995}
+  - component: {fileID: 3097208461705823991}
+  - component: {fileID: 3097208461705823992}
+  - component: {fileID: 3097208461705823993}
+  m_Layer: 0
+  m_Name: SharedBookNetworkAuthority
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3097208461705823995
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3097208461705823994}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4847532112417964994}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &3097208461705823991
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8309678000442377124}
+  m_GameObject: {fileID: 3097208461705823994}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 26b716c41e9b56b4baafaf13a523ba2e, type: 3}
@@ -1375,7 +1401,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8309678000442377124}
+  m_GameObject: {fileID: 3097208461705823994}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
@@ -1421,7 +1447,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8309678000442377124}
+  m_GameObject: {fileID: 3097208461705823994}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fddf2926ee466798dcf8396c57df09, type: 3}
@@ -1430,3 +1456,5 @@ MonoBehaviour:
   _componentIndexCache: 1
   _addedNetworkObject: {fileID: 3097208461705823991}
   _networkObjectCache: {fileID: 3097208461705823991}
+  bookMover: {fileID: 8578042831731458037}
+  presentationTransform: {fileID: 1584409711859025143}

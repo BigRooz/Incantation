@@ -7,14 +7,13 @@ using UnityEngine;
 namespace Incantation.Networking
 {
     /// <summary>
-    /// Owns network authority for the single ritual Book.
-    /// The server selects movement commands and presentation state, NetworkTransform replicates
-    /// the resulting physical position and rotation, and observers consume synchronized Seat and
-    /// presentation state without running independent Book simulation.
+    /// Owns the invisible network proxy for the single persistent ritual Book presentation.
+    /// The server selects movement commands and copies the existing Book pose into NetworkTransform;
+    /// client observers apply that proxy pose and synchronized Seat/presentation state to their
+    /// existing BookModel without spawning or simulating another Book.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
-    [RequireComponent(typeof(BookMover))]
     public sealed class NetworkBookAuthority : NetworkBehaviour
     {
         public const int NoTargetSeatId = -1;
@@ -25,9 +24,13 @@ namespace Incantation.Networking
         private readonly SyncVar<BookPresentationState> presentationState =
             new(BookPresentationState.Closed);
 
-        private BookMover bookMover;
+        [Header("Persistent Book Presentation")]
+        [SerializeField] private BookMover bookMover;
+        [SerializeField] private Transform presentationTransform;
+
         private SeatManager seatManager;
 
+        public static NetworkBookAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
         public int TargetSeatId => targetSeatId.Value;
         public uint MovementSequence => movementSequence.Value;
@@ -42,7 +45,26 @@ namespace Incantation.Networking
 
         private void Awake()
         {
-            bookMover = GetComponent<BookMover>();
+            Instance = this;
+        }
+
+        private void LateUpdate()
+        {
+            if (!IsNetworkSessionActive || presentationTransform == null)
+                return;
+
+            if (IsServerInitialized)
+            {
+                transform.SetPositionAndRotation(
+                    presentationTransform.position,
+                    presentationTransform.rotation);
+            }
+            else
+            {
+                presentationTransform.SetPositionAndRotation(
+                    transform.position,
+                    transform.rotation);
+            }
         }
 
         public override void OnStartNetwork()
@@ -52,6 +74,14 @@ namespace Incantation.Networking
             movementSequence.OnChange += HandleMovementSequenceChanged;
             isMoving.OnChange += HandleMovementStateChanged;
             presentationState.OnChange += HandlePresentationStateChanged;
+
+            if (IsServerInitialized && presentationTransform != null)
+            {
+                transform.SetPositionAndRotation(
+                    presentationTransform.position,
+                    presentationTransform.rotation);
+            }
+
             ApplyTargetSeat(targetSeatId.Value);
         }
 
@@ -64,13 +94,19 @@ namespace Incantation.Networking
             base.OnStopNetwork();
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
+        }
+
         /// <summary>
         /// Consumes a Book movement request. Only the server may turn it into physical movement.
         /// Clients return without moving so their NetworkTransform remains observer-driven.
         /// </summary>
         public bool TryMoveToSeat(Seat seat)
         {
-            if (!IsNetworkSessionActive || seat == null)
+            if (!IsNetworkSessionActive || seat == null || bookMover == null)
                 return false;
 
             if (!IsServerInitialized)

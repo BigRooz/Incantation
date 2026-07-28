@@ -233,10 +233,16 @@ return to Play while the remote Host and other clients continue.
 
 ## Authoritative Shared Book
 
-The physical `BookModel` in `MainGame` is one FishNet scene `NetworkObject`. It is not spawned
-per player and it has no client owner. The server/Host owns its simulation through
-`NetworkBookAuthority`; client calls into `BookMover` are consumed without starting a local
-movement coroutine.
+The physical `BookModel` in `MainGame` is the one persistent Book presentation. It remains an
+ordinary active scene hierarchy before FishNet starts, so the Main Menu, Create/Join flow,
+Circle, customization, and local Book interaction never depend on a network spawn. No offline
+copy or per-player copy exists.
+
+`SharedBookNetworkAuthority` is a separate invisible FishNet scene object. FishNet may deactivate
+that proxy before networking without deactivating `BookModel`. When a Host/server initializes
+the proxy, `NetworkBookAuthority` binds to the existing `BookMover` and presentation Transform,
+preserves their current world pose, and begins server-authoritative synchronization. It never
+spawns or replaces the visible Book.
 
 Existing ritual and Seat selection rules are unchanged. `RitualController`, `BookController`,
 and `SeatManager` still request movement to the same selected `Seat`. On the server,
@@ -245,9 +251,14 @@ synchronizes its stable Seat ID plus movement sequence/active state, and permits
 `BookMover` interpolation to run. The server clears the active state only after the authoritative
 movement duration, giving observers the same start/arrival lifecycle.
 A server-authoritative FishNet `NetworkTransform` replicates the resulting world position and
-rotation. Observers reproduce those transform snapshots and update `SeatManager.currentBookSeat`
-from the synchronized target Seat ID; they never select a destination or simulate a competing
-Book path.
+rotation on the invisible proxy. The Host copies the persistent Book pose into that proxy;
+client-only observers apply the proxy pose to their existing local `BookModel` presentation.
+Observers also update `SeatManager.currentBookSeat` from the synchronized target Seat ID; they
+never select a destination or simulate a competing Book path.
+
+On client disconnect or before any later session, the proxy can return to FishNet's inactive
+scene-object state while the presentation stays visible and retains the appropriate local Book
+menu state. At every lifecycle stage there is exactly one visible Book hierarchy.
 
 `BookPresentationState` is the replicated high-level presentation channel. It currently owns
 `Closed` and `Open`, exposes server-only mutation through `SetPresentationState`/`SetOpen`, and
@@ -272,6 +283,8 @@ The following networking behaviors have been successfully validated:
 - The shared Book code compiles against the Unity 6/FishNet project assemblies. Host plus
   standalone-client movement, rotation, target Seat, late-turn drift, and open/closed
   presentation still require multiplayer Play Mode validation.
+- Persistent pre-network Book visibility and the offline-to-Host-to-client lifecycle still
+  require manual Unity Play Mode validation.
 
 ## Network Startup Scene Flow
 
