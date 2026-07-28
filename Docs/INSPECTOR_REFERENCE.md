@@ -906,16 +906,26 @@ Network Ready presentation:
 
 - No new Inspector reference is required. `NetworkPlayer` owns the synchronized Ready state.
 - `BookStateController` uses `NetworkPlayer.LocalPlayer` for the Ready/Unready action and
-  `NetworkPlayer.ReadyCircleMemberCount` for `Priests Ready (n / 8)`.
+  `NetworkPlayer.ReadyCircleMemberCount` for the Ready numerator. The Host status denominator is
+  `NetworkPlayer.CircleMemberCount`, so disconnected, destroyed, and never-joined players are
+  excluded. The joined-client counter retains its existing maximum-capacity presentation.
 - Keep the existing `lobbyPlayerStateController` reference for local Seat-page presentation
   during migration. It does not own, toggle, or count multiplayer Ready state.
 - Do not wire Ready UI directly to `LobbyPlayerStateController.TryReady()` or `TryUnready()`.
   The Book action must call the owner request on `NetworkPlayer`.
 - Ready presentation refreshes from `NetworkPlayer.CircleRosterChanged`; do not add Update
   polling, hierarchy searches, serialized counts, or a second roster.
-- Ready changes refresh only `Priests Ready (n / 8)` and the local Ready/Unready action.
-  Circle joins, disconnects, reconnects, and late joins refresh only the displayed player/Ready
-  values. These synchronized content changes never replay the Book page transition.
+- On the seated Circle page, an authoritative Host sees right title `RITUAL STATUS`. An
+  incomplete Ready check displays `Waiting for Priests to Ready Up` and `Ready: X / Y` with no
+  Start action. A non-empty fully Ready Circle displays `All Priests are Ready`, keeps the same
+  counter, and exposes `Start Ritual` only on right line 5 through
+  `BookMenuController.StartRitualFromBook()`.
+- Joined clients never receive the Start action. A Ready client continues to display
+  `Waiting for Host to Start the Ritual...`; its existing Ready/Unready interaction remains
+  owned by its local `NetworkPlayer`.
+- Ready changes, joins, disconnects, reconnects, and late joins refresh the status, counter, and
+  Start visibility directly through `NetworkPlayer.CircleRosterChanged`. These synchronized
+  content changes never replay the Book page transition.
 - Synchronized appearance remains presented by `NetworkCharacterPresentation` through
   `NetworkPlayer.AppearanceSlotChanged`; it does not request a Book page change or transition.
 - Reconnect defaults to Not Ready. No Inspector default or saved Book text may override it.

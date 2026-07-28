@@ -181,6 +181,15 @@ Circle membership, and every peer calculates the Book counter from synchronized 
 whose Ready state is Ready. Late join, disconnect, and reconnect follow the `NetworkPlayer`
 replication lifecycle; reconnect starts Not Ready.
 
+The seated Circle page presents readiness by local ritual role. The Host sees `RITUAL STATUS`,
+`Waiting for Priests to Ready Up`, and `Ready: X / Y`, where `Y` is the current connected
+Circle-member count rather than maximum capacity. When the non-empty Circle is fully Ready, the
+message becomes `All Priests are Ready` and `Start Ritual` appears as the final right-page
+action. Any Ready, join, or disconnect change recalculates the condition and silently removes
+or restores that action. Joined clients never receive Start authority; a Ready client continues
+to see `Waiting for Host to Start the Ritual...`. The action still delegates to the existing
+Book-to-`LobbyController.StartLobbyRitual()` flow without changing gameplay startup.
+
 Priest Name is likewise server-owned on each `NetworkPlayer`: owners submit validated names by
 ServerRpc and all peers consume its SyncVar, including spawn state for late join. The Circle Book
 supports a silent right-page editor and no longer displays the unused High Priest label.

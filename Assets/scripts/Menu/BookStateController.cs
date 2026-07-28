@@ -269,7 +269,6 @@ public sealed class BookStateController : MonoBehaviour
 
     private void PrepareLobbyPage(LobbyPlayerState lobbyPlayerState)
     {
-        int readyPlayerCount = NetworkPlayer.ReadyCircleMemberCount;
         bool isLocalPlayerReady =
             NetworkPlayer.LocalPlayer != null &&
             NetworkPlayer.LocalPlayer.IsCircleMember &&
@@ -280,10 +279,15 @@ public sealed class BookStateController : MonoBehaviour
             lobbyPlayerState = LobbyPlayerState.Seated;
         }
 
+        string rightTitleText = string.Empty;
         string rightLine1Text;
         string rightLine2Text;
         string rightLine3Text;
         UnityAction rightLine3Action = null;
+        string rightLine4Text = string.Empty;
+        UnityAction rightLine4Action = null;
+        string rightLine5Text = string.Empty;
+        UnityAction rightLine5Action = null;
         GetCircleExitAction(out string exitLabel, out UnityAction exitAction);
 
         switch (lobbyPlayerState)
@@ -312,9 +316,13 @@ public sealed class BookStateController : MonoBehaviour
                     "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
                     string.Empty, null,
                     exitLabel, exitAction);
-                rightLine1Text =
-                    $"Priests Ready ({readyPlayerCount} / {NetworkPlayer.MaximumCircleMembers})";
-                rightLine2Text = "Waiting for Host to Start the Ritual";
+                GetSeatedLobbyPresentation(
+                    isLocalPlayerReady,
+                    out rightTitleText,
+                    out rightLine1Text,
+                    out rightLine2Text,
+                    out rightLine5Text,
+                    out rightLine5Action);
                 rightLine3Text = string.Empty;
                 break;
 
@@ -328,10 +336,15 @@ public sealed class BookStateController : MonoBehaviour
             rightPageController.PrepareLobbyPage(
                 transitionTexts,
                 transitionTargets,
+                rightTitleText,
                 rightLine1Text,
                 rightLine2Text,
                 rightLine3Text,
-                rightLine3Action);
+                rightLine3Action,
+                rightLine4Text,
+                rightLine4Action,
+                rightLine5Text,
+                rightLine5Action);
         }
     }
 
@@ -702,12 +715,17 @@ public sealed class BookStateController : MonoBehaviour
             RefreshLeftEntry(line4, menuItem4, exitLabel, exitAction);
 
             rightPageController?.RefreshLobbyContent(
+                string.Empty,
                 NetworkPlayer.LocalPlayer != null
                     ? NetworkPlayer.LocalPlayer.PriestName
                     : "Priest",
                 $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
                 "Invite a Priest",
-                bookMenuController != null ? bookMenuController.InvitePriest : null);
+                bookMenuController != null ? bookMenuController.InvitePriest : null,
+                string.Empty,
+                null,
+                string.Empty,
+                null);
         }
         else
         {
@@ -718,11 +736,23 @@ public sealed class BookStateController : MonoBehaviour
             RefreshLeftEntry(line3, menuItem3, string.Empty, null);
             RefreshLeftEntry(line4, menuItem4, exitLabel, exitAction);
 
+            GetSeatedLobbyPresentation(
+                isLocalPlayerReady,
+                out string rightTitleText,
+                out string rightLine1Text,
+                out string rightLine2Text,
+                out string rightLine5Text,
+                out UnityAction rightLine5Action);
             rightPageController?.RefreshLobbyContent(
-                $"Priests Ready ({NetworkPlayer.ReadyCircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
-                "Waiting for Host to Start the Ritual",
+                rightTitleText,
+                rightLine1Text,
+                rightLine2Text,
                 string.Empty,
-                null);
+                null,
+                string.Empty,
+                null,
+                rightLine5Text,
+                rightLine5Action);
         }
 
         lastRenderedCircleMemberCount = NetworkPlayer.CircleMemberCount;
@@ -766,6 +796,37 @@ public sealed class BookStateController : MonoBehaviour
                !sealService.IsHostingRitual &&
                sealService.JoinStatus == RitualJoinStatus.Joined &&
                NetworkPlayer.IsLocalPlayerCircleMember;
+    }
+
+    private void GetSeatedLobbyPresentation(
+        bool isLocalPlayerReady,
+        out string titleText,
+        out string line1Text,
+        out string line2Text,
+        out string line5Text,
+        out UnityAction line5Action)
+    {
+        int readyCount = NetworkPlayer.ReadyCircleMemberCount;
+        int participantCount = NetworkPlayer.CircleMemberCount;
+        RitualSealService service = RitualSealService.Instance;
+        bool isHost = service != null && service.IsHostingRitual;
+        bool everyoneReady = participantCount > 0 && readyCount == participantCount;
+
+        titleText = isHost ? "RITUAL STATUS" : string.Empty;
+        line1Text = isHost
+            ? everyoneReady
+                ? "All Priests are Ready"
+                : "Waiting for Priests to Ready Up"
+            : $"Priests Ready ({readyCount} / {NetworkPlayer.MaximumCircleMembers})";
+        line2Text = isHost
+            ? $"Ready: {readyCount} / {participantCount}"
+            : isLocalPlayerReady
+                ? "Waiting for Host to Start the Ritual..."
+                : "Waiting for Host to Start the Ritual";
+        line5Text = isHost && everyoneReady ? "Start Ritual" : string.Empty;
+        line5Action = isHost && everyoneReady && bookMenuController != null
+            ? bookMenuController.StartRitualFromBook
+            : null;
     }
 
     private void GetCircleExitAction(out string label, out UnityAction action)

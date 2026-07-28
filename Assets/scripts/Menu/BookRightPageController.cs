@@ -166,32 +166,47 @@ public sealed class BookRightPageController : MonoBehaviour
     public void PrepareLobbyPage(
         List<TMP_Text> texts,
         List<string> targets,
+        string titleText,
         string line1Text,
         string line2Text,
         string line3Text,
-        UnityAction line3Action)
+        UnityAction line3Action,
+        string line4Text,
+        UnityAction line4Action,
+        string line5Text,
+        UnityAction line5Action)
     {
-        PrepareEntry(texts, targets, rightTitle, null, string.Empty, null);
+        PrepareEntry(texts, targets, rightTitle, null, titleText, null);
         PrepareEntry(texts, targets, rightLine1, rightMenuItem1, line1Text, null);
         PrepareEntry(texts, targets, rightLine2, rightMenuItem2, line2Text, null);
         PrepareEntry(texts, targets, rightLine3, rightMenuItem3, line3Text, line3Action);
-        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, string.Empty, null);
-        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, string.Empty, null);
+        PrepareEntry(texts, targets, rightLine4, rightMenuItem4, line4Text, line4Action);
+        PrepareEntry(texts, targets, rightLine5, rightMenuItem5, line5Text, line5Action);
     }
 
     public void RefreshLobbyContent(
+        string titleText,
         string line1Text,
         string line2Text,
         string line3Text,
-        UnityAction line3Action)
+        UnityAction line3Action,
+        string line4Text,
+        UnityAction line4Action,
+        string line5Text,
+        UnityAction line5Action)
     {
+        ApplyTextImmediately(rightTitle, titleText);
         ApplyTextImmediately(rightLine1, line1Text);
         ApplyTextImmediately(rightLine2, line2Text);
         ApplyTextImmediately(rightLine3, line3Text);
+        ApplyTextImmediately(rightLine4, line4Text);
+        ApplyTextImmediately(rightLine5, line5Text);
 
         RefreshInteraction(rightMenuItem1, null, false);
         RefreshInteraction(rightMenuItem2, null, false);
         RefreshInteraction(rightMenuItem3, line3Action, line3Action != null);
+        RefreshInteraction(rightMenuItem4, line4Action, line4Action != null);
+        RefreshInteraction(rightMenuItem5, line5Action, line5Action != null);
     }
 
     public void RefreshHostPageSilently()
