@@ -74,13 +74,11 @@ public class BookMenuController : MonoBehaviour
             NetworkPlayer.LocalPlayer.PriestNameChanged -= HandleLocalPriestNameChanged;
         }
 
+        LocalInputContextGate.RestoreGameplay();
+
         if (cameraTransitionManager != null)
         {
             cameraTransitionManager.UnregisterBookInteractionTarget(bookMenuCameraTarget);
-        }
-        else
-        {
-            LocalInputContextGate.RestoreGameplay();
         }
     }
 
@@ -100,6 +98,7 @@ public class BookMenuController : MonoBehaviour
         enteredSeal = string.Empty;
         sealHasSupportedCharacterOverflow = false;
         RitualSealService.Instance?.BeginJoinEntry();
+        AcquireTextEntryContext();
         bookStateController.ChangePage(BookState.JoinSealEntry);
     }
 
@@ -125,6 +124,7 @@ public class BookMenuController : MonoBehaviour
     {
         enteredSeal = string.Empty;
         sealHasSupportedCharacterOverflow = false;
+        ReleaseTextEntryContext();
         bookStateController.ChangePage(BookState.PlayMenu);
         RitualSealService.Instance?.CancelJoin();
     }
@@ -153,6 +153,12 @@ public class BookMenuController : MonoBehaviour
             return;
         }
 
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            CancelJoinRitual();
+            return;
+        }
+
         string input = Input.inputString;
         bool changed = false;
         for (int i = 0; i < input.Length; i++)
@@ -177,6 +183,8 @@ public class BookMenuController : MonoBehaviour
                 {
                     SubmitSeal();
                 }
+
+                return;
             }
             else
             {
@@ -285,6 +293,7 @@ public class BookMenuController : MonoBehaviour
 
         editingPriestName = true;
         editingHostedSeal = false;
+        AcquireTextEntryContext();
         editorValue = localPlayer.PriestName;
         editorStatus = string.Empty;
         localPlayer.PriestNameChanged -= HandleLocalPriestNameChanged;
@@ -302,6 +311,7 @@ public class BookMenuController : MonoBehaviour
 
         editingHostedSeal = true;
         editingPriestName = false;
+        AcquireTextEntryContext();
         editorValue = service.ActiveSeal;
         editorStatus = string.Empty;
         RefreshActiveEditor();
@@ -363,6 +373,7 @@ public class BookMenuController : MonoBehaviour
         editingPriestName = false;
         editingHostedSeal = false;
         editorStatus = string.Empty;
+        ReleaseTextEntryContext();
         bookStateController.RefreshCurrentPageContent();
     }
 
@@ -618,6 +629,30 @@ public class BookMenuController : MonoBehaviour
             bookRotationController.RotateToFront();
 
         cameraTransitionManager.MoveTo(bookMenuCameraTarget);
+    }
+
+    public void HandleBookStateChanging(BookState state)
+    {
+        if (state == BookState.JoinSealEntry || editingPriestName || editingHostedSeal)
+        {
+            AcquireTextEntryContext();
+            return;
+        }
+
+        ReleaseTextEntryContext();
+    }
+
+    private static void AcquireTextEntryContext()
+    {
+        LocalInputContextGate.SetContext(LocalInputContext.TextEntry);
+    }
+
+    private static void ReleaseTextEntryContext()
+    {
+        if (LocalInputContextGate.IsTextEntryActive)
+        {
+            LocalInputContextGate.SetContext(LocalInputContext.BookInteraction);
+        }
     }
 
     public void QuitGame()

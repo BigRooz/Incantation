@@ -738,7 +738,7 @@ Player appearance is data-driven and requires no NetworkPlayer prefab cosmetic r
 Camera transition foundation:
 
 - `BookMenuController` registers its existing `bookMenuCameraTarget` with `CameraTransitionManager` at runtime. Moving the local menu camera to that target selects the local-only `BookInteraction` input context; moving to any other target restores `Gameplay`. No additional scene reference is required.
-- `LocalInputContextGate` contains only `Gameplay` and `BookInteraction`. It is process-local, is never synchronized, and resets to `Gameplay` when the camera manager or Book menu controller is disabled or destroyed.
+- `LocalInputContextGate` contains `Gameplay`, `BookInteraction`, and `TextEntry`. It is process-local and is never synchronized. Focused Priest Name, hosted Seal, and Join Seal editors acquire `TextEntry`; leaving the editor, changing page, closing the Book, disconnecting, or disabling the controller releases it. Controller/camera teardown resets the gate to `Gameplay`.
 - `CameraTransitionManager` lives at `Assets/scripts/Camera/CameraTransitionManager.cs`.
 - `MenuTransitionCamera` is the only rendering camera for menu navigation.
 - `BookMenuCamera`, `LobbyCamera`, and future menu viewpoints such as `CharacterCamera` are static destination Transforms only. They must not render during menu navigation.
@@ -815,11 +815,21 @@ Book right page controller:
 - `Take My Seat` is the only Book action that calls `BeginSeatSelection()`. That path enables
   Seat interaction and moves the local menu camera to the Lobby viewpoint. It does not change
   another player's camera and does not assign a Seat until the existing Seat click path succeeds.
-- The Circle page displays `Back` before and after local Seat selection. It calls `ReturnToActiveHostLobby()`. Back changes
-  only Book state; it preserves FishNet, the Seal, Circle membership, Ready state, appearance,
-  roster count, Book camera, and disabled Seat-selection state.
+- The Circle exit action is role-aware before and after local Seat selection. An authoritative
+  Host or Host-in-creation sees `Back`, which calls `ReturnToActiveHostLobby()` and changes only
+  Book state while preserving FishNet, the Seal, Circle membership, Ready state, appearance,
+  roster count, Book camera, and disabled Seat-selection state. A joined non-Host sees
+  `Quit Ritual`, which calls the generic `BookMenuController.QuitRitual()` dispatcher and uses
+  `LeaveJoinedRitual()` to disconnect only that local client and return it to `PlayMenu`.
+  Role changes refresh this line directly without replaying a page transition.
 - `JoinSealEntry` opens immediately when `Join Ritual` is selected and uses the existing artist-authored right-page TMP lines as one focused Book form: right line 1 shows the non-interactive `Seal` title, right line 2 is the interactive four-character field, right line 3 is the `Validate Seal` Book button, and right line 4 is the non-interactive status. Right line 5 remains empty and non-interactive. It never displays player count or duplicates the entered Seal outside the field.
 - Seal entry is focused as soon as the page opens. Input is normalized to the readable uppercase Seal alphabet, spaces and unsupported characters are ignored, and Backspace removes a character. `Validate Seal` is grey and non-interactive until exactly four characters are present, then fades to its authored gold color over `0.18` seconds. Enter is an optional shortcut and submits only while the button is enabled.
+- Join Seal focus acquires the local `TextEntry` input context before the page opens. While held,
+  Space, E, H, physical Book interaction, gameplay/debug Book movement, page shortcuts, and
+  spell-card shortcuts cannot consume typed keys. Enter submits at most one request, Escape or
+  `Back` cancels once, and the pending-join state disables repeated confirmation. The context is
+  released on success/navigation, cancellation, Book close, controller disable, or connection
+  loss; a failed join that keeps the form open keeps text focus so the Seal can be corrected.
 - Validate Seal's disabled color and fade are temporary `JoinSealEntry` state visuals only. Leaving Join stops any active fade and restores right line 3's serialized color and shared material before the next page is prepared, so reused content such as `Players: 1 / 8` never inherits Join styling.
 - Typing, deleting, status changes, and Validate state changes update the Join form immediately without replaying the Book page transition. Full text transitions run only when entering or leaving a Book state.
 - Join status text is concise: `Enter a ritual seal.`, `Ready to join.`, `Joining ritual...`, `Ritual joined.`, `Ritual not found.`, `Ritual is full.`, `Connection rejected.`, or `Connection timed out.` The discovery and FishNet client lifecycle remain owned by `RitualSealService`.

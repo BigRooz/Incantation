@@ -73,7 +73,8 @@ public class SeatManager : MonoBehaviour
     private void Update()
     {
         // TEST : appuie sur ESPACE pour envoyer le livre au prochain joueur occupé
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (LocalInputContextGate.AllowsGameplayInput &&
+            Input.GetKeyDown(KeyCode.Space))
         {
             MoveBookToNextOccupiedSeat();
         }

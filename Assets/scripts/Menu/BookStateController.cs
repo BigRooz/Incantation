@@ -120,6 +120,8 @@ public sealed class BookStateController : MonoBehaviour
             state = BookState.PlayMenu;
         }
 
+        bookMenuController?.HandleBookStateChanging(state);
+
         if (hasPreparedPage && preparedState == state)
         {
             RefreshCurrentPageContent();
@@ -282,6 +284,7 @@ public sealed class BookStateController : MonoBehaviour
         string rightLine2Text;
         string rightLine3Text;
         UnityAction rightLine3Action = null;
+        GetCircleExitAction(out string exitLabel, out UnityAction exitAction);
 
         switch (lobbyPlayerState)
         {
@@ -291,7 +294,7 @@ public sealed class BookStateController : MonoBehaviour
                     "Priest Name", bookMenuController != null ? bookMenuController.EditPriestName : null,
                     "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
                     "Take My Seat", lobbyPlayerStateController != null ? TakeLobbySeat : null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
+                    exitLabel, exitAction);
                 rightLine1Text = NetworkPlayer.LocalPlayer != null
                     ? NetworkPlayer.LocalPlayer.PriestName
                     : "Priest";
@@ -308,7 +311,7 @@ public sealed class BookStateController : MonoBehaviour
                     NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null,
                     "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
                     string.Empty, null,
-                    "Back", bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
+                    exitLabel, exitAction);
                 rightLine1Text =
                     $"Priests Ready ({readyPlayerCount} / {NetworkPlayer.MaximumCircleMembers})";
                 rightLine2Text = "Waiting for Host to Start the Ritual";
@@ -458,6 +461,11 @@ public sealed class BookStateController : MonoBehaviour
         if (ShouldDisplayJoinedCircle(RitualSealService.Instance))
         {
             TransitionToCircle();
+        }
+        else if (preparedState == BookState.Lobby &&
+                 NetworkPlayer.IsLocalPlayerCircleMember)
+        {
+            RefreshCurrentPageContent();
         }
         else if (preparedState == BookState.JoinSealEntry)
         {
@@ -681,6 +689,7 @@ public sealed class BookStateController : MonoBehaviour
             NetworkPlayer.LocalPlayer != null &&
             NetworkPlayer.LocalPlayer.IsCircleMember &&
             NetworkPlayer.LocalPlayer.IsReady;
+        GetCircleExitAction(out string exitLabel, out UnityAction exitAction);
 
         if (lobbyPlayerState == LobbyPlayerState.NotSeated)
         {
@@ -690,8 +699,7 @@ public sealed class BookStateController : MonoBehaviour
                 bookMenuController != null ? bookMenuController.OpenCharacter : null);
             RefreshLeftEntry(line3, menuItem3, "Take My Seat",
                 lobbyPlayerStateController != null ? TakeLobbySeat : null);
-            RefreshLeftEntry(line4, menuItem4, "Back",
-                bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
+            RefreshLeftEntry(line4, menuItem4, exitLabel, exitAction);
 
             rightPageController?.RefreshLobbyContent(
                 NetworkPlayer.LocalPlayer != null
@@ -708,8 +716,7 @@ public sealed class BookStateController : MonoBehaviour
             RefreshLeftEntry(line2, menuItem2, "Leave Seat",
                 lobbyPlayerStateController != null ? LeaveLobbySeat : null);
             RefreshLeftEntry(line3, menuItem3, string.Empty, null);
-            RefreshLeftEntry(line4, menuItem4, "Back",
-                bookMenuController != null ? bookMenuController.ReturnToActiveHostLobby : null);
+            RefreshLeftEntry(line4, menuItem4, exitLabel, exitAction);
 
             rightPageController?.RefreshLobbyContent(
                 $"Priests Ready ({NetworkPlayer.ReadyCircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
@@ -759,6 +766,20 @@ public sealed class BookStateController : MonoBehaviour
                !sealService.IsHostingRitual &&
                sealService.JoinStatus == RitualJoinStatus.Joined &&
                NetworkPlayer.IsLocalPlayerCircleMember;
+    }
+
+    private void GetCircleExitAction(out string label, out UnityAction action)
+    {
+        RitualSealService service = RitualSealService.Instance;
+        bool isHost = service != null &&
+                      (service.IsHostingRitual || service.IsCreatingRitual);
+
+        label = isHost ? "Back" : "Quit Ritual";
+        action = bookMenuController == null
+            ? null
+            : isHost
+                ? bookMenuController.ReturnToActiveHostLobby
+                : bookMenuController.QuitRitual;
     }
 
     public void RefreshJoinSealPresentation()

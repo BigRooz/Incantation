@@ -12,7 +12,7 @@ public class MockVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
 
     private void Update()
     {
-        if (!IsListening)
+        if (!IsListening || !LocalInputContextGate.AllowsGameplayInput)
             return;
 
         if (Input.GetKeyDown(KeyCode.Return))

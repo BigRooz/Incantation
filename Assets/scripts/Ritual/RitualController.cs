@@ -122,7 +122,8 @@ public class RitualController : MonoBehaviour
 
     private void Update()
     {
-        if (!Application.isPlaying || !enableLearningMode || !HasPendingAlias())
+        if (!Application.isPlaying || !enableLearningMode ||
+            !LocalInputContextGate.AllowsGameplayInput || !HasPendingAlias())
             return;
 
         if (Input.GetKeyDown(KeyCode.A))

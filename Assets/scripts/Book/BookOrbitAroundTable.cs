@@ -43,7 +43,8 @@ public class BookOrbitAroundTable : MonoBehaviour
     {
         // TEST TEMPORAIRE
         // Appuie sur Espace pour envoyer le livre au joueur suivant
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (LocalInputContextGate.AllowsGameplayInput &&
+            Input.GetKeyDown(KeyCode.Space))
         {
             MoveToNextSeat();
         }

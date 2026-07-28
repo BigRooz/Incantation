@@ -47,7 +47,8 @@ public class DebugSeatFlowSimulator : MonoBehaviour
 
     private void Update()
     {
-        if (!Application.isPlaying || !enableKeyboardShortcuts)
+        if (!Application.isPlaying || !enableKeyboardShortcuts ||
+            !LocalInputContextGate.AllowsGameplayInput)
             return;
 
         if (Input.GetKeyDown(advanceTurnKey))

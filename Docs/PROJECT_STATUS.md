@@ -114,11 +114,14 @@ to the existing `THE CIRCLE` Book page while keeping the Book camera and `BookIn
 context active. `Take My Seat` is the sole action that enables Seat interaction and moves the
 local menu camera to the Lobby viewpoint. A player can therefore remain an unseated Circle
 member, review Book options, and continue contributing to the authoritative Circle count.
-The Circle `Back` action returns to the active Host lobby without disconnecting or changing
-membership. `Quit Ritual` is the separate destructive action: `RitualSealService` clears the
-Seal and pending state, uses `FishNetFoundationController.Disconnect()` to stop both local
-client and server, and the Book restores the Play page. Connected clients follow FishNet's
-existing disconnect/despawn cleanup and cannot retain the stopped Host's Circle roster entry.
+The Circle exit action uses authoritative `RitualSealService` role state. A Host sees `Back`,
+which returns to the active Host lobby without disconnecting or changing membership. A joined
+non-Host sees `Quit Ritual`, which uses the generic role-aware dispatcher to leave only that
+local client and return to Play. The Host lobby's separate `Quit Ritual` remains destructive:
+`RitualSealService` clears the Seal and pending state, uses
+`FishNetFoundationController.Disconnect()` to stop both local client and server, and the Book
+restores the Play page. Connected clients follow FishNet's existing disconnect/despawn cleanup
+and cannot retain the stopped Host's Circle roster entry.
 
 The current Seal directory is deliberately a Tugboat LAN diagnostic implementation. It is not
 authentication and does not replace the planned Steam lobby metadata or external production
@@ -130,6 +133,11 @@ the Seal field and enabled `Validate Seal` button are interactive; title and sta
 presentation-only. Uppercase normalized input, button state, and concise join status refresh
 silently without replaying the Book page transition. This presentation remains a consumer of
 `RitualSealService`; discovery and FishNet connection behavior are unchanged.
+Join Seal entry now holds the process-local `TextEntry` input context until it exits. Normal
+Book, movement, page, and spell-card shortcuts cannot react to Space, E, H, or typed Seal
+characters; Enter confirms once and Escape cancels once. Page changes, successful exit,
+cancellation, Book close, controller disable, and connection-loss navigation release the
+context so normal Book interaction is restored.
 
 ## Networking Foundation
 
