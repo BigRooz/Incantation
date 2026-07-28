@@ -231,6 +231,31 @@ active until validation succeeds, and FishNet connections are not restarted.
 path. Joined non-hosts clear only their local join state, stop their local FishNet client, and
 return to Play while the remote Host and other clients continue.
 
+## Authoritative Shared Book
+
+The physical `BookModel` in `MainGame` is one FishNet scene `NetworkObject`. It is not spawned
+per player and it has no client owner. The server/Host owns its simulation through
+`NetworkBookAuthority`; client calls into `BookMover` are consumed without starting a local
+movement coroutine.
+
+Existing ritual and Seat selection rules are unchanged. `RitualController`, `BookController`,
+and `SeatManager` still request movement to the same selected `Seat`. On the server,
+`NetworkBookAuthority` validates that Seat against `SeatManager`'s configured physical order,
+synchronizes its stable Seat ID plus movement sequence/active state, and permits the existing
+`BookMover` interpolation to run. The server clears the active state only after the authoritative
+movement duration, giving observers the same start/arrival lifecycle.
+A server-authoritative FishNet `NetworkTransform` replicates the resulting world position and
+rotation. Observers reproduce those transform snapshots and update `SeatManager.currentBookSeat`
+from the synchronized target Seat ID; they never select a destination or simulate a competing
+Book path.
+
+`BookPresentationState` is the replicated high-level presentation channel. It currently owns
+`Closed` and `Open`, exposes server-only mutation through `SetPresentationState`/`SetOpen`, and
+publishes observer change events. Future page turns, demon-hand beats, mood animations, ritual
+reactions, and VFX should extend or consume focused state on this same Book authority instead
+of creating per-client gameplay state. The current presentation components are not rewritten
+by this task.
+
 ## Runtime Validation
 
 The following networking behaviors have been successfully validated:
@@ -244,6 +269,9 @@ The following networking behaviors have been successfully validated:
 - Shutdown.
 - Authoritative synchronized ritual start still requires Host/client multiplayer Play Mode
   validation.
+- The shared Book code compiles against the Unity 6/FishNet project assemblies. Host plus
+  standalone-client movement, rotation, target Seat, late-turn drift, and open/closed
+  presentation still require multiplayer Play Mode validation.
 
 ## Network Startup Scene Flow
 
@@ -270,8 +298,9 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - Synchronized Lobby UI.
 - Removal of duplicated local lobby state.
 - Book systems consuming `NetworkPlayer`.
-- Multiplayer gameplay synchronization beyond the authoritative start handoff. Ongoing Book,
-  ritual, voice, timer, phrase, turn, and gameplay state remain unsynchronized.
+- Multiplayer gameplay synchronization beyond the authoritative start handoff and shared
+  physical Book. Ritual, voice, timer, phrase, turn, and remaining gameplay state are still
+  unsynchronized.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.

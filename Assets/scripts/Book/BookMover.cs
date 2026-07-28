@@ -1,6 +1,13 @@
 using System.Collections;
+using Incantation.Networking;
 using UnityEngine;
 
+/// <summary>
+/// Moves the single physical Book toward Seat destinations.
+/// In a FishNet session it delegates authority to NetworkBookAuthority so only the server
+/// starts the movement coroutine; offline Play Mode preserves the existing local path.
+/// </summary>
+[DisallowMultipleComponent]
 public class BookMover : MonoBehaviour
 {
     [Header("Mouvement")]
@@ -10,8 +17,32 @@ public class BookMover : MonoBehaviour
     [SerializeField] private bool enableDebugLogs = false;
 
     private Coroutine moveRoutine;
+    private NetworkBookAuthority networkAuthority;
+
+    private void Awake()
+    {
+        networkAuthority = GetComponent<NetworkBookAuthority>();
+    }
 
     public void MoveToSeat(Seat seat)
+    {
+        if (seat == null)
+            return;
+
+        if (networkAuthority != null && networkAuthority.IsNetworkSessionActive)
+        {
+            networkAuthority.TryMoveToSeat(seat);
+            return;
+        }
+
+        MoveToSeatAuthoritatively(seat);
+    }
+
+    /// <summary>
+    /// Executes the existing movement interpolation after authority has been resolved.
+    /// NetworkBookAuthority is the only network-session caller; offline flow calls it directly.
+    /// </summary>
+    public void MoveToSeatAuthoritatively(Seat seat)
     {
         if (seat == null)
             return;

@@ -236,13 +236,45 @@ Runtime behavior and ownership:
 
 Current `MainGame` setup:
 
-- `moveDuration`: `1.2` seconds. `Prototype tuning`.
+- `moveDuration`: `3` seconds. `Prototype tuning`.
 - `enableDebugLogs`: `false`.
 
 Notes:
 
 - `BookMover` moves the one real book transform.
+- In a FishNet session it delegates to `NetworkBookAuthority`. Only the server starts the
+  movement coroutine; clients receive the authoritative transform.
+- Offline Play Mode keeps the existing local movement path when the Book scene object is not
+  network-initialized.
 - It should not choose traversal, validate phrases, or own turn rules.
+
+## NetworkBookAuthority
+
+Required `BookModel` scene-object setup:
+
+- One FishNet `NetworkObject` on the same `BookModel` GameObject as `BookMover`.
+- `NetworkObject` has no client owner and is a scene object synchronized with `MainGame`.
+- One FishNet `NetworkTransform` on that GameObject.
+- `NetworkTransform` client authority: disabled.
+- `NetworkTransform` synchronize position: enabled.
+- `NetworkTransform` synchronize rotation: enabled.
+- `NetworkTransform` synchronize scale: disabled.
+- `NetworkTransform` interpolation: `3`.
+- `NetworkTransform` extrapolation: disabled.
+- One `NetworkBookAuthority` on that GameObject.
+
+Runtime ownership:
+
+- The Host/server is the only Book simulation and destination authority.
+- `TargetSeatId` is replicated from `SeatManager`'s stable configured physical-order ID.
+- `MovementSequence` identifies every authoritative move, including consecutive redirects, and
+  `IsMoving` synchronizes the server-owned start/arrival lifecycle.
+- Clients do not call a movement coroutine, choose a Seat, or write the transform.
+- `BookPresentationState` synchronizes `Closed`/`Open`; presentation consumers subscribe to
+  `PresentationStateChanged`.
+- Future demon-hand, page-turn, mood, ritual-reaction, and VFX state belongs on or behind this
+  same authoritative Book boundary. Do not add local gameplay state to `BookGhost` or create
+  another physical/network Book.
 
 ## BookController
 
