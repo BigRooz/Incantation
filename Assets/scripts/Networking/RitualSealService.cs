@@ -44,8 +44,20 @@ namespace Incantation.Networking
         private bool clientLeavePending;
         private float sealReplacementDeadline;
         private string pendingReplacementSeal = string.Empty;
-        private readonly Dictionary<string, float> knownLanSeals = new();
+        private readonly Dictionary<string, LanRitualAdvertisement> knownLanRitualsByHost = new();
         private readonly string instanceId = Guid.NewGuid().ToString("N");
+
+        private readonly struct LanRitualAdvertisement
+        {
+            public LanRitualAdvertisement(string seal, float lastSeen)
+            {
+                Seal = seal;
+                LastSeen = lastSeen;
+            }
+
+            public string Seal { get; }
+            public float LastSeen { get; }
+        }
 
         public static RitualSealService Instance { get; private set; }
         public string ActiveSeal { get; private set; } = string.Empty;
@@ -152,7 +164,8 @@ namespace Incantation.Networking
                 return false;
             }
 
-            if (!foundationController.IsHostRunning && !foundationController.StartHost())
+            if (!foundationController.IsHostRunning &&
+                (!foundationController.TrySelectAvailableHostPort() || !foundationController.StartHost()))
             {
                 SetStatus("The ritual could not be created.");
                 return false;
@@ -178,6 +191,11 @@ namespace Incantation.Networking
             if (foundationController == null || (!IsHostingRitual && !IsCreatingRitual))
             {
                 return false;
+            }
+
+            if (IsHostingRitual)
+            {
+                Broadcast($"WITHDRAW|{instanceId}");
             }
 
             ActiveSeal = string.Empty;
@@ -308,8 +326,7 @@ namespace Incantation.Networking
                 return false;
             }
 
-            if (knownLanSeals.TryGetValue(normalizedSeal, out float lastSeen) &&
-                Time.unscaledTime - lastSeen <= directoryLookupTimeout)
+            if (IsSealAdvertisedByAnotherHost(normalizedSeal))
             {
                 SetStatus("Seal already used");
                 return false;
@@ -368,11 +385,24 @@ namespace Incantation.Networking
                     continue;
                 }
 
+                if (parts[1] == "WITHDRAW")
+                {
+                    if (parts[2] != instanceId)
+                    {
+                        knownLanRitualsByHost.Remove(parts[2]);
+                    }
+
+                    continue;
+                }
+
                 if ((parts[1] == "ANNOUNCE" || parts[1] == "FULL") &&
                     parts.Length >= 4 && parts[^1] != instanceId)
                 {
-                    knownLanSeals[parts[2]] = Time.unscaledTime;
-                    if (sealReplacementPending && parts[2] == pendingReplacementSeal)
+                    string advertisedSeal = NormalizeSeal(parts[2]);
+                    string advertisedHostId = parts[^1];
+                    knownLanRitualsByHost[advertisedHostId] =
+                        new LanRitualAdvertisement(advertisedSeal, Time.unscaledTime);
+                    if (sealReplacementPending && advertisedSeal == pendingReplacementSeal)
                     {
                         pendingReplacementSeal = string.Empty;
                         sealReplacementPending = false;
@@ -435,6 +465,22 @@ namespace Incantation.Networking
             }
 
             return new string(characters);
+        }
+
+        private bool IsSealAdvertisedByAnotherHost(string seal)
+        {
+            float now = Time.unscaledTime;
+            foreach (KeyValuePair<string, LanRitualAdvertisement> entry in knownLanRitualsByHost)
+            {
+                if (entry.Key != instanceId &&
+                    entry.Value.Seal == seal &&
+                    now - entry.Value.LastSeen <= directoryLookupTimeout)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void Broadcast(string payload)

@@ -783,6 +783,12 @@ Book right page controller:
 - On the active Host page, `Seal: XXXX` is selectable only through the local Host presentation.
   Its editor uses the existing four-character input rules. Replacement status occupies the
   reserved line between Seal and player count; a conflict displays exactly `Seal already used`.
+- LAN discovery records advertisements by stable Host-session GUID and normalized Seal. Multiple
+  Hosts with different Seals remain independently discoverable; an edit conflicts only with a
+  live advertisement for the same normalized Seal.
+- The discovery window is best-effort rather than an atomic reservation. Quitting sends a
+  withdrawal for only the local Host session; other Host records and FishNet sessions are not
+  changed.
 
 - The existing Book page layout is artist-authored and must be preserved. Functional tasks may update text content, visibility, interactivity, collider state, and state-based colors, but must not change TMP alignment, RectTransform anchors or pivots, positions, dimensions, margins, font sizing, autosizing, spacing, or visual hierarchy unless a task explicitly requests a layout redesign.
 - `BookRightPageController` uses the serialized scene and prefab layout directly. It must not center, reposition, resize, or otherwise restore layout values at runtime when changing Book states; avoiding those mutations also prevents placement flashes during transitions.
@@ -841,8 +847,10 @@ Book right page controller:
   ritual, reports `Connection timed out.`, and restores Validate interaction. FishNet stop or
   rejection reports immediately and must not wait for this timeout.
 - Standalone builds must start from `Assets/Scenes/Bootstrap.unity`; `MainGame` remains the second
-  enabled Build Settings scene. Tugboat uses UDP port `7770`, and the host machine/firewall must
-  permit that port plus LAN directory UDP port `47742`. The Book never displays either endpoint.
+  enabled Build Settings scene. Tugboat begins at UDP port `7770`; Host creation keeps it when
+  locally available or selects the next available port in a bounded 100-port range. The
+  host machine/firewall must permit that range plus LAN directory UDP port `47742`. The Book
+  never displays an endpoint.
 - `SetSealText`, `SetPlayerCount`, and `SetPlayerNames` remain presentation hooks for the older right-page lobby layout. TASK-042's Seal state is owned by `RitualSealService`; Steam matchmaking and production player-list ownership remain future work.
 - Clearing a right-page entry sets its text to empty, removes its click action, restores its non-hover appearance, and disables only its assigned interaction Collider. The GameObject stays active, and no Collider is moved or resized.
 
@@ -916,9 +924,10 @@ Network Ready presentation:
 - Ready presentation refreshes from `NetworkPlayer.CircleRosterChanged`; do not add Update
   polling, hierarchy searches, serialized counts, or a second roster.
 - On the seated Circle page, an authoritative Host sees right title `RITUAL STATUS`. An
-  incomplete Ready check displays `Waiting for Priests to Ready Up` and `Ready: X / Y` with no
-  Start action. A non-empty fully Ready Circle displays `All Priests are Ready`, keeps the same
-  counter, and exposes `Start Ritual` only on right line 5 through
+  incomplete Ready check displays `Waiting for Priests to Ready Up` on right line 1, leaves
+  right line 2 empty, and displays `Ready: X / Y` on right line 3 with no Start action. A
+  non-empty fully Ready Circle displays `All Priests are Ready` on right line 1, keeps the same
+  counter on right line 3, and exposes `Start Ritual` only on right line 5 through
   `BookMenuController.StartRitualFromBook()`.
 - Joined clients never receive the Start action. A Ready client continues to display
   `Waiting for Host to Start the Ritual...`; its existing Ready/Unready interaction remains

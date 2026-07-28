@@ -1,4 +1,6 @@
 using System;
+using System.Net;
+using System.Net.Sockets;
 using FishNet.Managing;
 using FishNet.Managing.Scened;
 using FishNet.Transporting;
@@ -18,6 +20,7 @@ namespace Incantation.Networking
         private const string PortUnavailableMessage =
             "Server failed to start. Another server instance may already be using the configured port.";
         private const string GameplaySceneName = "MainGame";
+        private const int HostPortSearchCount = 100;
 
         private NetworkManager networkManager;
         private LocalConnectionState serverState = LocalConnectionState.Stopped;
@@ -148,6 +151,50 @@ namespace Incantation.Networking
             }
 
             HandleImmediateServerStartFailure();
+            return false;
+        }
+
+        /// <summary>
+        /// Selects the first locally available UDP port beginning with the configured transport
+        /// port. Hosts on different machines may keep the same port; additional Hosts on the
+        /// same machine receive an independent port advertised by RitualSealService.
+        /// </summary>
+        public bool TrySelectAvailableHostPort()
+        {
+            if (!CanStartHost)
+            {
+                return false;
+            }
+
+            Transport transport = GetTransport();
+            if (transport == null)
+            {
+                return false;
+            }
+
+            ushort firstPort = transport.GetPort();
+            for (int offset = 0; offset < HostPortSearchCount; offset++)
+            {
+                int candidateValue = firstPort + offset;
+                if (candidateValue > ushort.MaxValue)
+                {
+                    break;
+                }
+
+                ushort candidatePort = (ushort)candidateValue;
+                if (!IsUdpPortAvailable(candidatePort))
+                {
+                    continue;
+                }
+
+                transport.SetPort(candidatePort);
+                Debug.Log($"Selected FishNet Host port {candidatePort}.", this);
+                return true;
+            }
+
+            Debug.LogError(
+                $"No available FishNet Host port was found in the local range beginning at {firstPort}.",
+                this);
             return false;
         }
 
@@ -433,6 +480,19 @@ namespace Incantation.Networking
             return networkManager != null
                 ? networkManager.TransportManager.Transport
                 : null;
+        }
+
+        private static bool IsUdpPortAvailable(ushort port)
+        {
+            try
+            {
+                using UdpClient probe = new(new IPEndPoint(IPAddress.Any, port));
+                return true;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
         }
 
         private static string FormatState(LocalConnectionState state)

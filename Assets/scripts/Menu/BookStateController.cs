@@ -321,9 +321,9 @@ public sealed class BookStateController : MonoBehaviour
                     out rightTitleText,
                     out rightLine1Text,
                     out rightLine2Text,
+                    out rightLine3Text,
                     out rightLine5Text,
                     out rightLine5Action);
-                rightLine3Text = string.Empty;
                 break;
 
             default:
@@ -741,13 +741,14 @@ public sealed class BookStateController : MonoBehaviour
                 out string rightTitleText,
                 out string rightLine1Text,
                 out string rightLine2Text,
+                out string rightLine3Text,
                 out string rightLine5Text,
                 out UnityAction rightLine5Action);
             rightPageController?.RefreshLobbyContent(
                 rightTitleText,
                 rightLine1Text,
                 rightLine2Text,
-                string.Empty,
+                rightLine3Text,
                 null,
                 string.Empty,
                 null,
@@ -803,6 +804,7 @@ public sealed class BookStateController : MonoBehaviour
         out string titleText,
         out string line1Text,
         out string line2Text,
+        out string line3Text,
         out string line5Text,
         out UnityAction line5Action)
     {
@@ -819,10 +821,11 @@ public sealed class BookStateController : MonoBehaviour
                 : "Waiting for Priests to Ready Up"
             : $"Priests Ready ({readyCount} / {NetworkPlayer.MaximumCircleMembers})";
         line2Text = isHost
-            ? $"Ready: {readyCount} / {participantCount}"
+            ? string.Empty
             : isLocalPlayerReady
                 ? "Waiting for Host to Start the Ritual..."
                 : "Waiting for Host to Start the Ritual";
+        line3Text = isHost ? $"Ready: {readyCount} / {participantCount}" : string.Empty;
         line5Text = isHost && everyoneReady ? "Start Ritual" : string.Empty;
         line5Action = isHost && everyoneReady && bookMenuController != null
             ? bookMenuController.StartRitualFromBook

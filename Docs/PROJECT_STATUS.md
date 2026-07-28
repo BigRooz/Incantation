@@ -81,6 +81,8 @@ The current prototype includes:
 37. Server-authoritative Ready toggling and a synchronized Circle Ready counter.
 38. Server-authoritative ritual start with synchronized gameplay handoff to every connected
     Circle participant.
+39. Multiple simultaneous best-effort LAN Ritual advertisements with per-session identity,
+    exact-Seal lookup, and isolated FishNet Host ports.
 
 ## Ritual Creation
 
@@ -90,6 +92,20 @@ Creating starts the host, generates and displays an uppercase four-character Sea
 in the lobby without starting ritual gameplay. Joining accepts and normalizes a Seal, resolves
 the matching LAN host through `RitualSealService`, and supplies the resolved address to FishNet
 without displaying it to the player.
+
+Multiple Hosts may advertise independent Rituals on the same LAN. Each advertisement is keyed
+by the Host process's stable session GUID and carries that Host's normalized Seal and selected
+FishNet endpoint. Discovery retains separate records per Host instead of collapsing the LAN into
+one global Ritual. Different Seals coexist; only another live advertisement with the same
+normalized Seal conflicts. Join processing may observe multiple responses during its bounded
+lookup window, ignores every non-matching Seal, and starts FishNet only for the matching
+advertised endpoint.
+
+Before starting FishNet, a Host keeps the configured Tugboat UDP port when it is locally
+available or selects the next available port from a bounded local range. Hosts on different
+machines may therefore use the same port, while multiple local diagnostic Hosts remain isolated.
+Quitting broadcasts a withdrawal for only that Host session before stopping its FishNet server;
+unexpectedly stopped advertisements expire from other processes' bounded discovery memory.
 
 Selecting `Create Ritual` begins one genuine Book navigation transition; the redundant
 pre-creation confirmation remains bypassed. Host creation starts from the transition's
@@ -125,7 +141,8 @@ local client and return to Play. The Host lobby's separate `Quit Ritual` remains
 restores the Play page. Connected clients follow FishNet's existing disconnect/despawn cleanup
 and cannot retain the stopped Host's Circle roster entry.
 
-The current Seal directory is deliberately a Tugboat LAN diagnostic implementation. It is not
+The current Seal directory is deliberately a best-effort Tugboat LAN diagnostic implementation.
+Its duplicate detection is a bounded observation window, not an atomic reservation. It is not
 authentication and does not replace the planned Steam lobby metadata or external production
 directory. The diagnostic FishNet HUD remains available for debug mode only.
 
@@ -201,6 +218,8 @@ or restores that action. Joined clients never receive Start authority; a Ready c
 to see `Waiting for Host to Start the Ritual...`. The action submits the authoritative request;
 only the server broadcast delegates every peer to the existing
 Book-to-`LobbyController.StartLobbyRitual()` flow.
+The Host status message uses right line 1, right line 2 remains clear, and the Ready counter uses
+right line 3 so the two visible entries do not overlap. Joined-client line placement is unchanged.
 
 Priest Name is likewise server-owned on each `NetworkPlayer`: owners submit validated names by
 ServerRpc and all peers consume its SyncVar, including spawn state for late join. The Circle Book
@@ -345,4 +364,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-28 after adding authoritative synchronized ritual start.
+2026-07-28 after adding simultaneous LAN Ritual discovery and correcting Host Ready layout.
