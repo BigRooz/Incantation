@@ -275,7 +275,8 @@ Required `SharedBookNetworkAuthority` scene-object setup:
 - One `NetworkRitualAuthority` on the same proxy GameObject.
 - `seatManager`: assign the existing `SeatManager` on the `SeatSystem` scene object. This is a
   local source registry only; no `Seat` or scene reference is synchronized.
-- `NetworkRitualAuthority` does not control the Book or existing ritual flow.
+- `NetworkRitualAuthority` owns semantic Book movement requests and authoritative arrival
+  acceptance, but does not interpolate the Book or start existing ritual gameplay.
 
 Runtime ownership:
 
@@ -304,6 +305,9 @@ members and their authoritative `NetworkPlayer.SeatId` assignments, then copies 
 After a roster is locked, the server-only `Commit Next Active Participant` action advances
 circularly through that immutable order, skipping entries that are inactive or not alive.
 It changes only synchronized active-player, active-Seat, and turn-sequence values.
+Accepted Book commands are executed by `NetworkBookAuthority`, which reports duration-based
+completion to `NetworkRitualAuthority`. The authority validates the movement, ritual, turn, and
+Seat identifiers before publishing its immutable arrival state and read-only notification.
 The separate deterministic snapshot action remains development-only and is never automatic.
 
 ## BookController
@@ -315,7 +319,7 @@ Current setup:
 Notes:
 
 - `BookController` is an adapter around `BookMover`.
-- Arrival is currently duration-based using `BookMover.moveDuration`.
+- Its legacy arrival callback remains duration-based using `BookMover.moveDuration`.
 - Future improvement: replace duration-based arrival with a true movement completion callback.
 
 ## DemonHandController

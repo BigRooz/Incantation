@@ -116,10 +116,13 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
     and Seat assignments in `SeatManager` physical traversal order.
   - Is the sole multiplayer writer for active player and active Seat. Its one deterministic
     commit method traverses the authoritative roster and skips inactive or eliminated entries.
-  - Replicates value-only ritual/roster snapshots and publishes coalesced read-only events.
-  - Lives on the existing `SharedBookNetworkAuthority` scene object but does not move the Book,
-    run timers, activate voice, validate phrases, start legacy turns, or control current
-    gameplay execution.
+  - Is the sole multiplayer issuer of Book movement commands and the sole gameplay authority
+    that validates and accepts Book arrival reports.
+  - Replicates value-only ritual, roster, and arrival snapshots and publishes coalesced
+    read-only events.
+  - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
+    Book, run timers, activate voice, validate phrases, start legacy turns, or control current
+    consequence flow.
 - `Assets/Scripts/Ritual/RitualController.cs`
   - Current prototype orchestrator.
   - Selects occupied seats through `SeatManager`.
@@ -223,7 +226,7 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 - `Assets/Scripts/Book/BookController.cs`
   - Focused adapter around `BookMover`.
   - Raises movement and ritual accepted events.
-  - Arrival is currently duration-based because `BookMover` does not expose a true arrival callback.
+  - Its duration-based arrival remains a temporary legacy gameplay callback.
 
 - `Assets/Scripts/Book/BookFeedbackController.cs`, `BookTextMagicEffect.cs`, and related book visual scripts
   - Visual or feedback support.

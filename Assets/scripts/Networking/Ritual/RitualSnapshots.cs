@@ -96,6 +96,7 @@ namespace Incantation.Networking.Ritual
             string activePlayerId,
             RitualRosterSnapshot roster,
             RitualTurnSnapshot turn,
+            RitualBookArrivalSnapshot bookArrival,
             RitualPhraseSnapshot phrase,
             RitualOutcomeSnapshot outcome,
             bool isGameOver,
@@ -110,6 +111,7 @@ namespace Incantation.Networking.Ritual
             ActivePlayerId = activePlayerId ?? string.Empty;
             Roster = roster;
             Turn = turn;
+            BookArrival = bookArrival;
             Phrase = phrase;
             Outcome = outcome;
             IsGameOver = isGameOver;
@@ -125,6 +127,7 @@ namespace Incantation.Networking.Ritual
         public string ActivePlayerId { get; }
         public RitualRosterSnapshot Roster { get; }
         public RitualTurnSnapshot Turn { get; }
+        public RitualBookArrivalSnapshot BookArrival { get; }
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }
         public bool IsGameOver { get; }

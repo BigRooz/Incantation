@@ -30,6 +30,9 @@ namespace Incantation.Networking
         [SerializeField] private Transform presentationTransform;
 
         private SeatManager seatManager;
+        private NetworkRitualAuthority ritualAuthority;
+        private RitualBookMovementCommand activeMovementCommand;
+        private bool hasActiveMovementCommand;
 
         public static NetworkBookAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
@@ -135,6 +138,8 @@ namespace Incantation.Networking
             targetSeatId.Value = command.TargetSeatId;
             movementSequence.Value = command.MovementSequence;
             isMoving.Value = true;
+            activeMovementCommand = command;
+            hasActiveMovementCommand = true;
             resolvedSeatManager.SetCurrentBookSeat(targetSeat);
             bookMover.MoveToSeatAuthoritatively(targetSeat);
             StartCoroutine(CompleteMovementAfterDuration(command.MovementSequence));
@@ -206,14 +211,50 @@ namespace Incantation.Networking
             return seatManager;
         }
 
+        private NetworkRitualAuthority ResolveRitualAuthority()
+        {
+            if (ritualAuthority == null)
+                ritualAuthority = GetComponent<NetworkRitualAuthority>();
+
+            return ritualAuthority;
+        }
+
         private IEnumerator CompleteMovementAfterDuration(uint expectedSequence)
         {
             float duration = Mathf.Max(0f, bookMover.moveDuration);
             if (duration > 0f)
                 yield return new WaitForSeconds(duration);
 
-            if (IsServerInitialized && movementSequence.Value == expectedSequence)
-                isMoving.Value = false;
+            if (!IsServerInitialized ||
+                movementSequence.Value != expectedSequence ||
+                !hasActiveMovementCommand ||
+                activeMovementCommand.MovementSequence != expectedSequence)
+            {
+                yield break;
+            }
+
+            RitualBookMovementCommand completedCommand = activeMovementCommand;
+            hasActiveMovementCommand = false;
+            isMoving.Value = false;
+
+            double completionNetworkTime = TimeManager != null
+                ? TimeManager.TicksToTime()
+                : 0d;
+            RitualBookArrivalReport report = new(
+                completedCommand.MovementSequence,
+                completedCommand.RitualSequence,
+                completedCommand.TurnSequence,
+                completedCommand.TargetSeatId,
+                completionNetworkTime);
+
+            NetworkRitualAuthority resolvedRitualAuthority = ResolveRitualAuthority();
+            if (resolvedRitualAuthority == null ||
+                !resolvedRitualAuthority.TryCommitBookArrival(report))
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkBookAuthority)} completed movement {expectedSequence}, but NetworkRitualAuthority rejected or could not receive its arrival report.",
+                    this);
+            }
         }
     }
 

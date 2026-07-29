@@ -1072,12 +1072,18 @@ Book movement command ownership now also belongs to `NetworkRitualAuthority`. It
 `TryRequestBookMoveToCurrentParticipant()` validates the locked roster, active/alive
 participant, configured target Seat ID, and one-request-per-turn invariant before issuing an
 immutable stable-ID `RitualBookMovementCommand`. `NetworkBookAuthority` accepts only that
-command and remains the physical interpolation, synchronization, and legacy arrival owner; it
-does not select a target or advance ritual state. `BookMover` temporarily converts the legacy
+command and remains the physical interpolation, synchronization, and movement-completion
+detector; it does not select a target or advance ritual state. On completion it reports an
+immutable stable-data `RitualBookArrivalReport` to the server-only
+`NetworkRitualAuthority.TryCommitBookArrival()` entry point. Ritual authority rejects stale,
+duplicate, mismatched movement, ritual, turn, and target identifiers before publishing the
+latest immutable arrival snapshot and one read-only notification. No gameplay starts from that
+notification yet. `BookMover` temporarily converts the legacy
 ritual target to a stable Seat ID and forwards it through the ritual authority, while offline
-movement retains the original direct interpolation path. Timers, voice, phrases, validation,
-success/failure, elimination, ritual phases, and arrival remain legacy-owned until their focused
-migration tasks.
+movement retains the original direct interpolation path. `BookController.OnArrived` remains
+temporarily intact only to preserve the current legacy ritual callback. Timers, voice, phrases,
+validation, success/failure, elimination, and ritual phases remain legacy-owned until their
+focused migration tasks.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

@@ -8,9 +8,9 @@ using UnityEngine;
 namespace Incantation.Networking
 {
     /// <summary>
-    /// Replicates the server-owned ritual snapshot foundation without controlling gameplay.
-    /// Existing ritual, Book, timer, phrase, voice, outcome, and elimination systems do not
-    /// consume or write this state.
+    /// Owns the server-authoritative ritual snapshot, roster, active participant, semantic Book
+    /// movement requests, and accepted Book arrival state. Physical Book execution and current
+    /// timer, phrase, voice, outcome, and elimination gameplay remain outside this component.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
@@ -50,6 +50,13 @@ namespace Incantation.Networking
         private readonly SyncVar<uint> requestedBookMovementSequence = new(0);
         private readonly SyncVar<uint> requestedBookMovementTurnSequence = new(0);
         private readonly SyncVar<int> requestedBookTargetSeatId = new(NoSeatId);
+        private readonly SyncVar<uint> acceptedBookArrivalMovementSequence = new(0);
+        private readonly SyncVar<uint> acceptedBookArrivalRitualSequence = new(0);
+        private readonly SyncVar<uint> acceptedBookArrivalTurnSequence = new(0);
+        private readonly SyncVar<int> acceptedBookArrivalTargetSeatId = new(NoSeatId);
+        private readonly SyncVar<string> acceptedBookArrivalPlayerId = new(string.Empty);
+        private readonly SyncVar<double> acceptedBookArrivalNetworkTime = new(0d);
+        private readonly SyncVar<uint> bookArrivalRevision = new(0);
         private readonly SyncVar<uint> snapshotRevision = new(0);
 
         [Header("Ritual Roster Source")]
@@ -57,6 +64,7 @@ namespace Incantation.Networking
 
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
+        private bool bookArrivalNotificationPending;
         private bool ownsDiscoveryReference;
         private NetworkBookAuthority networkBookAuthority;
 
@@ -70,6 +78,7 @@ namespace Incantation.Networking
         public string CurrentActivePlayerId => activePlayerId.Value;
         public int CurrentActiveSeatId => activeSeatId.Value;
         public uint RequestedBookMovementSequence => requestedBookMovementSequence.Value;
+        public RitualBookArrivalSnapshot BookArrival => CreateBookArrivalSnapshot();
         public RitualRosterEntrySnapshot? CurrentActiveParticipant =>
             TryGetCurrentActiveParticipant(out RitualRosterEntrySnapshot participant)
                 ? participant
@@ -77,6 +86,7 @@ namespace Incantation.Networking
 
         public event Action<RitualSnapshot> SnapshotChanged;
         public event Action<RitualRosterSnapshot> RosterChanged;
+        public event Action<RitualBookArrivalSnapshot> BookArrivalAccepted;
 
         private void OnEnable()
         {
@@ -91,7 +101,9 @@ namespace Incantation.Networking
 
         private void LateUpdate()
         {
-            if ((!snapshotNotificationPending && !rosterNotificationPending) ||
+            if ((!snapshotNotificationPending &&
+                 !rosterNotificationPending &&
+                 !bookArrivalNotificationPending) ||
                 !ownsDiscoveryReference)
                 return;
 
@@ -116,9 +128,15 @@ namespace Incantation.Networking
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log(
-                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
                     this);
 #endif
+            }
+
+            if (bookArrivalNotificationPending)
+            {
+                bookArrivalNotificationPending = false;
+                BookArrivalAccepted?.Invoke(CreateBookArrivalSnapshot());
             }
         }
 
@@ -130,6 +148,7 @@ namespace Incantation.Networking
                 return;
 
             rosterRevision.OnChange += HandleRosterRevisionChanged;
+            bookArrivalRevision.OnChange += HandleBookArrivalRevisionChanged;
             snapshotRevision.OnChange += HandleSnapshotRevisionChanged;
             rosterNotificationPending = true;
             snapshotNotificationPending = true;
@@ -138,9 +157,11 @@ namespace Incantation.Networking
         public override void OnStopNetwork()
         {
             rosterRevision.OnChange -= HandleRosterRevisionChanged;
+            bookArrivalRevision.OnChange -= HandleBookArrivalRevisionChanged;
             snapshotRevision.OnChange -= HandleSnapshotRevisionChanged;
             rosterNotificationPending = false;
             snapshotNotificationPending = false;
+            bookArrivalNotificationPending = false;
             ReleaseDiscoveryReference();
             base.OnStopNetwork();
         }
@@ -411,6 +432,96 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Accepts one server-detected completion for the current authoritative movement.
+        /// This publishes arrival state only; it does not start gameplay or advance the ritual.
+        /// </summary>
+        public bool TryCommitBookArrival(RitualBookArrivalReport report)
+        {
+            if (!IsServerInitialized)
+                return RejectBookArrival("Only the server may commit Book arrival.");
+
+            if (report.MovementSequence == 0)
+                return RejectBookArrival("Movement sequence 0 is invalid.");
+
+            if (report.MovementSequence == acceptedBookArrivalMovementSequence.Value)
+            {
+                return RejectBookArrival(
+                    $"Movement {report.MovementSequence} arrival was already accepted.");
+            }
+
+            if (report.MovementSequence < requestedBookMovementSequence.Value)
+            {
+                return RejectBookArrival(
+                    $"Movement {report.MovementSequence} is stale; current request is {requestedBookMovementSequence.Value}.");
+            }
+
+            if (report.MovementSequence != requestedBookMovementSequence.Value)
+            {
+                return RejectBookArrival(
+                    $"Movement {report.MovementSequence} does not match current request {requestedBookMovementSequence.Value}.");
+            }
+
+            if (report.TurnSequence != requestedBookMovementTurnSequence.Value ||
+                report.TurnSequence != turnSequence.Value)
+            {
+                return RejectBookArrival(
+                    $"Turn {report.TurnSequence} does not match requested turn {requestedBookMovementTurnSequence.Value} and active turn {turnSequence.Value}.");
+            }
+
+            if (report.TargetSeatId != requestedBookTargetSeatId.Value ||
+                report.TargetSeatId != activeSeatId.Value)
+            {
+                return RejectBookArrival(
+                    $"Target Seat {report.TargetSeatId} does not match requested Seat {requestedBookTargetSeatId.Value} and active Seat {activeSeatId.Value}.");
+            }
+
+            if (report.RitualSequence != ritualSequence.Value)
+            {
+                return RejectBookArrival(
+                    $"Ritual {report.RitualSequence} does not match active ritual {ritualSequence.Value}.");
+            }
+
+            if (double.IsNaN(report.CompletionNetworkTime) ||
+                double.IsInfinity(report.CompletionNetworkTime) ||
+                report.CompletionNetworkTime < 0d)
+            {
+                return RejectBookArrival(
+                    $"Completion time {report.CompletionNetworkTime} is invalid.");
+            }
+
+            if (!TryGetCurrentActiveParticipant(
+                    out RitualRosterEntrySnapshot participant) ||
+                !participant.IsActive ||
+                !participant.IsAlive ||
+                participant.SeatId != report.TargetSeatId)
+            {
+                return RejectBookArrival(
+                    "The completion does not belong to the current active, alive participant.");
+            }
+
+            acceptedBookArrivalMovementSequence.Value = report.MovementSequence;
+            acceptedBookArrivalRitualSequence.Value = report.RitualSequence;
+            acceptedBookArrivalTurnSequence.Value = report.TurnSequence;
+            acceptedBookArrivalTargetSeatId.Value = report.TargetSeatId;
+            acceptedBookArrivalPlayerId.Value = participant.PlayerId;
+            acceptedBookArrivalNetworkTime.Value = report.CompletionNetworkTime;
+            bookArrivalRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Book Arrival Accepted\n" +
+                $"MovementSequence = {report.MovementSequence}\n" +
+                $"RitualSequence = {report.RitualSequence}\n" +
+                $"TurnSequence = {report.TurnSequence}\n" +
+                $"Seat = {report.TargetSeatId}\n" +
+                $"Player = {participant.PlayerId}\n" +
+                $"CompletionTime = {report.CompletionNetworkTime}",
+                this);
+            return true;
+        }
+
+        /// <summary>
         /// Validates and locks one server-owned ritual roster from the approved NetworkPlayer
         /// assignments in SeatManager's configured physical traversal.
         /// </summary>
@@ -554,6 +665,7 @@ namespace Incantation.Networking
                 activeSeatId.Value,
                 turnStartNetworkTime.Value,
                 timerDeadlineNetworkTime.Value);
+            RitualBookArrivalSnapshot bookArrival = CreateBookArrivalSnapshot();
             RitualPhraseSnapshot phrase = new(
                 new RitualPhraseSequenceId(phraseVersion.Value),
                 new RitualWordSequenceId((uint)Mathf.Max(0, expectedWordIndex.Value)),
@@ -577,6 +689,7 @@ namespace Incantation.Networking
                 activePlayerId.Value,
                 CreateRosterSnapshot(),
                 turn,
+                bookArrival,
                 phrase,
                 outcome,
                 isGameOver.Value,
@@ -604,6 +717,17 @@ namespace Incantation.Networking
                 entries);
         }
 
+        private RitualBookArrivalSnapshot CreateBookArrivalSnapshot()
+        {
+            return new RitualBookArrivalSnapshot(
+                acceptedBookArrivalMovementSequence.Value,
+                new RitualSequenceId(acceptedBookArrivalRitualSequence.Value),
+                new RitualTurnSequenceId(acceptedBookArrivalTurnSequence.Value),
+                acceptedBookArrivalTargetSeatId.Value,
+                acceptedBookArrivalPlayerId.Value,
+                acceptedBookArrivalNetworkTime.Value);
+        }
+
         private NetworkBookAuthority ResolveBookAuthority()
         {
             if (networkBookAuthority == null)
@@ -617,6 +741,16 @@ namespace Incantation.Networking
             Debug.LogWarning(
                 "[RitualAuthority]\n" +
                 "Book Movement Rejected\n" +
+                $"Reason = {reason}",
+                this);
+            return false;
+        }
+
+        private bool RejectBookArrival(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Book Arrival Rejected\n" +
                 $"Reason = {reason}",
                 this);
             return false;
@@ -851,6 +985,14 @@ namespace Incantation.Networking
             bool asServer)
         {
             rosterNotificationPending = true;
+        }
+
+        private void HandleBookArrivalRevisionChanged(
+            uint previousRevision,
+            uint currentRevision,
+            bool asServer)
+        {
+            bookArrivalNotificationPending = true;
         }
 
         private void HandleSnapshotRevisionChanged(

@@ -90,6 +90,9 @@ The current prototype includes:
 42. Server-owned active participant selection that advances through the authoritative roster,
     skips inactive or eliminated entries, and publishes active player/Seat state without yet
     driving legacy ritual execution.
+43. Server-owned Book movement request and arrival acceptance that validate stable ritual,
+    turn, movement, player, and Seat identity while leaving current timer, voice, phrase, and
+    consequence gameplay on the legacy path.
 
 ## Ritual Creation
 
@@ -252,12 +255,15 @@ the proxy, `NetworkBookAuthority` binds to the existing `BookMover` and presenta
 preserves their current world pose, and begins server-authoritative synchronization. It never
 spawns or replaces the visible Book.
 
-Existing ritual and Seat selection rules are unchanged. `RitualController`, `BookController`,
-and `SeatManager` still request movement to the same selected `Seat`. On the server,
-`NetworkBookAuthority` validates that Seat against `SeatManager`'s configured physical order,
-synchronizes its stable Seat ID plus movement sequence/active state, and permits the existing
-`BookMover` interpolation to run. The server clears the active state only after the authoritative
-movement duration, giving observers the same start/arrival lifecycle.
+Existing ritual and Seat selection behavior remains available through a compatibility bridge.
+`BookMover` converts the legacy destination to a stable Seat ID and forwards it to
+`NetworkRitualAuthority`, which is the sole multiplayer issuer of movement commands.
+`NetworkBookAuthority` executes the accepted command, synchronizes its stable Seat ID plus
+movement sequence/active state, and runs the existing `BookMover` interpolation. At the end of
+the authoritative movement duration it reports stable completion data back to ritual authority.
+Only `NetworkRitualAuthority` validates and accepts the arrival, publishes the immutable arrival
+snapshot, and raises its read-only notification. The existing `BookController.OnArrived` callback
+remains temporarily intact to preserve the legacy ritual without making it authoritative.
 A server-authoritative FishNet `NetworkTransform` replicates the resulting world position and
 rotation on the invisible proxy. The Host copies the persistent Book pose into that proxy;
 client-only observers apply the proxy pose to their existing local `BookModel` presentation.
@@ -341,7 +347,8 @@ When a bug becomes part of the current project state, add it here briefly and re
 - Runtime orchestration is still split between the working `RitualController` surface and cleaner core-loop direction.
 - Core-loop turn indexing must eventually reconcile with physical Seat objects while leaving physical order authority in `SeatManager`.
 - Legacy incantation display paths still depend on `IncantationManager`.
-- `BookController` arrival is duration-based because `BookMover` does not expose a true completion callback.
+- Network arrival detection and legacy `BookController` arrival remain duration-based because
+  `BookMover` does not expose a true completion callback.
 - Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
 - `LobbyPlayerStateController` still duplicates lobby state while the Living Book flow is preserved; it must become an adapter/consumer of authoritative `NetworkPlayer` state.
