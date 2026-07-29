@@ -2,13 +2,14 @@ using System;
 using System.Collections;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
+using Incantation.Networking.Ritual;
 using UnityEngine;
 
 namespace Incantation.Networking
 {
     /// <summary>
     /// Owns the invisible network proxy for the single persistent ritual Book presentation.
-    /// The server selects movement commands and copies the existing Book pose into NetworkTransform;
+    /// The server executes movement commands and copies the existing Book pose into NetworkTransform;
     /// client observers apply that proxy pose and synchronized Seat/presentation state to their
     /// existing BookModel without spawning or simulating another Book.
     /// </summary>
@@ -101,36 +102,42 @@ namespace Incantation.Networking
         }
 
         /// <summary>
-        /// Consumes a Book movement request. Only the server may turn it into physical movement.
-        /// Clients return without moving so their NetworkTransform remains observer-driven.
+        /// Executes an authoritative stable-data movement command. Target and player selection
+        /// have already occurred in NetworkRitualAuthority.
         /// </summary>
-        public bool TryMoveToSeat(Seat seat)
+        public bool TryExecuteMovementCommand(RitualBookMovementCommand command)
         {
-            if (!IsNetworkSessionActive || seat == null || bookMover == null)
+            if (!IsServerInitialized || bookMover == null)
                 return false;
 
-            if (!IsServerInitialized)
-                return true;
-
             SeatManager resolvedSeatManager = ResolveSeatManager();
-            int resolvedSeatId = resolvedSeatManager != null
-                ? resolvedSeatManager.GetSeatId(seat)
-                : NetworkPlayer.UnassignedSeatId;
-
-            if (resolvedSeatId == NetworkPlayer.UnassignedSeatId)
+            Seat targetSeat = resolvedSeatManager != null
+                ? resolvedSeatManager.GetSeatById(command.TargetSeatId)
+                : null;
+            if (targetSeat == null)
             {
                 Debug.LogWarning(
-                    $"{nameof(NetworkBookAuthority)} rejected movement to {seat.name} because it is not in SeatManager's configured physical order.",
+                    $"{nameof(NetworkBookAuthority)} rejected movement command {command.MovementSequence} because target Seat ID {command.TargetSeatId} is not configured.",
                     this);
-                return true;
+                return false;
             }
 
-            targetSeatId.Value = resolvedSeatId;
-            movementSequence.Value++;
+            uint expectedMovementSequence = movementSequence.Value + 1;
+            if (movementSequence.Value == uint.MaxValue ||
+                command.MovementSequence != expectedMovementSequence)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkBookAuthority)} rejected movement command {command.MovementSequence}; expected sequence {expectedMovementSequence}.",
+                    this);
+                return false;
+            }
+
+            targetSeatId.Value = command.TargetSeatId;
+            movementSequence.Value = command.MovementSequence;
             isMoving.Value = true;
-            resolvedSeatManager.SetCurrentBookSeat(seat);
-            bookMover.MoveToSeatAuthoritatively(seat);
-            StartCoroutine(CompleteMovementAfterDuration(movementSequence.Value));
+            resolvedSeatManager.SetCurrentBookSeat(targetSeat);
+            bookMover.MoveToSeatAuthoritatively(targetSeat);
+            StartCoroutine(CompleteMovementAfterDuration(command.MovementSequence));
             return true;
         }
 

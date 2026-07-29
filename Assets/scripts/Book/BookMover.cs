@@ -4,8 +4,8 @@ using UnityEngine;
 
 /// <summary>
 /// Moves the single physical Book toward Seat destinations.
-/// In a FishNet session it delegates authority to NetworkBookAuthority so only the server
-/// starts the movement coroutine; offline Play Mode preserves the existing local path.
+/// In a FishNet session it forwards legacy requests to NetworkRitualAuthority; offline Play
+/// Mode preserves the existing local path.
 /// </summary>
 [DisallowMultipleComponent]
 public class BookMover : MonoBehaviour
@@ -18,6 +18,8 @@ public class BookMover : MonoBehaviour
 
     private Coroutine moveRoutine;
     private NetworkBookAuthority networkAuthority;
+    private NetworkRitualAuthority ritualAuthority;
+    private SeatManager seatManager;
 
     private void Awake()
     {
@@ -32,7 +34,24 @@ public class BookMover : MonoBehaviour
         NetworkBookAuthority resolvedNetworkAuthority = ResolveNetworkAuthority();
         if (resolvedNetworkAuthority != null && resolvedNetworkAuthority.IsNetworkSessionActive)
         {
-            resolvedNetworkAuthority.TryMoveToSeat(seat);
+            NetworkRitualAuthority resolvedRitualAuthority = ResolveRitualAuthority();
+            SeatManager resolvedSeatManager = ResolveSeatManager();
+            int seatId = resolvedSeatManager != null
+                ? resolvedSeatManager.GetSeatId(seat)
+                : NetworkPlayer.UnassignedSeatId;
+
+            if (resolvedRitualAuthority == null ||
+                seatId == NetworkPlayer.UnassignedSeatId)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority]\n" +
+                    "Book Movement Rejected\n" +
+                    "Reason = Legacy BookMover could not resolve ritual authority or a stable target Seat ID.",
+                    this);
+                return;
+            }
+
+            resolvedRitualAuthority.TryForwardLegacyBookMoveRequest(seatId);
             return;
         }
 
@@ -116,5 +135,27 @@ public class BookMover : MonoBehaviour
         }
 
         return networkAuthority;
+    }
+
+    private NetworkRitualAuthority ResolveRitualAuthority()
+    {
+        if (ritualAuthority == null)
+            ritualAuthority = NetworkRitualAuthority.Instance;
+
+        if (ritualAuthority == null)
+        {
+            ritualAuthority = FindFirstObjectByType<NetworkRitualAuthority>(
+                FindObjectsInactive.Include);
+        }
+
+        return ritualAuthority;
+    }
+
+    private SeatManager ResolveSeatManager()
+    {
+        if (seatManager == null)
+            seatManager = FindFirstObjectByType<SeatManager>(FindObjectsInactive.Include);
+
+        return seatManager;
     }
 }

@@ -1067,9 +1067,17 @@ Active participant ownership now belongs to `NetworkRitualAuthority`. One server
 physical traversal order, skips inactive or non-alive entries, validates current active state,
 and commits active player ID, active Seat ID, and the next turn sequence before publishing one
 snapshot revision. Clients have read-only active participant queries and no RPC mutation path.
-The legacy `RitualController` remains operational and is not connected to these values yet, so
-Book movement, timers, voice, phrases, success/failure, elimination, and ritual phases retain
-their current behavior until their focused migration tasks.
+
+Book movement command ownership now also belongs to `NetworkRitualAuthority`. Its server-only
+`TryRequestBookMoveToCurrentParticipant()` validates the locked roster, active/alive
+participant, configured target Seat ID, and one-request-per-turn invariant before issuing an
+immutable stable-ID `RitualBookMovementCommand`. `NetworkBookAuthority` accepts only that
+command and remains the physical interpolation, synchronization, and legacy arrival owner; it
+does not select a target or advance ritual state. `BookMover` temporarily converts the legacy
+ritual target to a stable Seat ID and forwards it through the ritual authority, while offline
+movement retains the original direct interpolation path. Timers, voice, phrases, validation,
+success/failure, elimination, ritual phases, and arrival remain legacy-owned until their focused
+migration tasks.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

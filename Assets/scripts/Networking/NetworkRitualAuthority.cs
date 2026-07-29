@@ -14,6 +14,7 @@ namespace Incantation.Networking
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
+    [RequireComponent(typeof(NetworkBookAuthority))]
     public sealed class NetworkRitualAuthority : NetworkBehaviour
     {
         public const int NoPlayerId = -1;
@@ -46,6 +47,9 @@ namespace Incantation.Networking
         private readonly SyncVar<uint> completedRotationCount = new(0);
         private readonly SyncList<NetworkRitualRosterEntry> ritualRoster = new();
         private readonly SyncVar<uint> rosterRevision = new(0);
+        private readonly SyncVar<uint> requestedBookMovementSequence = new(0);
+        private readonly SyncVar<uint> requestedBookMovementTurnSequence = new(0);
+        private readonly SyncVar<int> requestedBookTargetSeatId = new(NoSeatId);
         private readonly SyncVar<uint> snapshotRevision = new(0);
 
         [Header("Ritual Roster Source")]
@@ -54,6 +58,7 @@ namespace Incantation.Networking
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
         private bool ownsDiscoveryReference;
+        private NetworkBookAuthority networkBookAuthority;
 
         public static NetworkRitualAuthority Instance { get; private set; }
         public RitualSnapshot Snapshot => CreateSnapshot();
@@ -64,6 +69,7 @@ namespace Incantation.Networking
         public RitualRosterEntrySnapshot[] EliminatedPlayers => Roster.EliminatedPlayers;
         public string CurrentActivePlayerId => activePlayerId.Value;
         public int CurrentActiveSeatId => activeSeatId.Value;
+        public uint RequestedBookMovementSequence => requestedBookMovementSequence.Value;
         public RitualRosterEntrySnapshot? CurrentActiveParticipant =>
             TryGetCurrentActiveParticipant(out RitualRosterEntrySnapshot participant)
                 ? participant
@@ -75,6 +81,7 @@ namespace Incantation.Networking
         private void OnEnable()
         {
             TryClaimDiscoveryReference();
+            ResolveBookAuthority();
         }
 
         private void OnDisable()
@@ -279,6 +286,131 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Issues the one semantic Book command permitted for the current authoritative turn.
+        /// Physical movement and arrival remain owned by NetworkBookAuthority.
+        /// </summary>
+        public bool TryRequestBookMoveToCurrentParticipant()
+        {
+            if (!IsServerInitialized)
+                return RejectBookMovement("Only the server may request Book movement.");
+
+            RitualRosterSnapshot roster = CreateRosterSnapshot();
+            if (roster.Version == 0 || roster.Count == 0)
+                return RejectBookMovement("The authoritative ritual roster is unavailable.");
+
+            if (!TryGetCurrentActiveParticipant(
+                    out RitualRosterEntrySnapshot participant))
+            {
+                return RejectBookMovement(
+                    "The authoritative active participant is unavailable or inconsistent.");
+            }
+
+            if (!participant.IsActive || !participant.IsAlive)
+            {
+                return RejectBookMovement(
+                    $"Player {participant.PlayerId} is not an active, alive participant.");
+            }
+
+            if (seatManager == null ||
+                seatManager.GetSeatById(participant.SeatId) == null)
+            {
+                return RejectBookMovement(
+                    $"Target Seat ID {participant.SeatId} is not configured.");
+            }
+
+            if (turnSequence.Value == 0)
+                return RejectBookMovement("The authoritative turn sequence is not initialized.");
+
+            if (requestedBookMovementSequence.Value > 0 &&
+                requestedBookMovementTurnSequence.Value == turnSequence.Value)
+            {
+                return RejectBookMovement(
+                    $"Turn {turnSequence.Value} already has Book movement request {requestedBookMovementSequence.Value}.");
+            }
+
+            if (requestedBookMovementSequence.Value == uint.MaxValue)
+                return RejectBookMovement("The Book movement sequence is exhausted.");
+
+            NetworkBookAuthority resolvedBookAuthority = ResolveBookAuthority();
+            if (resolvedBookAuthority == null)
+                return RejectBookMovement("NetworkBookAuthority is unavailable.");
+
+            uint nextMovementSequence = requestedBookMovementSequence.Value + 1;
+            RitualBookMovementCommand command = new(
+                nextMovementSequence,
+                ritualSequence.Value,
+                turnSequence.Value,
+                participant.SeatId,
+                participant.PlayerId);
+
+            if (!resolvedBookAuthority.TryExecuteMovementCommand(command))
+            {
+                return RejectBookMovement(
+                    $"NetworkBookAuthority rejected movement request {nextMovementSequence}.");
+            }
+
+            requestedBookMovementSequence.Value = nextMovementSequence;
+            requestedBookMovementTurnSequence.Value = turnSequence.Value;
+            requestedBookTargetSeatId.Value = participant.SeatId;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Book Movement Requested\n" +
+                $"MovementSequence = {nextMovementSequence}\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"TurnSequence = {turnSequence.Value}\n" +
+                $"TargetSeat = {participant.SeatId}\n" +
+                $"PlayerId = {participant.PlayerId}",
+                this);
+            return true;
+        }
+
+        /// <summary>
+        /// Temporary stable-ID bridge for the legacy ritual flow. The requested Seat is treated
+        /// only as an expectation; authoritative traversal selects participants until it reaches
+        /// that Seat, then the normal command path decides whether movement may be issued.
+        /// </summary>
+        public bool TryForwardLegacyBookMoveRequest(int requestedSeatId)
+        {
+            if (!IsServerInitialized)
+                return RejectBookMovement("A client attempted to forward legacy Book movement.");
+
+            if (seatManager == null || seatManager.GetSeatById(requestedSeatId) == null)
+                return RejectBookMovement($"Legacy target Seat ID {requestedSeatId} is invalid.");
+
+            if (ritualRoster.Count == 0 && !TryBuildRosterFromCurrentSeating())
+                return RejectBookMovement("The legacy bridge could not establish the ritual roster.");
+
+            RitualRosterSnapshot roster = CreateRosterSnapshot();
+            if (!roster.TryGetPlayerBySeat(
+                    requestedSeatId,
+                    out RitualRosterEntrySnapshot requestedParticipant) ||
+                !requestedParticipant.IsActive ||
+                !requestedParticipant.IsAlive)
+            {
+                return RejectBookMovement(
+                    $"Legacy target Seat ID {requestedSeatId} has no eligible roster participant.");
+            }
+
+            for (int attempt = 0;
+                 attempt < roster.Count && CurrentActiveSeatId != requestedSeatId;
+                 attempt++)
+            {
+                if (!TryCommitNextActiveParticipant())
+                    return RejectBookMovement("The legacy bridge could not select a participant.");
+            }
+
+            if (CurrentActiveSeatId != requestedSeatId)
+            {
+                return RejectBookMovement(
+                    $"Authoritative traversal did not select legacy target Seat ID {requestedSeatId}.");
+            }
+
+            return TryRequestBookMoveToCurrentParticipant();
+        }
+
+        /// <summary>
         /// Validates and locks one server-owned ritual roster from the approved NetworkPlayer
         /// assignments in SeatManager's configured physical traversal.
         /// </summary>
@@ -470,6 +602,24 @@ namespace Incantation.Networking
                 rosterRevision.Value,
                 traversalDirection.Value,
                 entries);
+        }
+
+        private NetworkBookAuthority ResolveBookAuthority()
+        {
+            if (networkBookAuthority == null)
+                networkBookAuthority = GetComponent<NetworkBookAuthority>();
+
+            return networkBookAuthority;
+        }
+
+        private bool RejectBookMovement(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Book Movement Rejected\n" +
+                $"Reason = {reason}",
+                this);
+            return false;
         }
 
         private bool TryCollectApprovedPlayers(
