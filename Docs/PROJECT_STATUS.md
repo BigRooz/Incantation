@@ -87,6 +87,9 @@ The current prototype includes:
     read-only ritual test snapshot without participating in current gameplay.
 41. A server-owned immutable ritual roster that maps stable session player IDs to authoritative
     Seat IDs in `SeatManager` physical traversal order, without migrating turn execution.
+42. Server-owned active participant selection that advances through the authoritative roster,
+    skips inactive or eliminated entries, and publishes active player/Seat state without yet
+    driving legacy ritual execution.
 
 ## Ritual Creation
 

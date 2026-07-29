@@ -18,6 +18,7 @@ namespace Incantation.Networking
     {
         public const int NoPlayerId = -1;
         public const int NoSeatId = -1;
+        public const string NoActivePlayerId = "";
 
         private const string DevelopmentSessionId = "DEV-RITUAL-0001";
 
@@ -25,7 +26,7 @@ namespace Incantation.Networking
         private readonly SyncVar<uint> ritualSequence = new(0);
         private readonly SyncVar<RitualPhase> ritualPhase = new(RitualPhase.Inactive);
         private readonly SyncVar<uint> turnSequence = new(0);
-        private readonly SyncVar<int> activePlayerId = new(NoPlayerId);
+        private readonly SyncVar<string> activePlayerId = new(NoActivePlayerId);
         private readonly SyncVar<int> activeSeatId = new(NoSeatId);
         private readonly SyncVar<RitualTraversalDirection> traversalDirection =
             new(RitualTraversalDirection.Clockwise);
@@ -61,6 +62,12 @@ namespace Incantation.Networking
         public RitualRosterEntrySnapshot[] ActivePlayers => Roster.ActivePlayers;
         public RitualRosterEntrySnapshot[] AlivePlayers => Roster.AlivePlayers;
         public RitualRosterEntrySnapshot[] EliminatedPlayers => Roster.EliminatedPlayers;
+        public string CurrentActivePlayerId => activePlayerId.Value;
+        public int CurrentActiveSeatId => activeSeatId.Value;
+        public RitualRosterEntrySnapshot? CurrentActiveParticipant =>
+            TryGetCurrentActiveParticipant(out RitualRosterEntrySnapshot participant)
+                ? participant
+                : null;
 
         public event Action<RitualSnapshot> SnapshotChanged;
         public event Action<RitualRosterSnapshot> RosterChanged;
@@ -170,9 +177,6 @@ namespace Incantation.Networking
             ritualSessionId.Value = DevelopmentSessionId;
             ritualSequence.Value = 1;
             ritualPhase.Value = requestedPhase;
-            turnSequence.Value = 1;
-            activePlayerId.Value = 0;
-            activeSeatId.Value = 0;
             traversalDirection.Value = RitualTraversalDirection.Clockwise;
             validationMode.Value = RitualValidationMode.WordByWordRealtime;
             phraseVersion.Value = 1;
@@ -189,6 +193,88 @@ namespace Incantation.Networking
             winnerPlayerId.Value = NoPlayerId;
             completedRotationCount.Value = 0;
             snapshotRevision.Value++;
+            return true;
+        }
+
+        /// <summary>
+        /// Commits the next active and alive roster entry. This is the only method that selects
+        /// or writes the authoritative active player and Seat.
+        /// </summary>
+        public bool TryCommitNextActiveParticipant()
+        {
+            if (!IsServerInitialized)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority] Rejected active participant commit: only the server may choose participants.",
+                    this);
+                return false;
+            }
+
+            RitualRosterSnapshot roster = CreateRosterSnapshot();
+            RitualRosterEntrySnapshot[] entries = roster.Entries;
+            if (entries.Length == 0)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority] Rejected active participant commit: the authoritative roster is empty.",
+                    this);
+                return false;
+            }
+
+            if (roster.Version == 0)
+            {
+                Debug.LogError(
+                    "[RitualAuthority] Rejected active participant commit: the roster has no authoritative traversal revision.",
+                    this);
+                return false;
+            }
+
+            if (roster.TraversalDirection != traversalDirection.Value)
+            {
+                Debug.LogError(
+                    $"[RitualAuthority] Rejected active participant commit: roster traversal {roster.TraversalDirection} does not match authority traversal {traversalDirection.Value}.",
+                    this);
+                return false;
+            }
+
+            if (!TryValidateRosterForTraversal(entries))
+                return false;
+
+            if (!TryFindCurrentParticipantIndex(entries, out int currentIndex))
+                return false;
+
+            int nextIndex = FindNextEligibleParticipantIndex(entries, currentIndex);
+            if (nextIndex < 0)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority] Rejected active participant commit: no active, alive participant exists.",
+                    this);
+                return false;
+            }
+
+            if (turnSequence.Value == uint.MaxValue)
+            {
+                Debug.LogError(
+                    "[RitualAuthority] Rejected active participant commit: turn sequence is exhausted.",
+                    this);
+                return false;
+            }
+
+            RitualRosterEntrySnapshot nextParticipant = entries[nextIndex];
+            uint nextTurnSequence = turnSequence.Value + 1;
+
+            activePlayerId.Value = nextParticipant.PlayerId;
+            activeSeatId.Value = nextParticipant.SeatId;
+            turnSequence.Value = nextTurnSequence;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Committed Active Participant\n" +
+                $"PlayerId = {nextParticipant.PlayerId}\n" +
+                $"SeatId = {nextParticipant.SeatId}\n" +
+                $"TurnSequence = {nextTurnSequence}\n" +
+                "TraversalReason = NextAliveParticipant",
+                this);
             return true;
         }
 
@@ -314,6 +400,12 @@ namespace Incantation.Networking
         private void BuildAuthoritativeRitualRosterFromContextMenu()
         {
             TryBuildRosterFromCurrentSeating();
+        }
+
+        [ContextMenu("Networking/Commit Next Active Participant")]
+        private void CommitNextActiveParticipantFromContextMenu()
+        {
+            TryCommitNextActiveParticipant();
         }
 
         private RitualSnapshot CreateSnapshot()
@@ -471,6 +563,119 @@ namespace Incantation.Networking
             }
 
             return true;
+        }
+
+        private bool TryGetCurrentActiveParticipant(
+            out RitualRosterEntrySnapshot participant)
+        {
+            if (string.IsNullOrEmpty(activePlayerId.Value) ||
+                activeSeatId.Value == NoSeatId)
+            {
+                participant = default;
+                return false;
+            }
+
+            RitualRosterSnapshot roster = CreateRosterSnapshot();
+            if (!roster.TryGetPlayerBySeat(activeSeatId.Value, out participant))
+                return false;
+
+            return string.Equals(
+                participant.PlayerId,
+                activePlayerId.Value,
+                StringComparison.Ordinal);
+        }
+
+        private bool TryValidateRosterForTraversal(
+            IReadOnlyList<RitualRosterEntrySnapshot> entries)
+        {
+            HashSet<string> playerIds = new(StringComparer.Ordinal);
+            HashSet<int> seatIds = new();
+
+            foreach (RitualRosterEntrySnapshot entry in entries)
+            {
+                if (string.IsNullOrEmpty(entry.PlayerId))
+                {
+                    Debug.LogError(
+                        "[RitualAuthority] Rejected active participant commit: roster contains a missing player ID.",
+                        this);
+                    return false;
+                }
+
+                if (!playerIds.Add(entry.PlayerId))
+                {
+                    Debug.LogError(
+                        $"[RitualAuthority] Rejected active participant commit: duplicate player ID {entry.PlayerId}.",
+                        this);
+                    return false;
+                }
+
+                if (entry.SeatId < 0 || !seatIds.Add(entry.SeatId))
+                {
+                    Debug.LogError(
+                        $"[RitualAuthority] Rejected active participant commit: invalid or duplicate Seat ID {entry.SeatId}.",
+                        this);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryFindCurrentParticipantIndex(
+            IReadOnlyList<RitualRosterEntrySnapshot> entries,
+            out int currentIndex)
+        {
+            bool hasPlayer = !string.IsNullOrEmpty(activePlayerId.Value);
+            bool hasSeat = activeSeatId.Value != NoSeatId;
+            if (!hasPlayer && !hasSeat)
+            {
+                currentIndex = -1;
+                return true;
+            }
+
+            if (hasPlayer != hasSeat)
+            {
+                Debug.LogError(
+                    "[RitualAuthority] Rejected active participant commit: active player and Seat state are incomplete.",
+                    this);
+                currentIndex = -1;
+                return false;
+            }
+
+            for (int index = 0; index < entries.Count; index++)
+            {
+                RitualRosterEntrySnapshot entry = entries[index];
+                if (entry.SeatId == activeSeatId.Value &&
+                    string.Equals(
+                        entry.PlayerId,
+                        activePlayerId.Value,
+                        StringComparison.Ordinal))
+                {
+                    currentIndex = index;
+                    return true;
+                }
+            }
+
+            Debug.LogError(
+                $"[RitualAuthority] Rejected active participant commit: current participant {activePlayerId.Value}@Seat{activeSeatId.Value} is absent from the authoritative roster.",
+                this);
+            currentIndex = -1;
+            return false;
+        }
+
+        private static int FindNextEligibleParticipantIndex(
+            IReadOnlyList<RitualRosterEntrySnapshot> entries,
+            int currentIndex)
+        {
+            for (int offset = 1; offset <= entries.Count; offset++)
+            {
+                int candidateIndex = (currentIndex + offset) % entries.Count;
+                RitualRosterEntrySnapshot candidate = entries[candidateIndex];
+                if (candidate.IsActive && candidate.IsAlive)
+                    return candidateIndex;
+            }
+
+            return -1;
         }
 
         private static string FormatRoster(RitualRosterSnapshot roster)

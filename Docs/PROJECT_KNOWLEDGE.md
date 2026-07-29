@@ -114,9 +114,12 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Server-owned FishNet scene authority for the future multiplayer ritual state.
   - Owns the immutable multiplayer ritual roster copied from approved `NetworkPlayer` identity
     and Seat assignments in `SeatManager` physical traversal order.
+  - Is the sole multiplayer writer for active player and active Seat. Its one deterministic
+    commit method traverses the authoritative roster and skips inactive or eliminated entries.
   - Replicates value-only ritual/roster snapshots and publishes coalesced read-only events.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not move the Book,
-    run timers, activate voice, validate phrases, advance turns, or control current gameplay.
+    run timers, activate voice, validate phrases, start legacy turns, or control current
+    gameplay execution.
 - `Assets/Scripts/Ritual/RitualController.cs`
   - Current prototype orchestrator.
   - Selects occupied seats through `SeatManager`.

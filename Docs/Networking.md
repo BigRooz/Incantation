@@ -1062,6 +1062,15 @@ immutable roster snapshots and read-only active, alive, eliminated, player-by-Se
 Seat-by-player queries. Alive/eliminated state is representational only in this milestone:
 existing elimination and ritual execution remain legacy-owned and do not write this roster.
 
+Active participant ownership now belongs to `NetworkRitualAuthority`. One server-only
+`TryCommitNextActiveParticipant()` method walks the locked roster circularly in its existing
+physical traversal order, skips inactive or non-alive entries, validates current active state,
+and commits active player ID, active Seat ID, and the next turn sequence before publishing one
+snapshot revision. Clients have read-only active participant queries and no RPC mutation path.
+The legacy `RitualController` remains operational and is not connected to these values yet, so
+Book movement, timers, voice, phrases, success/failure, elimination, and ritual phases retain
+their current behavior until their focused migration tasks.
+
 ## Synchronized Priest Names And LAN Seal Editing
 
 `NetworkPlayer.PriestName` is the authoritative synchronized display name. A new server-spawned

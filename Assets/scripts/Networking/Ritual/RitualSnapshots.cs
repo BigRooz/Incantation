@@ -93,7 +93,7 @@ namespace Incantation.Networking.Ritual
             RitualValidationMode validationMode,
             RitualTraversalDirection traversalDirection,
             uint completedRotationCount,
-            int activePlayerId,
+            string activePlayerId,
             RitualRosterSnapshot roster,
             RitualTurnSnapshot turn,
             RitualPhraseSnapshot phrase,
@@ -107,7 +107,7 @@ namespace Incantation.Networking.Ritual
             ValidationMode = validationMode;
             TraversalDirection = traversalDirection;
             CompletedRotationCount = completedRotationCount;
-            ActivePlayerId = activePlayerId;
+            ActivePlayerId = activePlayerId ?? string.Empty;
             Roster = roster;
             Turn = turn;
             Phrase = phrase;
@@ -122,7 +122,7 @@ namespace Incantation.Networking.Ritual
         public RitualValidationMode ValidationMode { get; }
         public RitualTraversalDirection TraversalDirection { get; }
         public uint CompletedRotationCount { get; }
-        public int ActivePlayerId { get; }
+        public string ActivePlayerId { get; }
         public RitualRosterSnapshot Roster { get; }
         public RitualTurnSnapshot Turn { get; }
         public RitualPhraseSnapshot Phrase { get; }

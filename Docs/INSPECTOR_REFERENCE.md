@@ -301,6 +301,9 @@ Runtime ownership:
 server-only `Build Authoritative Ritual Roster` Context Menu action validates current Circle
 members and their authoritative `NetworkPlayer.SeatId` assignments, then copies them in
 `SeatManager` physical traversal order. Existing ritual systems do not consume the roster yet.
+After a roster is locked, the server-only `Commit Next Active Participant` action advances
+circularly through that immutable order, skipping entries that are inactive or not alive.
+It changes only synchronized active-player, active-Seat, and turn-sequence values.
 The separate deterministic snapshot action remains development-only and is never automatic.
 
 ## BookController
