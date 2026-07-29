@@ -1039,9 +1039,17 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
    transition before opening it. Confirm the current-state query restores the correct Circle
    page and count without waiting for another membership event.
 
-Production Steam discovery, Steam transport, networked Book/ritual/voice state, and authoritative
-shared lobby presentation remain unimplemented. Steamworks.NET and FishySteamworks are not
-installed.
+Production Steam discovery, Steam transport, authoritative ritual gameplay, networked voice,
+and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and
+FishySteamworks are not installed.
+
+`NetworkRitualAuthority` now provides the first server-owned replicated ritual snapshot
+foundation on the existing `MainGame` `SharedBookNetworkAuthority` scene object. Its primitive
+and enum FishNet fields expose immutable ritual contracts, and a final snapshot revision coalesces
+presentation notification after a coherent update. The only writer is a server-guarded,
+development-only deterministic test method. No current ritual, Book, timer, phrase, voice,
+outcome, elimination, or turn behavior consumes or writes this state yet.
+
 ## Synchronized Priest Names And LAN Seal Editing
 
 `NetworkPlayer.PriestName` is the authoritative synchronized display name. A new server-spawned

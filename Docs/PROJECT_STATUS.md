@@ -83,6 +83,8 @@ The current prototype includes:
     Circle participant.
 39. Multiple simultaneous best-effort LAN Ritual advertisements with per-session identity,
     exact-Seal lookup, and isolated FishNet Host ports.
+40. A server-owned `NetworkRitualAuthority` scene foundation that replicates a controlled,
+    read-only ritual test snapshot without participating in current gameplay.
 
 ## Ritual Creation
 

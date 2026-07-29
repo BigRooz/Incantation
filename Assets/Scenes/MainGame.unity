@@ -19378,6 +19378,7 @@ GameObject:
   - component: {fileID: 1987654322}
   - component: {fileID: 1987654323}
   - component: {fileID: 1987654324}
+  - component: {fileID: 1987654325}
   m_Layer: 0
   m_Name: SharedBookNetworkAuthority
   m_TagString: Untagged
@@ -19421,6 +19422,7 @@ MonoBehaviour:
   NetworkBehaviours:
   - {fileID: 1987654323}
   - {fileID: 1987654324}
+  - {fileID: 1987654325}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -19522,6 +19524,21 @@ MonoBehaviour:
   _networkObjectCache: {fileID: 1987654322}
   bookMover: {fileID: 2895304713497403604}
   presentationTransform: {fileID: 2895304713497403601}
+--- !u!114 &1987654325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1987654320}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: faa078c0821642a7a0f920421589ed32, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  _componentIndexCache: 2
+  _addedNetworkObject: {fileID: 1987654322}
+  _networkObjectCache: {fileID: 1987654322}
 --- !u!23 &2895304713497403611 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 2243743130042299210, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}

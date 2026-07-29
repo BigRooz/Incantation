@@ -37,17 +37,20 @@ namespace Incantation.Networking.Ritual
             RitualPhraseSequenceId sequenceId,
             RitualWordSequenceId expectedWordSequenceId,
             string[] words,
-            int acceptedWordCount)
+            uint unlockedWordCount,
+            int expectedWordIndex)
         {
             SequenceId = sequenceId;
             ExpectedWordSequenceId = expectedWordSequenceId;
             this.words = words == null ? Array.Empty<string>() : (string[])words.Clone();
-            AcceptedWordCount = acceptedWordCount;
+            UnlockedWordCount = unlockedWordCount;
+            ExpectedWordIndex = expectedWordIndex;
         }
 
         public RitualPhraseSequenceId SequenceId { get; }
         public RitualWordSequenceId ExpectedWordSequenceId { get; }
-        public int AcceptedWordCount { get; }
+        public uint UnlockedWordCount { get; }
+        public int ExpectedWordIndex { get; }
         public int WordCount => words?.Length ?? 0;
         public string[] Words => words == null ? Array.Empty<string>() : (string[])words.Clone();
     }
@@ -84,32 +87,44 @@ namespace Incantation.Networking.Ritual
     public readonly struct RitualSnapshot
     {
         public RitualSnapshot(
+            string ritualSessionId,
             RitualSequenceId sequenceId,
             RitualPhase phase,
             RitualValidationMode validationMode,
             RitualTraversalDirection traversalDirection,
             uint completedRotationCount,
+            int activePlayerId,
             RitualTurnSnapshot turn,
             RitualPhraseSnapshot phrase,
-            RitualOutcomeSnapshot outcome)
+            RitualOutcomeSnapshot outcome,
+            bool isGameOver,
+            int winnerPlayerId)
         {
+            RitualSessionId = ritualSessionId ?? string.Empty;
             SequenceId = sequenceId;
             Phase = phase;
             ValidationMode = validationMode;
             TraversalDirection = traversalDirection;
             CompletedRotationCount = completedRotationCount;
+            ActivePlayerId = activePlayerId;
             Turn = turn;
             Phrase = phrase;
             Outcome = outcome;
+            IsGameOver = isGameOver;
+            WinnerPlayerId = winnerPlayerId;
         }
 
+        public string RitualSessionId { get; }
         public RitualSequenceId SequenceId { get; }
         public RitualPhase Phase { get; }
         public RitualValidationMode ValidationMode { get; }
         public RitualTraversalDirection TraversalDirection { get; }
         public uint CompletedRotationCount { get; }
+        public int ActivePlayerId { get; }
         public RitualTurnSnapshot Turn { get; }
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }
+        public bool IsGameOver { get; }
+        public int WinnerPlayerId { get; }
     }
 }

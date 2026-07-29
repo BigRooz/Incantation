@@ -107,6 +107,11 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 
 ### Ritual
 
+- `Assets/Scripts/Networking/NetworkRitualAuthority.cs`
+  - Server-owned FishNet scene authority for the future multiplayer ritual state.
+  - Replicates a value-only test snapshot and publishes a coalesced read-only change event.
+  - Lives on the existing `SharedBookNetworkAuthority` scene object but does not move the Book,
+    run timers, activate voice, validate phrases, advance turns, or control current gameplay.
 - `Assets/Scripts/Ritual/RitualController.cs`
   - Current prototype orchestrator.
   - Selects occupied seats through `SeatManager`.
