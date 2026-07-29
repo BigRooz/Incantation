@@ -272,8 +272,10 @@ Required `SharedBookNetworkAuthority` scene-object setup:
 - One `NetworkBookAuthority` on the proxy GameObject.
 - `bookMover`: assign the existing `BookMover` on the persistent `BookModel`.
 - `presentationTransform`: assign the existing visible `BookModel` Transform.
-- One `NetworkRitualAuthority` on the same proxy GameObject. It has no Inspector references and
-  does not control the Book or existing ritual flow.
+- One `NetworkRitualAuthority` on the same proxy GameObject.
+- `seatManager`: assign the existing `SeatManager` on the `SeatSystem` scene object. This is a
+  local source registry only; no `Seat` or scene reference is synchronized.
+- `NetworkRitualAuthority` does not control the Book or existing ritual flow.
 
 Runtime ownership:
 
@@ -295,9 +297,11 @@ Runtime ownership:
 - Disconnect: the proxy may deactivate with FishNet, but `BookModel` stays active so normal
   local Book navigation can resume without an orphaned or duplicate object.
 
-`NetworkRitualAuthority` currently replicates only a controlled read-only ritual snapshot.
-Its development Context Menu action is server-only, is never invoked automatically, and exists
-only for host/client synchronization validation. Existing ritual systems do not consume it yet.
+`NetworkRitualAuthority` replicates a read-only ritual snapshot and a locked ritual roster. The
+server-only `Build Authoritative Ritual Roster` Context Menu action validates current Circle
+members and their authoritative `NetworkPlayer.SeatId` assignments, then copies them in
+`SeatManager` physical traversal order. Existing ritual systems do not consume the roster yet.
+The separate deterministic snapshot action remains development-only and is never automatic.
 
 ## BookController
 

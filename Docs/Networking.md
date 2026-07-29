@@ -983,7 +983,9 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 - `Assets/Scenes/Bootstrap.unity` contains one project-owned persistent `IncantationNetworkManager`.
 - The manager prefab explicitly configures FishNet's server, client, transport, time, scene, and observer managers.
 - `PlayerSpawner` creates one owner-assigned `NetworkPlayer` prefab for each connection.
-- `NetworkPlayer` is the single source of truth for connection/owner/local identity, high-priest role, priest name, lobby state, ready state, Seat ID, and appearance-slot data.
+- `NetworkPlayer` is the single source of truth for its server-generated session Player ID,
+  connection/owner/local identity, high-priest role, priest name, lobby state, ready state,
+  Seat ID, and appearance-slot data.
 - High-priest role, priest name, lobby state, and ready state use FishNet `SyncVar` storage and expose change events plus server-only mutation APIs.
 - Ready toggles use an owner request, server validation, SyncVar replication, and the existing
   Circle roster. The Book counter counts synchronized Circle members whose Ready state is Ready.
@@ -1046,9 +1048,19 @@ FishySteamworks are not installed.
 `NetworkRitualAuthority` now provides the first server-owned replicated ritual snapshot
 foundation on the existing `MainGame` `SharedBookNetworkAuthority` scene object. Its primitive
 and enum FishNet fields expose immutable ritual contracts, and a final snapshot revision coalesces
-presentation notification after a coherent update. The only writer is a server-guarded,
-development-only deterministic test method. No current ritual, Book, timer, phrase, voice,
-outcome, elimination, or turn behavior consumes or writes this state yet.
+presentation notification after a coherent update. Non-roster test fields remain writable only
+through the server-guarded, development-only deterministic test method. No current ritual, Book,
+timer, phrase, voice, outcome, elimination, or turn behavior consumes or writes this state yet.
+
+The same authority now owns the locked multiplayer ritual roster. Each `NetworkPlayer` receives
+a server-generated session player ID that does not expose or reuse a FishNet connection ID. On
+the server, roster creation validates Circle membership, stable player IDs, assigned Seat IDs,
+duplicate players, duplicate Seats, capacity, and the configured physical Seat registry before
+mutating synchronized state. Entries are copied by iterating `SeatManager.GetPhysicalSeats(...)`;
+they are never sorted by join order, client/connection ID, or numeric Seat value. Clients receive
+immutable roster snapshots and read-only active, alive, eliminated, player-by-Seat, and
+Seat-by-player queries. Alive/eliminated state is representational only in this milestone:
+existing elimination and ritual execution remain legacy-owned and do not write this roster.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

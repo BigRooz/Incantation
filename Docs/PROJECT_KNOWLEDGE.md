@@ -83,7 +83,10 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 
 - `Assets/Scripts/Networking/NetworkPlayer.cs`
   - Permanent FishNet `NetworkBehaviour` and single source of truth for one connected player's identity and shared state.
-  - Exposes the FishNet connection/owner, local-player status, active-player registry, replicated high-priest/name/lobby/ready values, unsynchronized Seat/customization IDs, server-only mutation APIs, and value-change events.
+  - Exposes a server-generated session Player ID without reusing connection identity, the FishNet
+    connection/owner, local-player status, active-player registry, replicated
+    high-priest/name/lobby/ready/Seat/appearance values, server-only mutation APIs, and
+    value-change events.
   - Contains no UI, Book, Seat, character presentation, ritual, voice, or gameplay behavior.
 - `Assets/Scripts/Networking/NetworkCharacterPresentation.cs`
   - One-to-one presentation observer attached to every `NetworkPlayer` prefab.
@@ -109,7 +112,9 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 
 - `Assets/Scripts/Networking/NetworkRitualAuthority.cs`
   - Server-owned FishNet scene authority for the future multiplayer ritual state.
-  - Replicates a value-only test snapshot and publishes a coalesced read-only change event.
+  - Owns the immutable multiplayer ritual roster copied from approved `NetworkPlayer` identity
+    and Seat assignments in `SeatManager` physical traversal order.
+  - Replicates value-only ritual/roster snapshots and publishes coalesced read-only events.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not move the Book,
     run timers, activate voice, validate phrases, advance turns, or control current gameplay.
 - `Assets/Scripts/Ritual/RitualController.cs`

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
@@ -42,15 +43,27 @@ namespace Incantation.Networking
         private readonly SyncVar<bool> isGameOver = new(false);
         private readonly SyncVar<int> winnerPlayerId = new(NoPlayerId);
         private readonly SyncVar<uint> completedRotationCount = new(0);
+        private readonly SyncList<NetworkRitualRosterEntry> ritualRoster = new();
+        private readonly SyncVar<uint> rosterRevision = new(0);
         private readonly SyncVar<uint> snapshotRevision = new(0);
 
+        [Header("Ritual Roster Source")]
+        [SerializeField] private SeatManager seatManager;
+
         private bool snapshotNotificationPending;
+        private bool rosterNotificationPending;
         private bool ownsDiscoveryReference;
 
         public static NetworkRitualAuthority Instance { get; private set; }
         public RitualSnapshot Snapshot => CreateSnapshot();
+        public RitualRosterSnapshot Roster => CreateRosterSnapshot();
+        public RitualRosterEntrySnapshot[] CurrentRoster => Roster.Entries;
+        public RitualRosterEntrySnapshot[] ActivePlayers => Roster.ActivePlayers;
+        public RitualRosterEntrySnapshot[] AlivePlayers => Roster.AlivePlayers;
+        public RitualRosterEntrySnapshot[] EliminatedPlayers => Roster.EliminatedPlayers;
 
         public event Action<RitualSnapshot> SnapshotChanged;
+        public event Action<RitualRosterSnapshot> RosterChanged;
 
         private void OnEnable()
         {
@@ -64,18 +77,35 @@ namespace Incantation.Networking
 
         private void LateUpdate()
         {
-            if (!snapshotNotificationPending || !ownsDiscoveryReference)
+            if ((!snapshotNotificationPending && !rosterNotificationPending) ||
+                !ownsDiscoveryReference)
                 return;
 
-            snapshotNotificationPending = false;
-            RitualSnapshot snapshot = CreateSnapshot();
-            SnapshotChanged?.Invoke(snapshot);
+            if (rosterNotificationPending)
+            {
+                rosterNotificationPending = false;
+                RitualRosterSnapshot roster = CreateRosterSnapshot();
+                RosterChanged?.Invoke(roster);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.Log(
-                $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
-                this);
+                Debug.Log(
+                    $"[Ritual Roster] Version={roster.Version}, Direction={roster.TraversalDirection}, Entries={FormatRoster(roster)}.",
+                    this);
 #endif
+            }
+
+            if (snapshotNotificationPending)
+            {
+                snapshotNotificationPending = false;
+                RitualSnapshot snapshot = CreateSnapshot();
+                SnapshotChanged?.Invoke(snapshot);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log(
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    this);
+#endif
+            }
         }
 
         public override void OnStartNetwork()
@@ -85,13 +115,17 @@ namespace Incantation.Networking
             if (!TryClaimDiscoveryReference())
                 return;
 
+            rosterRevision.OnChange += HandleRosterRevisionChanged;
             snapshotRevision.OnChange += HandleSnapshotRevisionChanged;
+            rosterNotificationPending = true;
             snapshotNotificationPending = true;
         }
 
         public override void OnStopNetwork()
         {
+            rosterRevision.OnChange -= HandleRosterRevisionChanged;
             snapshotRevision.OnChange -= HandleSnapshotRevisionChanged;
+            rosterNotificationPending = false;
             snapshotNotificationPending = false;
             ReleaseDiscoveryReference();
             base.OnStopNetwork();
@@ -158,10 +192,128 @@ namespace Incantation.Networking
             return true;
         }
 
+        /// <summary>
+        /// Validates and locks one server-owned ritual roster from the approved NetworkPlayer
+        /// assignments in SeatManager's configured physical traversal.
+        /// </summary>
+        public bool TryBuildRosterFromCurrentSeating()
+        {
+            if (!IsServerInitialized)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkRitualAuthority)} rejected roster creation because only the server may own the ritual roster.",
+                    this);
+                return false;
+            }
+
+            if (ritualRoster.Count > 0)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkRitualAuthority)} rejected roster creation because the authoritative roster is already locked.",
+                    this);
+                return false;
+            }
+
+            if (ritualPhase.Value != RitualPhase.Inactive &&
+                ritualPhase.Value != RitualPhase.Preparing)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkRitualAuthority)} rejected roster creation during phase {ritualPhase.Value}.",
+                    this);
+                return false;
+            }
+
+            if (seatManager == null)
+            {
+                Debug.LogError(
+                    $"{nameof(NetworkRitualAuthority)} cannot create a roster without its assigned {nameof(SeatManager)}.",
+                    this);
+                return false;
+            }
+
+            if (!seatManager.HasConfiguredPhysicalSeatOrder())
+            {
+                Debug.LogError(
+                    $"{nameof(NetworkRitualAuthority)} rejected the roster because {nameof(SeatManager)} does not contain one valid, unique physical seat order.",
+                    this);
+                return false;
+            }
+
+            if (!TryCollectApprovedPlayers(
+                    out List<NetworkPlayer> approvedPlayers,
+                    out HashSet<NetworkPlayer> approvedPlayerSet))
+            {
+                return false;
+            }
+
+            if (!TryValidateApprovedPlayers(approvedPlayers))
+                return false;
+
+            SeatTraversalDirection seatDirection =
+                traversalDirection.Value == RitualTraversalDirection.Clockwise
+                    ? SeatTraversalDirection.Clockwise
+                    : SeatTraversalDirection.CounterClockwise;
+            List<Seat> orderedSeats = seatManager.GetPhysicalSeats(seatDirection);
+            List<NetworkRitualRosterEntry> candidateRoster =
+                new(approvedPlayers.Count);
+
+            foreach (Seat seat in orderedSeats)
+            {
+                int seatId = seatManager.GetSeatId(seat);
+                NetworkPlayer player = NetworkPlayer.FindBySeatId(seatId);
+                if (player == null || !approvedPlayerSet.Contains(player))
+                    continue;
+
+                candidateRoster.Add(
+                    new NetworkRitualRosterEntry(
+                        player.PlayerId,
+                        seatId,
+                        isActive: true,
+                        isAlive: true));
+            }
+
+            if (candidateRoster.Count != approvedPlayers.Count)
+            {
+                Debug.LogError(
+                    $"{nameof(NetworkRitualAuthority)} rejected an inconsistent roster: {approvedPlayers.Count} approved players produced {candidateRoster.Count} physical traversal entries.",
+                    this);
+                return false;
+            }
+
+            ritualRoster.Clear();
+            foreach (NetworkRitualRosterEntry entry in candidateRoster)
+            {
+                ritualRoster.Add(entry);
+            }
+
+            rosterRevision.Value++;
+            snapshotRevision.Value++;
+            Debug.Log(
+                $"{nameof(NetworkRitualAuthority)} locked {candidateRoster.Count} players in {traversalDirection.Value} physical SeatManager order.",
+                this);
+            return true;
+        }
+
+        public bool TryGetPlayerBySeat(int seatId, out RitualRosterEntrySnapshot entry)
+        {
+            return Roster.TryGetPlayerBySeat(seatId, out entry);
+        }
+
+        public bool TryGetSeatByPlayer(string playerId, out int seatId)
+        {
+            return Roster.TryGetSeatByPlayer(playerId, out seatId);
+        }
+
         [ContextMenu("Networking/Apply Deterministic Test Snapshot")]
         private void ApplyDeterministicTestSnapshotFromContextMenu()
         {
             TryApplyDevelopmentTestSnapshot(RitualPhase.Preparing);
+        }
+
+        [ContextMenu("Networking/Build Authoritative Ritual Roster")]
+        private void BuildAuthoritativeRitualRosterFromContextMenu()
+        {
+            TryBuildRosterFromCurrentSeating();
         }
 
         private RitualSnapshot CreateSnapshot()
@@ -199,11 +351,151 @@ namespace Incantation.Networking
                 traversalDirection.Value,
                 completedRotationCount.Value,
                 activePlayerId.Value,
+                CreateRosterSnapshot(),
                 turn,
                 phrase,
                 outcome,
                 isGameOver.Value,
                 winnerPlayerId.Value);
+        }
+
+        private RitualRosterSnapshot CreateRosterSnapshot()
+        {
+            RitualRosterEntrySnapshot[] entries =
+                new RitualRosterEntrySnapshot[ritualRoster.Count];
+
+            for (int index = 0; index < ritualRoster.Count; index++)
+            {
+                NetworkRitualRosterEntry entry = ritualRoster[index];
+                entries[index] = new RitualRosterEntrySnapshot(
+                    entry.PlayerId,
+                    entry.SeatId,
+                    entry.IsActive,
+                    entry.IsAlive);
+            }
+
+            return new RitualRosterSnapshot(
+                rosterRevision.Value,
+                traversalDirection.Value,
+                entries);
+        }
+
+        private bool TryCollectApprovedPlayers(
+            out List<NetworkPlayer> approvedPlayers,
+            out HashSet<NetworkPlayer> approvedPlayerSet)
+        {
+            approvedPlayers = new List<NetworkPlayer>();
+            approvedPlayerSet = new HashSet<NetworkPlayer>();
+
+            foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
+            {
+                if (player == null)
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected an inconsistent roster containing a missing network player.",
+                        this);
+                    return false;
+                }
+
+                if (!player.IsCircleMember)
+                    continue;
+
+                if (!approvedPlayerSet.Add(player))
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected a duplicate network player in the approved ritual roster.",
+                        this);
+                    return false;
+                }
+
+                approvedPlayers.Add(player);
+            }
+
+            if (approvedPlayers.Count == 0)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkRitualAuthority)} rejected an empty ritual roster.",
+                    this);
+                return false;
+            }
+
+            if (approvedPlayers.Count > NetworkPlayer.MaximumCircleMembers)
+            {
+                Debug.LogError(
+                    $"{nameof(NetworkRitualAuthority)} rejected {approvedPlayers.Count} players because the ritual capacity is {NetworkPlayer.MaximumCircleMembers}.",
+                    this);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryValidateApprovedPlayers(IReadOnlyList<NetworkPlayer> approvedPlayers)
+        {
+            HashSet<string> playerIds = new(StringComparer.Ordinal);
+            HashSet<int> seatIds = new();
+
+            foreach (NetworkPlayer player in approvedPlayers)
+            {
+                if (string.IsNullOrEmpty(player.PlayerId))
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected a ritual player with a missing stable player ID.",
+                        this);
+                    return false;
+                }
+
+                if (!playerIds.Add(player.PlayerId))
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected duplicate player ID {player.PlayerId}.",
+                        this);
+                    return false;
+                }
+
+                if (!player.HasAssignedSeat || seatManager.GetSeatById(player.SeatId) == null)
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected player {player.PlayerId} with missing or invalid Seat ID {player.SeatId}.",
+                        this);
+                    return false;
+                }
+
+                if (!seatIds.Add(player.SeatId))
+                {
+                    Debug.LogError(
+                        $"{nameof(NetworkRitualAuthority)} rejected duplicate Seat ID {player.SeatId}.",
+                        this);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string FormatRoster(RitualRosterSnapshot roster)
+        {
+            RitualRosterEntrySnapshot[] entries = roster.Entries;
+            if (entries.Length == 0)
+                return "none";
+
+            string[] labels = new string[entries.Length];
+            for (int index = 0; index < entries.Length; index++)
+            {
+                RitualRosterEntrySnapshot entry = entries[index];
+                labels[index] =
+                    $"{entry.PlayerId}@Seat{entry.SeatId}[Active={entry.IsActive},Alive={entry.IsAlive}]";
+            }
+
+            return string.Join(" -> ", labels);
+        }
+
+        private void HandleRosterRevisionChanged(
+            uint previousRevision,
+            uint currentRevision,
+            bool asServer)
+        {
+            rosterNotificationPending = true;
         }
 
         private void HandleSnapshotRevisionChanged(

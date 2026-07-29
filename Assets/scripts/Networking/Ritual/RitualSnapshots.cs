@@ -94,6 +94,7 @@ namespace Incantation.Networking.Ritual
             RitualTraversalDirection traversalDirection,
             uint completedRotationCount,
             int activePlayerId,
+            RitualRosterSnapshot roster,
             RitualTurnSnapshot turn,
             RitualPhraseSnapshot phrase,
             RitualOutcomeSnapshot outcome,
@@ -107,6 +108,7 @@ namespace Incantation.Networking.Ritual
             TraversalDirection = traversalDirection;
             CompletedRotationCount = completedRotationCount;
             ActivePlayerId = activePlayerId;
+            Roster = roster;
             Turn = turn;
             Phrase = phrase;
             Outcome = outcome;
@@ -121,6 +123,7 @@ namespace Incantation.Networking.Ritual
         public RitualTraversalDirection TraversalDirection { get; }
         public uint CompletedRotationCount { get; }
         public int ActivePlayerId { get; }
+        public RitualRosterSnapshot Roster { get; }
         public RitualTurnSnapshot Turn { get; }
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }

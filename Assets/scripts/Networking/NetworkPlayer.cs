@@ -31,6 +31,7 @@ namespace Incantation.Networking
 
         private readonly SyncVar<bool> isHighPriest = new(false);
         private readonly SyncVar<bool> isCircleMember = new(false);
+        private readonly SyncVar<string> playerId = new(string.Empty);
         private readonly SyncVar<string> priestName = new(string.Empty);
         private readonly SyncVar<LobbyPlayerState> lobbyPlayerState = new(LobbyPlayerState.NotSeated);
         private readonly SyncVar<ReadyState> readyState = new(ReadyState.NotReady);
@@ -52,6 +53,7 @@ namespace Incantation.Networking
         public bool IsLocalPlayer => IsOwner;
         public bool IsHighPriest => isHighPriest.Value;
         public bool IsCircleMember => isCircleMember.Value;
+        public string PlayerId => playerId.Value;
         public string PriestName => priestName.Value;
         public LobbyPlayerState LobbyPlayerState => lobbyPlayerState.Value;
         public ReadyState ReadyState => readyState.Value;
@@ -86,6 +88,11 @@ namespace Incantation.Networking
         public override void OnStartServer()
         {
             base.OnStartServer();
+
+            if (string.IsNullOrEmpty(playerId.Value))
+            {
+                playerId.Value = Guid.NewGuid().ToString("N");
+            }
 
             if (string.IsNullOrWhiteSpace(priestName.Value))
             {
@@ -612,6 +619,7 @@ namespace Incantation.Networking
         {
             isHighPriest.OnChange += HandleHighPriestChanged;
             isCircleMember.OnChange += HandleCircleMembershipChanged;
+            playerId.OnChange += HandlePlayerIdChanged;
             priestName.OnChange += HandlePriestNameChanged;
             lobbyPlayerState.OnChange += HandleLobbyPlayerStateChanged;
             readyState.OnChange += HandleReadyStateChanged;
@@ -623,6 +631,7 @@ namespace Incantation.Networking
         {
             isHighPriest.OnChange -= HandleHighPriestChanged;
             isCircleMember.OnChange -= HandleCircleMembershipChanged;
+            playerId.OnChange -= HandlePlayerIdChanged;
             priestName.OnChange -= HandlePriestNameChanged;
             lobbyPlayerState.OnChange -= HandleLobbyPlayerStateChanged;
             readyState.OnChange -= HandleReadyStateChanged;
@@ -658,6 +667,11 @@ namespace Incantation.Networking
             {
                 Debug.Log("[Circle] Local membership confirmed.", this);
             }
+        }
+
+        private void HandlePlayerIdChanged(string previousValue, string currentValue, bool asServer)
+        {
+            CircleRosterChanged?.Invoke();
         }
 
         private void HandlePriestNameChanged(string previousValue, string currentValue, bool asServer)

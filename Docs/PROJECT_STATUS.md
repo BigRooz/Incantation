@@ -85,6 +85,8 @@ The current prototype includes:
     exact-Seal lookup, and isolated FishNet Host ports.
 40. A server-owned `NetworkRitualAuthority` scene foundation that replicates a controlled,
     read-only ritual test snapshot without participating in current gameplay.
+41. A server-owned immutable ritual roster that maps stable session player IDs to authoritative
+    Seat IDs in `SeatManager` physical traversal order, without migrating turn execution.
 
 ## Ritual Creation
 
@@ -179,6 +181,7 @@ One persistent `NetworkPlayer` exists for every connected player.
 
 The replicated state currently includes:
 
+- Stable session Player ID.
 - Priest Name.
 - Lobby Player State.
 - Ready State.

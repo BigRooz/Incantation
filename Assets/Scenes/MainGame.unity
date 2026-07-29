@@ -19539,6 +19539,7 @@ MonoBehaviour:
   _componentIndexCache: 2
   _addedNetworkObject: {fileID: 1987654322}
   _networkObjectCache: {fileID: 1987654322}
+  seatManager: {fileID: 1463970286}
 --- !u!23 &2895304713497403611 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 2243743130042299210, guid: 95648c99649e62c4ea5d1cfadd54d5e3, type: 3}
