@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Incantation.Networking;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -60,10 +61,17 @@ public class BookPrisonSpectatorController : MonoBehaviour
         if (movePlayerToPrison)
             player.SetPositionAndRotation(slot.spawnPoint.position, slot.spawnPoint.rotation);
 
-        if (activateSpectatorCamera)
+        bool isLocalDeathCameraTarget = IsLocalDeathCameraTarget(player);
+        if (activateSpectatorCamera && isLocalDeathCameraTarget)
             ActivateSlotCamera(slot);
         else
             DeactivateAllSlotCameras();
+
+        Debug.Log(
+            $"Death Camera request for eliminated player '{player.name}': " +
+            $"local ownership={isLocalDeathCameraTarget}, " +
+            $"activation={(activateSpectatorCamera && isLocalDeathCameraTarget ? "accepted" : "ignored")}.",
+            this);
 
         if (deactivateTablePlayerModel)
             player.gameObject.SetActive(false);
@@ -130,6 +138,36 @@ public class BookPrisonSpectatorController : MonoBehaviour
 
         activeSlot.spectatorCamera.gameObject.SetActive(true);
         activeSlot.spectatorCamera.enabled = true;
+    }
+
+    private static bool IsLocalDeathCameraTarget(Transform player)
+    {
+        IReadOnlyList<NetworkPlayer> activePlayers = NetworkPlayer.ActivePlayers;
+        if (activePlayers.Count == 0)
+            return true;
+
+        for (int i = 0; i < activePlayers.Count; i++)
+        {
+            NetworkPlayer networkPlayer = activePlayers[i];
+            if (networkPlayer == null)
+                continue;
+
+            NetworkCharacterPresentation presentation =
+                networkPlayer.GetComponent<NetworkCharacterPresentation>();
+            GameObject character = presentation != null ? presentation.CharacterInstance : null;
+            if (character == null)
+                continue;
+
+            Transform characterTransform = character.transform;
+            if (player == characterTransform ||
+                player.IsChildOf(characterTransform) ||
+                characterTransform.IsChildOf(player))
+            {
+                return networkPlayer.IsOwner;
+            }
+        }
+
+        return false;
     }
 
     private void DeactivateAllSlotCameras()
