@@ -100,6 +100,7 @@ namespace Incantation.Networking.Ritual
             RitualTimerSnapshot timer,
             RitualVoiceSubmissionSnapshot voiceSubmission,
             RitualValidationSnapshot validation,
+            TurnOutcomeSnapshot turnOutcome,
             RitualPhraseSnapshot phrase,
             RitualOutcomeSnapshot outcome,
             bool isGameOver,
@@ -118,6 +119,7 @@ namespace Incantation.Networking.Ritual
             Timer = timer;
             VoiceSubmission = voiceSubmission;
             Validation = validation;
+            TurnOutcome = turnOutcome;
             Phrase = phrase;
             Outcome = outcome;
             IsGameOver = isGameOver;
@@ -137,6 +139,7 @@ namespace Incantation.Networking.Ritual
         public RitualTimerSnapshot Timer { get; }
         public RitualVoiceSubmissionSnapshot VoiceSubmission { get; }
         public RitualValidationSnapshot Validation { get; }
+        public TurnOutcomeSnapshot TurnOutcome { get; }
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }
         public bool IsGameOver { get; }

@@ -404,6 +404,13 @@ Clients never compare recognized text with the expected phrase during a network 
 feedback, and success/failure consequence flow. Offline recognition continues to evaluate and
 apply locally through the same validator.
 
+An accepted validation ends the turn only when it completes the authoritative visible phrase.
+That completion and authoritative timer expiration converge on one server-only turn-outcome
+commit. `TurnOutcomeSnapshot` records the ritual, turn, player, source validation/timer, outcome
+sequence, type, and server timestamp. Exactly one outcome may be committed for a turn.
+`RitualController` consumes that immutable outcome to enter the existing success or timeout
+consequence pipeline; clients do not infer turn completion from validation or timer presentation.
+
 This prevents a stale or non-active client from advancing the ritual, but it does not prevent a modified client from lying about recognized speech. For a social party game, that limited trust model is acceptable for the first release. Server-side audio recognition would add latency, privacy, bandwidth, and operational cost and is not justified unless cheating becomes a real problem.
 
 ## State Replication Strategy

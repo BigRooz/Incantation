@@ -97,6 +97,7 @@ public class RitualController : MonoBehaviour
     private string lastProcessedWhisperPhrase = string.Empty;
     private NetworkRitualAuthority ritualAuthority;
     private NetworkRitualAuthority subscribedRitualAuthority;
+    private uint handledTurnOutcomeSequence;
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
@@ -163,6 +164,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         currentFailedSeat = null;
+        handledTurnOutcomeSequence = 0;
         CurrentFailedPlayer = null;
         hasLoggedMissingFailedPlayerTransform = false;
         hasLoggedDebugAbsorptionPlayerOverride = false;
@@ -334,6 +336,10 @@ public class RitualController : MonoBehaviour
                 yield return WaitForVoiceRecognitionProcessing();
 
             if (!isTurnActive || playerTurnComplete)
+                yield break;
+
+            NetworkRitualAuthority authority = ResolveRitualAuthority();
+            if (authority != null && authority.IsNetworkSessionActive)
                 yield break;
 
             string timeoutReason = isUsingWhisperRecognizer
@@ -1045,6 +1051,8 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeValidation;
         subscribedRitualAuthority.ValidationRejected +=
             HandleAuthoritativeValidation;
+        subscribedRitualAuthority.TurnOutcomeCommitted +=
+            HandleAuthoritativeTurnOutcome;
     }
 
     private void UnsubscribeFromRitualAuthority()
@@ -1056,6 +1064,8 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeValidation;
         subscribedRitualAuthority.ValidationRejected -=
             HandleAuthoritativeValidation;
+        subscribedRitualAuthority.TurnOutcomeCommitted -=
+            HandleAuthoritativeTurnOutcome;
         subscribedRitualAuthority = null;
     }
 
@@ -1133,13 +1143,6 @@ public class RitualController : MonoBehaviour
         }
 
         Debug.Log($"Correct word: {validation.ExpectedWord}");
-        if (!incantationManager.IsCompleted)
-            return;
-
-        if (hourglassController != null)
-            hourglassController.StopHourglass();
-
-        CompleteSuccessfulPlayerTurn();
     }
 
     private void ApplyAuthoritativePhraseValidation(
@@ -1156,13 +1159,44 @@ public class RitualController : MonoBehaviour
             return;
         }
 
-        UnsubscribeFromVoiceRecognizer();
-        StopListening();
+    }
 
-        if (hourglassController != null)
-            hourglassController.StopHourglass();
+    private void HandleAuthoritativeTurnOutcome(
+        TurnOutcomeSnapshot outcome)
+    {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null ||
+            !outcome.HasOutcome ||
+            outcome.OutcomeSequenceId.Value <=
+                handledTurnOutcomeSequence ||
+            outcome.RitualSequenceId.Value !=
+                authority.Snapshot.SequenceId.Value ||
+            outcome.TurnSequenceId.Value !=
+                authority.Snapshot.Turn.SequenceId.Value)
+        {
+            return;
+        }
 
-        CompleteSuccessfulPlayerTurn();
+        handledTurnOutcomeSequence = outcome.OutcomeSequenceId.Value;
+        switch (outcome.OutcomeType)
+        {
+            case TurnOutcomeType.Success:
+                UnsubscribeFromVoiceRecognizer();
+                StopListening();
+
+                if (hourglassController != null)
+                    hourglassController.StopHourglass();
+
+                CompleteSuccessfulPlayerTurn();
+                break;
+
+            case TurnOutcomeType.TimerExpired:
+                StopListening();
+                FailRitual(
+                    "Timeout: authoritative ritual timer expired.",
+                    stopHourglass: false);
+                break;
+        }
     }
 
     private static PhraseValidationFailureReason
@@ -1456,7 +1490,9 @@ public class RitualController : MonoBehaviour
         return CoreRitualLoop.ValidatePhraseCandidate(GetNormalizedCurrentIncantationText(), normalizedPhrase);
     }
 
-    private void FailRitual(string reason)
+    private void FailRitual(
+        string reason,
+        bool stopHourglass = true)
     {
         if (ritualFailed)
             return;
@@ -1472,7 +1508,7 @@ public class RitualController : MonoBehaviour
         UnsubscribeFromVoiceRecognizer();
         StopListening();
 
-        if (hourglassController != null)
+        if (stopHourglass && hourglassController != null)
             hourglassController.StopHourglass();
 
         isTurnActive = false;

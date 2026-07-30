@@ -75,6 +75,16 @@ namespace Incantation.Networking
             new(RitualValidationFailureReason.None);
         private readonly SyncVar<double> validationServerTimestamp = new(0d);
         private readonly SyncVar<uint> validationRevision = new(0);
+        private readonly SyncVar<uint> turnOutcomeSequence = new(0);
+        private readonly SyncVar<uint> turnOutcomeRitualSequence = new(0);
+        private readonly SyncVar<uint> turnOutcomeTurnSequence = new(0);
+        private readonly SyncVar<string> turnOutcomePlayerId = new(string.Empty);
+        private readonly SyncVar<TurnOutcomeType> turnOutcomeType =
+            new(TurnOutcomeType.None);
+        private readonly SyncVar<uint> turnOutcomeValidationSequence = new(0);
+        private readonly SyncVar<uint> turnOutcomeTimerSequence = new(0);
+        private readonly SyncVar<double> turnOutcomeServerTimestamp = new(0d);
+        private readonly SyncVar<uint> turnOutcomeRevision = new(0);
         private readonly SyncVar<RitualOutcome> latestRitualOutcome = new(RitualOutcome.None);
         private readonly SyncVar<RitualFailureReason> failureReason =
             new(RitualFailureReason.None);
@@ -107,6 +117,7 @@ namespace Incantation.Networking
         private bool timerNotificationPending;
         private bool timerExpiredNotificationPending;
         private bool validationNotificationPending;
+        private bool turnOutcomeNotificationPending;
         private bool ownsDiscoveryReference;
         private NetworkBookAuthority networkBookAuthority;
         private RitualController ritualController;
@@ -130,6 +141,10 @@ namespace Incantation.Networking
             CreateValidationSnapshot();
         public RitualValidationSnapshot LatestValidation =>
             CreateValidationSnapshot();
+        public TurnOutcomeSnapshot CurrentTurnOutcome =>
+            CreateCurrentTurnOutcomeSnapshot();
+        public TurnOutcomeSnapshot LatestTurnOutcome =>
+            CreateTurnOutcomeSnapshot();
         public bool IsTimerRunning => isTimerRunning.Value;
         public double TimerDeadline => timerDeadlineNetworkTime.Value;
         public double RemainingTime => CalculateRemainingTime(GetCurrentNetworkTime());
@@ -147,6 +162,8 @@ namespace Incantation.Networking
         public event Action<RitualValidationSnapshot> ValidationSnapshotChanged;
         public event Action<RitualValidationSnapshot> ValidationAccepted;
         public event Action<RitualValidationSnapshot> ValidationRejected;
+        public event Action<TurnOutcomeSnapshot> TurnOutcomeCommitted;
+        public event Action<TurnOutcomeSnapshot> TurnOutcomeSnapshotChanged;
 
         private void OnEnable()
         {
@@ -166,7 +183,8 @@ namespace Incantation.Networking
                  !bookArrivalNotificationPending &&
                  !timerNotificationPending &&
                  !timerExpiredNotificationPending &&
-                 !validationNotificationPending) ||
+                 !validationNotificationPending &&
+                 !turnOutcomeNotificationPending) ||
                 !ownsDiscoveryReference)
                 return;
 
@@ -191,7 +209,7 @@ namespace Incantation.Networking
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log(
-                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, VoiceSubmission={snapshot.VoiceSubmission.SubmissionSequence}, VoicePlayer={snapshot.VoiceSubmission.PlayerId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, VoiceSubmission={snapshot.VoiceSubmission.SubmissionSequence}, VoicePlayer={snapshot.VoiceSubmission.PlayerId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, TurnOutcome={snapshot.TurnOutcome.OutcomeType}, TurnOutcomeSequence={snapshot.TurnOutcome.OutcomeSequenceId.Value}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
                     this);
 #endif
             }
@@ -219,6 +237,13 @@ namespace Incantation.Networking
                 validationNotificationPending = false;
                 ValidationSnapshotChanged?.Invoke(CreateValidationSnapshot());
             }
+
+            if (turnOutcomeNotificationPending)
+            {
+                turnOutcomeNotificationPending = false;
+                TurnOutcomeSnapshotChanged?.Invoke(
+                    CreateCurrentTurnOutcomeSnapshot());
+            }
         }
 
         private void Update()
@@ -241,10 +266,12 @@ namespace Incantation.Networking
             bookArrivalRevision.OnChange += HandleBookArrivalRevisionChanged;
             timerRevision.OnChange += HandleTimerRevisionChanged;
             validationRevision.OnChange += HandleValidationRevisionChanged;
+            turnOutcomeRevision.OnChange += HandleTurnOutcomeRevisionChanged;
             snapshotRevision.OnChange += HandleSnapshotRevisionChanged;
             rosterNotificationPending = true;
             snapshotNotificationPending = true;
             validationNotificationPending = true;
+            turnOutcomeNotificationPending = true;
         }
 
         public override void OnStopNetwork()
@@ -253,6 +280,7 @@ namespace Incantation.Networking
             bookArrivalRevision.OnChange -= HandleBookArrivalRevisionChanged;
             timerRevision.OnChange -= HandleTimerRevisionChanged;
             validationRevision.OnChange -= HandleValidationRevisionChanged;
+            turnOutcomeRevision.OnChange -= HandleTurnOutcomeRevisionChanged;
             snapshotRevision.OnChange -= HandleSnapshotRevisionChanged;
             rosterNotificationPending = false;
             snapshotNotificationPending = false;
@@ -260,6 +288,7 @@ namespace Incantation.Networking
             timerNotificationPending = false;
             timerExpiredNotificationPending = false;
             validationNotificationPending = false;
+            turnOutcomeNotificationPending = false;
             ReleaseDiscoveryReference();
             base.OnStopNetwork();
         }
@@ -341,6 +370,14 @@ namespace Incantation.Networking
             validationReceivedText.Value = string.Empty;
             validationFailureReason.Value = RitualValidationFailureReason.None;
             validationServerTimestamp.Value = 0d;
+            turnOutcomeSequence.Value = 0;
+            turnOutcomeRitualSequence.Value = 0;
+            turnOutcomeTurnSequence.Value = 0;
+            turnOutcomePlayerId.Value = string.Empty;
+            turnOutcomeType.Value = TurnOutcomeType.None;
+            turnOutcomeValidationSequence.Value = 0;
+            turnOutcomeTimerSequence.Value = 0;
+            turnOutcomeServerTimestamp.Value = 0d;
             latestRitualOutcome.Value = RitualOutcome.None;
             failureReason.Value = RitualFailureReason.None;
             isGameOver.Value = false;
@@ -1080,6 +1117,15 @@ namespace Incantation.Networking
                 validation.ReceivedText,
                 validation.FailureReason,
                 validation.ServerTimestamp);
+
+            if (IsPhraseCompletionValidation(validation))
+            {
+                TryCommitTurnOutcome(
+                    TurnOutcomeType.Success,
+                    validation.ValidationSequence,
+                    0);
+            }
+
             return true;
         }
 
@@ -1120,6 +1166,163 @@ namespace Incantation.Networking
                 rejectedWord,
                 receivedText,
                 mappedFailureReason,
+                serverTimestamp));
+        }
+
+        private bool TryCommitTurnOutcome(
+            TurnOutcomeType requestedOutcome,
+            uint originatingValidationSequence,
+            uint originatingTimerSequence)
+        {
+            if (!IsServerInitialized)
+            {
+                return RejectTurnOutcome(
+                    "Only the server may commit a turn outcome.");
+            }
+
+            if (ritualSequence.Value == 0 || turnSequence.Value == 0)
+            {
+                return RejectTurnOutcome(
+                    "The current ritual or turn sequence is unavailable.");
+            }
+
+            if (!TryGetCurrentActiveParticipant(
+                    out RitualRosterEntrySnapshot participant) ||
+                !participant.IsActive ||
+                !participant.IsAlive ||
+                !string.Equals(
+                    participant.PlayerId,
+                    activePlayerId.Value,
+                    StringComparison.Ordinal))
+            {
+                return RejectTurnOutcome(
+                    "The authoritative active participant is unavailable.");
+            }
+
+            TurnOutcomeSnapshot existingOutcome = CreateTurnOutcomeSnapshot();
+            if (existingOutcome.HasOutcome &&
+                existingOutcome.RitualSequenceId.Value ==
+                    ritualSequence.Value &&
+                existingOutcome.TurnSequenceId.Value == turnSequence.Value)
+            {
+                return RejectTurnOutcome(
+                    $"Turn {turnSequence.Value} already ended with {existingOutcome.OutcomeType}.");
+            }
+
+            if (requestedOutcome == TurnOutcomeType.Success)
+            {
+                RitualValidationSnapshot validation =
+                    CreateValidationSnapshot();
+                if (!validation.HasValidation ||
+                    !validation.IsAccepted ||
+                    validation.RitualSequenceId.Value !=
+                        ritualSequence.Value ||
+                    validation.TurnSequenceId.Value !=
+                        turnSequence.Value ||
+                    validation.ValidationSequence !=
+                        originatingValidationSequence ||
+                    !string.Equals(
+                        validation.PlayerId,
+                        participant.PlayerId,
+                        StringComparison.Ordinal) ||
+                    !IsPhraseCompletionValidation(validation))
+                {
+                    return RejectTurnOutcome(
+                        "The originating successful validation is invalid or incomplete.");
+                }
+            }
+            else if (requestedOutcome == TurnOutcomeType.TimerExpired)
+            {
+                RitualTimerSnapshot timer = CreateTimerSnapshot();
+                if (!timer.IsExpired ||
+                    timer.IsRunning ||
+                    timer.RitualSequenceId.Value != ritualSequence.Value ||
+                    timer.TurnSequenceId.Value != turnSequence.Value ||
+                    timer.TimerSequence != originatingTimerSequence)
+                {
+                    return RejectTurnOutcome(
+                        "The originating timer expiration does not belong to the active turn.");
+                }
+            }
+            else
+            {
+                return RejectTurnOutcome(
+                    $"Outcome type {requestedOutcome} is not enabled in this migration.");
+            }
+
+            if (turnOutcomeSequence.Value == uint.MaxValue)
+            {
+                return RejectTurnOutcome(
+                    "The turn outcome sequence is exhausted.");
+            }
+
+            uint nextOutcomeSequence = turnOutcomeSequence.Value + 1;
+            double serverTimestamp = GetCurrentNetworkTime();
+            turnOutcomeSequence.Value = nextOutcomeSequence;
+            turnOutcomeRitualSequence.Value = ritualSequence.Value;
+            turnOutcomeTurnSequence.Value = turnSequence.Value;
+            turnOutcomePlayerId.Value = participant.PlayerId;
+            turnOutcomeType.Value = requestedOutcome;
+            turnOutcomeValidationSequence.Value =
+                originatingValidationSequence;
+            turnOutcomeTimerSequence.Value = originatingTimerSequence;
+            turnOutcomeServerTimestamp.Value = serverTimestamp;
+            latestRitualOutcome.Value =
+                requestedOutcome == TurnOutcomeType.Success
+                    ? RitualOutcome.TurnSucceeded
+                    : RitualOutcome.TurnFailed;
+            failureReason.Value =
+                requestedOutcome == TurnOutcomeType.TimerExpired
+                    ? RitualFailureReason.TimedOut
+                    : RitualFailureReason.None;
+            turnOutcomeRevision.Value++;
+            snapshotRevision.Value++;
+
+            TurnOutcomeSnapshot outcome = CreateTurnOutcomeSnapshot();
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Turn Outcome Committed\n" +
+                $"Outcome = {outcome.OutcomeType}\n" +
+                $"Player = {outcome.PlayerId}\n" +
+                $"TurnSequence = {outcome.TurnSequenceId.Value}\n" +
+                $"OutcomeSequence = {outcome.OutcomeSequenceId.Value}\n" +
+                $"ValidationSequence = {outcome.ValidationSequence}\n" +
+                $"TimerSequence = {outcome.TimerSequence}\n" +
+                $"ServerTimestamp = {outcome.ServerTimestamp}",
+                this);
+
+            TurnOutcomeCommitted?.Invoke(outcome);
+            PublishTurnOutcomeObserversRpc(
+                outcome.RitualSequenceId.Value,
+                outcome.TurnSequenceId.Value,
+                outcome.OutcomeSequenceId.Value,
+                outcome.PlayerId,
+                outcome.OutcomeType,
+                outcome.ValidationSequence,
+                outcome.TimerSequence,
+                outcome.ServerTimestamp);
+            return true;
+        }
+
+        [ObserversRpc(ExcludeServer = true)]
+        private void PublishTurnOutcomeObserversRpc(
+            uint outcomeRitualSequence,
+            uint outcomeTurnSequence,
+            uint outcomeSequence,
+            string derivedPlayerId,
+            TurnOutcomeType committedOutcome,
+            uint originatingValidationSequence,
+            uint originatingTimerSequence,
+            double serverTimestamp)
+        {
+            TurnOutcomeCommitted?.Invoke(new TurnOutcomeSnapshot(
+                new RitualSequenceId(outcomeRitualSequence),
+                new RitualTurnSequenceId(outcomeTurnSequence),
+                new RitualOutcomeSequenceId(outcomeSequence),
+                derivedPlayerId,
+                committedOutcome,
+                originatingValidationSequence,
+                originatingTimerSequence,
                 serverTimestamp));
         }
 
@@ -1291,6 +1494,8 @@ namespace Incantation.Networking
             RitualVoiceSubmissionSnapshot voiceSubmission =
                 CreateVoiceSubmissionSnapshot();
             RitualValidationSnapshot validation = CreateValidationSnapshot();
+            TurnOutcomeSnapshot turnOutcome =
+                CreateCurrentTurnOutcomeSnapshot();
             RitualPhraseSnapshot phrase = new(
                 new RitualPhraseSequenceId(phraseVersion.Value),
                 new RitualWordSequenceId((uint)Mathf.Max(0, expectedWordIndex.Value)),
@@ -1318,6 +1523,7 @@ namespace Incantation.Networking
                 timer,
                 voiceSubmission,
                 validation,
+                turnOutcome,
                 phrase,
                 outcome,
                 isGameOver.Value,
@@ -1411,6 +1617,60 @@ namespace Incantation.Networking
                 validationReceivedText.Value,
                 validationFailureReason.Value,
                 validationServerTimestamp.Value);
+        }
+
+        private TurnOutcomeSnapshot CreateTurnOutcomeSnapshot()
+        {
+            return new TurnOutcomeSnapshot(
+                new RitualSequenceId(turnOutcomeRitualSequence.Value),
+                new RitualTurnSequenceId(turnOutcomeTurnSequence.Value),
+                new RitualOutcomeSequenceId(turnOutcomeSequence.Value),
+                turnOutcomePlayerId.Value,
+                turnOutcomeType.Value,
+                turnOutcomeValidationSequence.Value,
+                turnOutcomeTimerSequence.Value,
+                turnOutcomeServerTimestamp.Value);
+        }
+
+        private TurnOutcomeSnapshot CreateCurrentTurnOutcomeSnapshot()
+        {
+            TurnOutcomeSnapshot latest = CreateTurnOutcomeSnapshot();
+            if (latest.RitualSequenceId.Value == ritualSequence.Value &&
+                latest.TurnSequenceId.Value == turnSequence.Value)
+            {
+                return latest;
+            }
+
+            return new TurnOutcomeSnapshot(
+                new RitualSequenceId(ritualSequence.Value),
+                new RitualTurnSequenceId(turnSequence.Value),
+                new RitualOutcomeSequenceId(0),
+                activePlayerId.Value,
+                TurnOutcomeType.None,
+                0,
+                0,
+                0d);
+        }
+
+        private static bool IsPhraseCompletionValidation(
+            RitualValidationSnapshot validation)
+        {
+            if (!validation.IsAccepted ||
+                validation.PhraseWords.Length == 0)
+            {
+                return false;
+            }
+
+            if (validation.ValidationMode ==
+                RitualValidationMode.FullPhrase)
+            {
+                return validation.AcceptedWordCount >=
+                    validation.PhraseWords.Length;
+            }
+
+            return validation.ValidatedWordIndex >= 0 &&
+                validation.ValidatedWordIndex + 1 >=
+                    validation.PhraseWords.Length;
         }
 
         private RitualController ResolveRitualController()
@@ -1690,7 +1950,10 @@ namespace Incantation.Networking
                 $"TurnSequence = {timerTurnSequence.Value}\n" +
                 $"Deadline = {timerDeadlineNetworkTime.Value}",
                 this);
-            return true;
+            return TryCommitTurnOutcome(
+                TurnOutcomeType.TimerExpired,
+                0,
+                timerSequence.Value);
         }
 
         private double CalculateRemainingTime(double currentNetworkTime)
@@ -1759,6 +2022,18 @@ namespace Incantation.Networking
                 $"ConnectionId = {connectionId}\n" +
                 $"TurnSequence = {submission.TurnSequence}\n" +
                 $"SubmissionSequence = {submission.SubmissionSequence}",
+                this);
+            return false;
+        }
+
+        private bool RejectTurnOutcome(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Turn Outcome Rejected\n" +
+                $"Reason = {reason}\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"TurnSequence = {turnSequence.Value}",
                 this);
             return false;
         }
@@ -2018,6 +2293,14 @@ namespace Incantation.Networking
             bool asServer)
         {
             validationNotificationPending = true;
+        }
+
+        private void HandleTurnOutcomeRevisionChanged(
+            uint previousRevision,
+            uint currentRevision,
+            bool asServer)
+        {
+            turnOutcomeNotificationPending = true;
         }
 
         private void HandleSnapshotRevisionChanged(

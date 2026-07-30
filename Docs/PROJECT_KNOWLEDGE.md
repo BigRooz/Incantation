@@ -128,6 +128,9 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Is the sole multiplayer phrase judge. It retrieves the server's current
     `IncantationManager` phrase, invokes the existing deterministic `PhraseValidator` rules for
     the selected mode, and publishes one immutable validation result per submission.
+  - Is the sole multiplayer turn-result writer. A phrase-completing accepted validation or its
+    own timer expiration may commit one immutable `TurnOutcomeSnapshot`; duplicate and stale
+    sources are rejected.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
     Book, activate voice, validate phrases, start legacy turns, or control consequence flow.
 - `Assets/Scripts/Ritual/RitualController.cs`
@@ -139,6 +142,8 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - In network sessions forwards raw recognized text through the locally owned `NetworkPlayer`
     and applies only the authority's accepted/rejected validation result. Offline sessions retain
     direct evaluation and application through the same validator.
+  - In network sessions enters its existing success or timeout consequence flow only after
+    `TurnOutcomeCommitted`; it does not infer an official result from validation or timer visuals.
   - Applies `WordByWordRealtime` or `FullPhrase` validation behavior.
   - Bridges into `CoreRitualLoopBridge` when available.
 

@@ -101,6 +101,8 @@ The current prototype includes:
     and publish only accepted text to the authoritative phrase-validation path.
 46. Server-authoritative phrase validation for both realtime-word and full-phrase modes, with one
     immutable result per accepted submission and legacy presentation/consequence compatibility.
+47. One server-authoritative immutable turn outcome per turn, committed only from phrase-completing
+    validation or authoritative timer expiration and consumed by the legacy consequence bridge.
 
 ## Ritual Creation
 
@@ -335,8 +337,8 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - Book systems consuming `NetworkPlayer`.
 - Multiplayer gameplay synchronization beyond the authoritative start handoff, shared physical
   Book, ritual roster/active participant, ritual timer, voice-submission ingress, and phrase
-  validation. Phrase progression, result consequences, and remaining outcome state are still
-  legacy-owned.
+  validation and turn outcome. Phrase progression, result consequences, and later ritual state
+  remain legacy-owned.
 - Production end-of-game flow for the last surviving player.
 - Interference cards.
 - Spell Hand gameplay, spell execution, drawing, inventory, voice activation, card replacement, and networking. The visual hand and definition-driven presentation data are present.
@@ -361,7 +363,8 @@ When a bug becomes part of the current project state, add it here briefly and re
 - The legacy Timer still translates authoritative expiration into its existing `OnFinished`
   callback so current multiplayer consequence behavior survives until failure migration.
 - `RitualController` applies authoritative validation snapshots to legacy phrase presentation and
-  consequence flow; success/failure ownership and phrase progression have not yet migrated.
+  waits for authoritative turn outcomes before entering legacy consequence flow. Consequence
+  execution and phrase progression have not yet migrated.
 - Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
 - `LobbyPlayerStateController` still duplicates lobby state while the Living Book flow is preserved; it must become an adapter/consumer of authoritative `NetworkPlayer` state.

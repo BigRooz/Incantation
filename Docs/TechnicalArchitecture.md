@@ -118,6 +118,14 @@ identity from the RPC connection and rejects candidates that do not belong to th
 participant, accepted Book arrival, and running timer window. Offline sessions bypass this bridge
 and preserve direct evaluation and application through the same `PhraseValidator`.
 
+Official network turn completion is a separate authority boundary. Phrase-completing validation
+and authoritative timer expiration converge inside `NetworkRitualAuthority`, which commits
+exactly one immutable `TurnOutcomeSnapshot` for the current ritual, turn, and active player.
+The outcome contains stable source sequence IDs and no Unity references. `RitualController`
+reacts to that result through its existing success or timeout consequence pipeline; Book
+movement, Seat changes, elimination, Book Prison, next-turn selection, and phase progression
+remain legacy-owned.
+
 ## Network Scene Startup
 
 `Assets/Scenes/Bootstrap.unity` is a networking launcher, not a gameplay scene. The

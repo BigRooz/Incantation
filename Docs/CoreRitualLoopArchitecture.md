@@ -204,6 +204,13 @@ submission through the existing deterministic `PhraseValidator`, publishing one 
 comparing speech itself. Offline recognition still evaluates and applies through the same
 validator directly.
 
+Network validation rejection remains retryable while authoritative time remains. A turn ends
+only when an accepted validation completes the visible phrase or the server timer expires.
+`NetworkRitualAuthority` validates that source and publishes exactly one immutable turn outcome.
+`RitualController` waits for that outcome before entering its temporary legacy success or timeout
+pipeline. The outcome commit itself does not move the Book, change Seats, eliminate a player,
+start Book Prison, advance the turn, or change ritual phase.
+
 ### Hourglass
 
 Offline, `HourglassController` retains local timer pressure for the prototype. In a FishNet
