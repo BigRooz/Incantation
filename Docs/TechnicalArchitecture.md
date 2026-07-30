@@ -63,7 +63,8 @@ The current v0.1 prototype includes:
 - `VoicePhraseNormalizer` for phrase and word normalization.
 - `WindowsKeywordVoiceRecognizer` for realtime keyword recognition.
 - `WhisperVoiceRecognizer` for Whisper-based recognition paths.
-- `HourglassController` for timer pressure.
+- `NetworkRitualAuthority` for network timer truth, with `HourglassController` retaining the
+  offline countdown and acting as the network presentation/compatibility bridge.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
 For a visual overview of ownership, dependencies, events, and extension points, read `Docs/SYSTEM_DIAGRAM.md`.

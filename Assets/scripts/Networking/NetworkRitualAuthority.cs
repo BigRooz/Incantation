@@ -39,6 +39,14 @@ namespace Incantation.Networking
         private readonly SyncVar<int> expectedWordIndex = new(0);
         private readonly SyncVar<double> turnStartNetworkTime = new(0d);
         private readonly SyncVar<double> timerDeadlineNetworkTime = new(0d);
+        private readonly SyncVar<uint> timerSequence = new(0);
+        private readonly SyncVar<uint> timerRitualSequence = new(0);
+        private readonly SyncVar<uint> timerTurnSequence = new(0);
+        private readonly SyncVar<double> activeTimerDuration = new(0d);
+        private readonly SyncVar<double> timerRemainingTime = new(0d);
+        private readonly SyncVar<bool> isTimerRunning = new(false);
+        private readonly SyncVar<bool> isTimerExpired = new(false);
+        private readonly SyncVar<uint> timerRevision = new(0);
         private readonly SyncVar<RitualOutcome> latestRitualOutcome = new(RitualOutcome.None);
         private readonly SyncVar<RitualFailureReason> failureReason =
             new(RitualFailureReason.None);
@@ -62,13 +70,19 @@ namespace Incantation.Networking
         [Header("Ritual Roster Source")]
         [SerializeField] private SeatManager seatManager;
 
+        [Header("Authoritative Timer")]
+        [SerializeField, Min(0.1f)] private float timerDurationSeconds = 5f;
+
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
         private bool bookArrivalNotificationPending;
+        private bool timerNotificationPending;
+        private bool timerExpiredNotificationPending;
         private bool ownsDiscoveryReference;
         private NetworkBookAuthority networkBookAuthority;
 
         public static NetworkRitualAuthority Instance { get; private set; }
+        public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
         public RitualSnapshot Snapshot => CreateSnapshot();
         public RitualRosterSnapshot Roster => CreateRosterSnapshot();
         public RitualRosterEntrySnapshot[] CurrentRoster => Roster.Entries;
@@ -79,6 +93,10 @@ namespace Incantation.Networking
         public int CurrentActiveSeatId => activeSeatId.Value;
         public uint RequestedBookMovementSequence => requestedBookMovementSequence.Value;
         public RitualBookArrivalSnapshot BookArrival => CreateBookArrivalSnapshot();
+        public RitualTimerSnapshot CurrentTimerSnapshot => CreateTimerSnapshot();
+        public bool IsTimerRunning => isTimerRunning.Value;
+        public double TimerDeadline => timerDeadlineNetworkTime.Value;
+        public double RemainingTime => CalculateRemainingTime(GetCurrentNetworkTime());
         public RitualRosterEntrySnapshot? CurrentActiveParticipant =>
             TryGetCurrentActiveParticipant(out RitualRosterEntrySnapshot participant)
                 ? participant
@@ -87,6 +105,8 @@ namespace Incantation.Networking
         public event Action<RitualSnapshot> SnapshotChanged;
         public event Action<RitualRosterSnapshot> RosterChanged;
         public event Action<RitualBookArrivalSnapshot> BookArrivalAccepted;
+        public event Action<RitualTimerSnapshot> TimerSnapshotChanged;
+        public event Action<RitualTimerSnapshot> TimerExpired;
 
         private void OnEnable()
         {
@@ -103,7 +123,9 @@ namespace Incantation.Networking
         {
             if ((!snapshotNotificationPending &&
                  !rosterNotificationPending &&
-                 !bookArrivalNotificationPending) ||
+                 !bookArrivalNotificationPending &&
+                 !timerNotificationPending &&
+                 !timerExpiredNotificationPending) ||
                 !ownsDiscoveryReference)
                 return;
 
@@ -128,7 +150,7 @@ namespace Incantation.Networking
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log(
-                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
                     this);
 #endif
             }
@@ -138,6 +160,27 @@ namespace Incantation.Networking
                 bookArrivalNotificationPending = false;
                 BookArrivalAccepted?.Invoke(CreateBookArrivalSnapshot());
             }
+
+            if (timerNotificationPending)
+            {
+                timerNotificationPending = false;
+                TimerSnapshotChanged?.Invoke(CreateTimerSnapshot());
+            }
+
+            if (timerExpiredNotificationPending)
+            {
+                timerExpiredNotificationPending = false;
+                TimerExpired?.Invoke(CreateTimerSnapshot());
+            }
+        }
+
+        private void Update()
+        {
+            if (!IsServerInitialized || !isTimerRunning.Value)
+                return;
+
+            if (GetCurrentNetworkTime() >= timerDeadlineNetworkTime.Value)
+                TryCommitTimerExpired();
         }
 
         public override void OnStartNetwork()
@@ -149,6 +192,7 @@ namespace Incantation.Networking
 
             rosterRevision.OnChange += HandleRosterRevisionChanged;
             bookArrivalRevision.OnChange += HandleBookArrivalRevisionChanged;
+            timerRevision.OnChange += HandleTimerRevisionChanged;
             snapshotRevision.OnChange += HandleSnapshotRevisionChanged;
             rosterNotificationPending = true;
             snapshotNotificationPending = true;
@@ -158,10 +202,13 @@ namespace Incantation.Networking
         {
             rosterRevision.OnChange -= HandleRosterRevisionChanged;
             bookArrivalRevision.OnChange -= HandleBookArrivalRevisionChanged;
+            timerRevision.OnChange -= HandleTimerRevisionChanged;
             snapshotRevision.OnChange -= HandleSnapshotRevisionChanged;
             rosterNotificationPending = false;
             snapshotNotificationPending = false;
             bookArrivalNotificationPending = false;
+            timerNotificationPending = false;
+            timerExpiredNotificationPending = false;
             ReleaseDiscoveryReference();
             base.OnStopNetwork();
         }
@@ -215,6 +262,13 @@ namespace Incantation.Networking
             expectedWordIndex.Value = 0;
             turnStartNetworkTime.Value = 1000d;
             timerDeadlineNetworkTime.Value = 1090d;
+            timerSequence.Value = 0;
+            timerRitualSequence.Value = 0;
+            timerTurnSequence.Value = 0;
+            activeTimerDuration.Value = 90d;
+            timerRemainingTime.Value = 90d;
+            isTimerRunning.Value = false;
+            isTimerExpired.Value = false;
             latestRitualOutcome.Value = RitualOutcome.None;
             failureReason.Value = RitualFailureReason.None;
             isGameOver.Value = false;
@@ -499,6 +553,21 @@ namespace Incantation.Networking
                     "The completion does not belong to the current active, alive participant.");
             }
 
+            if (isTimerRunning.Value)
+                return RejectBookArrival("A ritual timer is already running.");
+
+            if (timerSequence.Value == uint.MaxValue)
+                return RejectBookArrival("The ritual timer sequence is exhausted.");
+
+            double configuredDuration = timerDurationSeconds;
+            if (double.IsNaN(configuredDuration) ||
+                double.IsInfinity(configuredDuration) ||
+                configuredDuration <= 0d)
+            {
+                return RejectBookArrival(
+                    $"Configured timer duration {configuredDuration} is invalid.");
+            }
+
             acceptedBookArrivalMovementSequence.Value = report.MovementSequence;
             acceptedBookArrivalRitualSequence.Value = report.RitualSequence;
             acceptedBookArrivalTurnSequence.Value = report.TurnSequence;
@@ -517,6 +586,40 @@ namespace Incantation.Networking
                 $"Seat = {report.TargetSeatId}\n" +
                 $"Player = {participant.PlayerId}\n" +
                 $"CompletionTime = {report.CompletionNetworkTime}",
+                this);
+            return TryStartTimerForArrival(report, participant, configuredDuration);
+        }
+
+        /// <summary>
+        /// Requests a server-owned stop for the current turn timer. External callers cannot
+        /// write timer state and clients have no mutation path.
+        /// </summary>
+        public bool TryStopTimerForCurrentTurn()
+        {
+            if (!IsServerInitialized)
+                return RejectTimer("Only the server may stop ritual time.");
+
+            if (!isTimerRunning.Value)
+                return RejectTimer("The ritual timer is not running.");
+
+            if (timerTurnSequence.Value != turnSequence.Value)
+            {
+                return RejectTimer(
+                    $"Timer turn {timerTurnSequence.Value} does not match active turn {turnSequence.Value}.");
+            }
+
+            timerRemainingTime.Value = CalculateRemainingTime(GetCurrentNetworkTime());
+            isTimerRunning.Value = false;
+            isTimerExpired.Value = false;
+            timerRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Timer Stopped\n" +
+                $"TimerSequence = {timerSequence.Value}\n" +
+                $"TurnSequence = {timerTurnSequence.Value}\n" +
+                $"RemainingTime = {timerRemainingTime.Value}",
                 this);
             return true;
         }
@@ -666,6 +769,7 @@ namespace Incantation.Networking
                 turnStartNetworkTime.Value,
                 timerDeadlineNetworkTime.Value);
             RitualBookArrivalSnapshot bookArrival = CreateBookArrivalSnapshot();
+            RitualTimerSnapshot timer = CreateTimerSnapshot();
             RitualPhraseSnapshot phrase = new(
                 new RitualPhraseSequenceId(phraseVersion.Value),
                 new RitualWordSequenceId((uint)Mathf.Max(0, expectedWordIndex.Value)),
@@ -690,6 +794,7 @@ namespace Incantation.Networking
                 CreateRosterSnapshot(),
                 turn,
                 bookArrival,
+                timer,
                 phrase,
                 outcome,
                 isGameOver.Value,
@@ -728,6 +833,114 @@ namespace Incantation.Networking
                 acceptedBookArrivalNetworkTime.Value);
         }
 
+        private RitualTimerSnapshot CreateTimerSnapshot()
+        {
+            return new RitualTimerSnapshot(
+                timerSequence.Value,
+                new RitualSequenceId(timerRitualSequence.Value),
+                new RitualTurnSequenceId(timerTurnSequence.Value),
+                isTimerRunning.Value,
+                isTimerExpired.Value,
+                activeTimerDuration.Value,
+                turnStartNetworkTime.Value,
+                timerDeadlineNetworkTime.Value,
+                CalculateRemainingTime(GetCurrentNetworkTime()));
+        }
+
+        private bool TryStartTimerForArrival(
+            RitualBookArrivalReport report,
+            RitualRosterEntrySnapshot participant,
+            double duration)
+        {
+            double startTime = GetCurrentNetworkTime();
+            double deadline = startTime + duration;
+            if (double.IsNaN(deadline) || double.IsInfinity(deadline))
+                return RejectTimer($"Timer deadline {deadline} is invalid.");
+
+            uint nextTimerSequence = timerSequence.Value + 1;
+            timerSequence.Value = nextTimerSequence;
+            timerRitualSequence.Value = report.RitualSequence;
+            timerTurnSequence.Value = report.TurnSequence;
+            activeTimerDuration.Value = duration;
+            timerRemainingTime.Value = duration;
+            turnStartNetworkTime.Value = startTime;
+            timerDeadlineNetworkTime.Value = deadline;
+            isTimerExpired.Value = false;
+            isTimerRunning.Value = true;
+            timerRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Timer Started\n" +
+                $"TimerSequence = {nextTimerSequence}\n" +
+                $"Duration = {duration}\n" +
+                $"StartTime = {startTime}\n" +
+                $"Deadline = {deadline}\n" +
+                $"TurnSequence = {report.TurnSequence}\n" +
+                $"Player = {participant.PlayerId}",
+                this);
+            return true;
+        }
+
+        private bool TryCommitTimerExpired()
+        {
+            if (!IsServerInitialized)
+                return RejectTimer("Only the server may expire ritual time.");
+
+            if (!isTimerRunning.Value)
+            {
+                string reason = isTimerExpired.Value
+                    ? $"Timer {timerSequence.Value} already expired."
+                    : "The ritual timer is not running.";
+                return RejectTimer(reason);
+            }
+
+            if (timerTurnSequence.Value != turnSequence.Value)
+            {
+                return RejectTimer(
+                    $"Timer turn {timerTurnSequence.Value} does not match active turn {turnSequence.Value}.");
+            }
+
+            double currentTime = GetCurrentNetworkTime();
+            if (currentTime < timerDeadlineNetworkTime.Value)
+            {
+                return RejectTimer(
+                    $"Timer {timerSequence.Value} cannot expire before deadline {timerDeadlineNetworkTime.Value}; current time is {currentTime}.");
+            }
+
+            timerRemainingTime.Value = 0d;
+            isTimerRunning.Value = false;
+            isTimerExpired.Value = true;
+            timerRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Timer Expired\n" +
+                $"TimerSequence = {timerSequence.Value}\n" +
+                $"TurnSequence = {timerTurnSequence.Value}\n" +
+                $"Deadline = {timerDeadlineNetworkTime.Value}",
+                this);
+            return true;
+        }
+
+        private double CalculateRemainingTime(double currentNetworkTime)
+        {
+            if (!isTimerRunning.Value)
+                return Math.Max(0d, timerRemainingTime.Value);
+
+            return Math.Max(0d, timerDeadlineNetworkTime.Value - currentNetworkTime);
+        }
+
+        private double GetCurrentNetworkTime()
+        {
+            if (!IsNetworkSessionActive || TimeManager == null)
+                return 0d;
+
+            return TimeManager.TicksToTime();
+        }
+
         private NetworkBookAuthority ResolveBookAuthority()
         {
             if (networkBookAuthority == null)
@@ -751,6 +964,16 @@ namespace Incantation.Networking
             Debug.LogWarning(
                 "[RitualAuthority]\n" +
                 "Book Arrival Rejected\n" +
+                $"Reason = {reason}",
+                this);
+            return false;
+        }
+
+        private bool RejectTimer(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Timer Rejected\n" +
                 $"Reason = {reason}",
                 this);
             return false;
@@ -993,6 +1216,16 @@ namespace Incantation.Networking
             bool asServer)
         {
             bookArrivalNotificationPending = true;
+        }
+
+        private void HandleTimerRevisionChanged(
+            uint previousRevision,
+            uint currentRevision,
+            bool asServer)
+        {
+            timerNotificationPending = true;
+            if (isTimerExpired.Value)
+                timerExpiredNotificationPending = true;
         }
 
         private void HandleSnapshotRevisionChanged(

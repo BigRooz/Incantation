@@ -1,6 +1,13 @@
+using Incantation.Networking;
+using Incantation.Networking.Ritual;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>
+/// Presents ritual time through the legacy Timer. Offline it retains the local countdown;
+/// during FishNet sessions it consumes NetworkRitualAuthority snapshots and forwards stop
+/// requests without owning timer gameplay.
+/// </summary>
 public class HourglassController : MonoBehaviour
 {
     [Header("References")]
@@ -13,6 +20,9 @@ public class HourglassController : MonoBehaviour
     [SerializeField] private UnityEvent onStopped = new UnityEvent();
     [SerializeField] private UnityEvent onReset = new UnityEvent();
 
+    private NetworkRitualAuthority ritualAuthority;
+    private NetworkRitualAuthority subscribedRitualAuthority;
+
     public UnityEvent OnStarted => onStarted;
     public UnityEvent OnWarning => onWarning;
     public UnityEvent OnFinished => onFinished;
@@ -22,11 +32,26 @@ public class HourglassController : MonoBehaviour
     private void OnEnable()
     {
         SubscribeToTimer();
+        TrySubscribeToRitualAuthority();
     }
 
     private void OnDisable()
     {
+        UnsubscribeFromRitualAuthority();
         UnsubscribeFromTimer();
+    }
+
+    private void Update()
+    {
+        if (!TrySubscribeToRitualAuthority() ||
+            subscribedRitualAuthority == null ||
+            !subscribedRitualAuthority.IsNetworkSessionActive ||
+            timer == null)
+        {
+            return;
+        }
+
+        timer.ApplyAuthoritativeRemainingTime(subscribedRitualAuthority.RemainingTime);
     }
 
     public void StartHourglass(float duration)
@@ -34,6 +59,12 @@ public class HourglassController : MonoBehaviour
         if (timer == null)
         {
             Debug.LogWarning("HourglassController requires a Timer reference.");
+            return;
+        }
+
+        if (TryUseAuthoritativeTimer())
+        {
+            timer.ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
             return;
         }
 
@@ -45,6 +76,14 @@ public class HourglassController : MonoBehaviour
         if (timer == null)
             return;
 
+        if (TryUseAuthoritativeTimer())
+        {
+            if (ritualAuthority.IsServerInitialized)
+                ritualAuthority.TryStopTimerForCurrentTurn();
+
+            return;
+        }
+
         timer.StopTimer();
     }
 
@@ -52,6 +91,12 @@ public class HourglassController : MonoBehaviour
     {
         if (timer == null)
             return;
+
+        if (TryUseAuthoritativeTimer())
+        {
+            timer.ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
+            return;
+        }
 
         timer.ResetTimer();
     }
@@ -108,5 +153,65 @@ public class HourglassController : MonoBehaviour
     {
         Debug.Log("Hourglass Reset");
         onReset.Invoke();
+    }
+
+    private bool TryUseAuthoritativeTimer()
+    {
+        TrySubscribeToRitualAuthority();
+        return ritualAuthority != null && ritualAuthority.IsNetworkSessionActive;
+    }
+
+    private bool TrySubscribeToRitualAuthority()
+    {
+        NetworkRitualAuthority resolvedAuthority = ResolveRitualAuthority();
+        if (resolvedAuthority == null)
+            return false;
+
+        if (subscribedRitualAuthority == resolvedAuthority)
+            return true;
+
+        UnsubscribeFromRitualAuthority();
+        subscribedRitualAuthority = resolvedAuthority;
+        subscribedRitualAuthority.TimerSnapshotChanged +=
+            HandleAuthoritativeTimerSnapshotChanged;
+
+        if (subscribedRitualAuthority.IsNetworkSessionActive && timer != null)
+        {
+            timer.ApplyAuthoritativeSnapshot(
+                subscribedRitualAuthority.CurrentTimerSnapshot);
+        }
+
+        return true;
+    }
+
+    private void UnsubscribeFromRitualAuthority()
+    {
+        if (subscribedRitualAuthority == null)
+            return;
+
+        subscribedRitualAuthority.TimerSnapshotChanged -=
+            HandleAuthoritativeTimerSnapshotChanged;
+        subscribedRitualAuthority = null;
+    }
+
+    private NetworkRitualAuthority ResolveRitualAuthority()
+    {
+        if (ritualAuthority == null)
+            ritualAuthority = NetworkRitualAuthority.Instance;
+
+        if (ritualAuthority == null)
+        {
+            ritualAuthority = FindFirstObjectByType<NetworkRitualAuthority>(
+                FindObjectsInactive.Include);
+        }
+
+        return ritualAuthority;
+    }
+
+    private void HandleAuthoritativeTimerSnapshotChanged(
+        RitualTimerSnapshot snapshot)
+    {
+        if (timer != null)
+            timer.ApplyAuthoritativeSnapshot(snapshot);
     }
 }

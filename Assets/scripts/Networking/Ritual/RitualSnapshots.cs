@@ -97,6 +97,7 @@ namespace Incantation.Networking.Ritual
             RitualRosterSnapshot roster,
             RitualTurnSnapshot turn,
             RitualBookArrivalSnapshot bookArrival,
+            RitualTimerSnapshot timer,
             RitualPhraseSnapshot phrase,
             RitualOutcomeSnapshot outcome,
             bool isGameOver,
@@ -112,6 +113,7 @@ namespace Incantation.Networking.Ritual
             Roster = roster;
             Turn = turn;
             BookArrival = bookArrival;
+            Timer = timer;
             Phrase = phrase;
             Outcome = outcome;
             IsGameOver = isGameOver;
@@ -128,6 +130,7 @@ namespace Incantation.Networking.Ritual
         public RitualRosterSnapshot Roster { get; }
         public RitualTurnSnapshot Turn { get; }
         public RitualBookArrivalSnapshot BookArrival { get; }
+        public RitualTimerSnapshot Timer { get; }
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }
         public bool IsGameOver { get; }

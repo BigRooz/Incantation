@@ -1,9 +1,10 @@
+using Incantation.Networking.Ritual;
 using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// Owns simple countdown timer state and raises lifecycle events for systems that react to time pressure.
-/// Depends only on Unity time and does not own ritual, voice, book, or visual behavior.
+/// Owns the offline countdown and presents server-authoritative timer snapshots in network
+/// sessions. Network presentation never computes or commits gameplay expiration.
 /// </summary>
 public class Timer : MonoBehaviour
 {
@@ -19,10 +20,14 @@ public class Timer : MonoBehaviour
     [SerializeField] private UnityEvent onReset = new UnityEvent();
 
     private bool hasWarned;
+    private bool isAuthoritativePresentation;
+    private float authoritativeDuration;
 
     public bool IsRunning { get; private set; }
     public float RemainingTime { get; private set; }
-    public float Duration => duration;
+    public float Duration => isAuthoritativePresentation
+        ? authoritativeDuration
+        : duration;
 
     public UnityEvent OnStarted => onStarted;
     public UnityEvent OnWarning => onWarning;
@@ -33,6 +38,9 @@ public class Timer : MonoBehaviour
     private void Update()
     {
         if (!IsRunning)
+            return;
+
+        if (isAuthoritativePresentation)
             return;
 
         RemainingTime -= Time.deltaTime;
@@ -53,6 +61,7 @@ public class Timer : MonoBehaviour
 
     public void StartTimer(float requestedDuration)
     {
+        isAuthoritativePresentation = false;
         RemainingTime = requestedDuration;
         IsRunning = true;
         hasWarned = false;
@@ -68,6 +77,7 @@ public class Timer : MonoBehaviour
 
     public void StopTimer()
     {
+        isAuthoritativePresentation = false;
         if (!IsRunning)
             return;
 
@@ -77,9 +87,72 @@ public class Timer : MonoBehaviour
 
     public void ResetTimer()
     {
+        isAuthoritativePresentation = false;
         IsRunning = false;
         RemainingTime = duration;
         hasWarned = false;
         onReset.Invoke();
+    }
+
+    /// <summary>
+    /// Applies read-only authoritative state and translates lifecycle transitions for existing
+    /// visual and legacy compatibility listeners.
+    /// </summary>
+    public void ApplyAuthoritativeSnapshot(RitualTimerSnapshot snapshot)
+    {
+        bool wasRunning = IsRunning;
+        bool wasExpired = isAuthoritativePresentation &&
+            !IsRunning &&
+            RemainingTime <= 0f;
+
+        isAuthoritativePresentation = true;
+        authoritativeDuration = Mathf.Max(0f, (float)snapshot.Duration);
+        RemainingTime = Mathf.Max(0f, (float)snapshot.RemainingTime);
+        IsRunning = snapshot.IsRunning;
+
+        if (snapshot.IsRunning)
+        {
+            if (!wasRunning)
+            {
+                hasWarned = false;
+                onStarted.Invoke();
+            }
+
+            TryRaisePresentationWarning();
+            return;
+        }
+
+        if (snapshot.IsExpired)
+        {
+            RemainingTime = 0f;
+            if (!wasExpired)
+                onFinished.Invoke();
+
+            return;
+        }
+
+        if (wasRunning)
+            onStopped.Invoke();
+    }
+
+    /// <summary>
+    /// Updates display-only remaining time from the authority's read-only calculation.
+    /// </summary>
+    public void ApplyAuthoritativeRemainingTime(double remainingTime)
+    {
+        if (!isAuthoritativePresentation || !IsRunning)
+            return;
+
+        RemainingTime = Mathf.Max(0f, (float)remainingTime);
+        TryRaisePresentationWarning();
+    }
+
+    private void TryRaisePresentationWarning()
+    {
+        if (hasWarned || RemainingTime > warningThreshold)
+            return;
+
+        hasWarned = true;
+        onWarning.Invoke();
     }
 }

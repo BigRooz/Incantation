@@ -120,9 +120,11 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
     that validates and accepts Book arrival reports.
   - Replicates value-only ritual, roster, and arrival snapshots and publishes coalesced
     read-only events.
+  - Owns ritual timer duration, start/stop, deadline, remaining-time calculation, and expiration.
+    Accepted Book arrival starts it automatically; expiration only publishes state/events.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
-    Book, run timers, activate voice, validate phrases, start legacy turns, or control current
-    consequence flow.
+    Book, activate voice, validate phrases, start legacy turns, or control current consequence
+    flow.
 - `Assets/Scripts/Ritual/RitualController.cs`
   - Current prototype orchestrator.
   - Selects occupied seats through `SeatManager`.
@@ -235,7 +237,15 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
 ### Hourglass
 
 - `Assets/Scripts/Hourglass/HourglassController.cs`
-  - Timer pressure for active turns.
+  - Offline timer controller and network compatibility bridge.
+  - In network sessions it consumes `NetworkRitualAuthority` timer snapshots, forwards
+    server-side stop requests, and never starts or expires gameplay time.
+
+- `Assets/Scripts/Core/Timer.cs`
+  - Owns the local countdown only in offline mode.
+  - In network sessions it presents authoritative remaining time and translates synchronized
+    lifecycle changes for existing visuals and temporary legacy callbacks without deciding
+    expiration.
   - Should signal timeout pressure, not independently own traversal, phrase growth, or elimination rules.
 
 ### Player

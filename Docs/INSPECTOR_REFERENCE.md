@@ -308,6 +308,9 @@ It changes only synchronized active-player, active-Seat, and turn-sequence value
 Accepted Book commands are executed by `NetworkBookAuthority`, which reports duration-based
 completion to `NetworkRitualAuthority`. The authority validates the movement, ritual, turn, and
 Seat identifiers before publishing its immutable arrival state and read-only notification.
+`timerDurationSeconds` is the server-owned turn duration (currently `5` seconds in the
+prototype). Accepted arrival starts the timer automatically. Clients render from the
+synchronized start/deadline snapshot and cannot expire or stop gameplay time.
 The separate deterministic snapshot action remains development-only and is never automatic.
 
 ## BookController
@@ -321,6 +324,14 @@ Notes:
 - `BookController` is an adapter around `BookMover`.
 - Its legacy arrival callback remains duration-based using `BookMover.moveDuration`.
 - Future improvement: replace duration-based arrival with a true movement completion callback.
+
+## Ritual Timer Compatibility
+
+- Offline: `HourglassController` and `Timer` retain the existing local countdown.
+- Network server: `NetworkRitualAuthority` owns start, stop, duration, deadline, and expiration.
+- Network client: `HourglassController` mirrors read-only snapshots into `Timer`.
+- Existing visual, warning-audio, lighting, and temporary ritual callbacks may continue reading
+  `Timer`; they do not decide authoritative expiration.
 
 ## DemonHandController
 

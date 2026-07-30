@@ -196,13 +196,15 @@ Voice systems must not independently advance turns, mutate the phrase, eliminate
 
 ### Hourglass
 
-`HourglassController` owns timer pressure for the active turn.
+Offline, `HourglassController` retains local timer pressure for the prototype. In a FishNet
+ritual, `NetworkRitualAuthority` owns duration, start, stop, deadline, and expiration;
+`HourglassController` and `Timer` become presentation/compatibility consumers.
 
 Responsibilities:
 
-- Start pressure when the active turn begins.
-- Stop pressure on accepted phrase or ritual stop.
-- Signal timeout.
+- Start pressure after authoritative Book arrival.
+- Stop pressure on an accepted server stop request or ritual stop.
+- Publish server-authoritative timeout without choosing its consequence.
 
 Does not own:
 

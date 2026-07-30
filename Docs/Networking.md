@@ -1081,9 +1081,22 @@ latest immutable arrival snapshot and one read-only notification. No gameplay st
 notification yet. `BookMover` temporarily converts the legacy
 ritual target to a stable Seat ID and forwards it through the ritual authority, while offline
 movement retains the original direct interpolation path. `BookController.OnArrived` remains
-temporarily intact only to preserve the current legacy ritual callback. Timers, voice, phrases,
+temporarily intact only to preserve the current legacy ritual callback. Voice, phrases,
 validation, success/failure, elimination, and ritual phases remain legacy-owned until their
 focused migration tasks.
+
+Ritual timer ownership now belongs to `NetworkRitualAuthority`. Every accepted Book arrival
+starts exactly one server timer using a synchronized timer sequence, ritual/turn identity,
+duration, start network time, and deadline. The server alone compares FishNet network time to
+the deadline and commits expiration; clients derive presentation progress from the replicated
+deadline but never decide gameplay timeout. `RitualTimerSnapshot` publishes running, expired,
+duration, timestamps, and read-time remaining values through the top-level ritual snapshot and
+focused read-only notifications. `HourglassController` is the temporary compatibility bridge:
+offline it retains the original local countdown, while network sessions mirror authoritative
+snapshots into the legacy `Timer` for visuals and existing callback compatibility. Legacy
+success may request a validated server stop, but no external system writes timer state. The
+authority's `TimerExpired` event does not itself advance turns, declare failure, eliminate a
+player, or start consequences.
 
 ## Synchronized Priest Names And LAN Seal Editing
 
