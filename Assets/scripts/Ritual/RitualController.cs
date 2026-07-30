@@ -101,6 +101,13 @@ public class RitualController : MonoBehaviour
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
     public bool RitualFailed => ritualFailed;
+    public IncantationManager CurrentIncantationManager => incantationManager;
+    public VoicePhraseNormalizer CurrentVoicePhraseNormalizer =>
+        voicePhraseNormalizer;
+    public RitualValidationMode CurrentNetworkValidationMode =>
+        voiceValidationMode == VoiceValidationMode.FullPhrase
+            ? RitualValidationMode.FullPhrase
+            : RitualValidationMode.WordByWordRealtime;
 
     private void OnEnable()
     {
@@ -1034,8 +1041,10 @@ public class RitualController : MonoBehaviour
 
         UnsubscribeFromRitualAuthority();
         subscribedRitualAuthority = authority;
-        subscribedRitualAuthority.VoiceSubmissionAccepted +=
-            HandleAuthoritativeVoiceSubmissionAccepted;
+        subscribedRitualAuthority.ValidationAccepted +=
+            HandleAuthoritativeValidation;
+        subscribedRitualAuthority.ValidationRejected +=
+            HandleAuthoritativeValidation;
     }
 
     private void UnsubscribeFromRitualAuthority()
@@ -1043,8 +1052,10 @@ public class RitualController : MonoBehaviour
         if (subscribedRitualAuthority == null)
             return;
 
-        subscribedRitualAuthority.VoiceSubmissionAccepted -=
-            HandleAuthoritativeVoiceSubmissionAccepted;
+        subscribedRitualAuthority.ValidationAccepted -=
+            HandleAuthoritativeValidation;
+        subscribedRitualAuthority.ValidationRejected -=
+            HandleAuthoritativeValidation;
         subscribedRitualAuthority = null;
     }
 
@@ -1062,19 +1073,112 @@ public class RitualController : MonoBehaviour
         return ritualAuthority;
     }
 
-    private void HandleAuthoritativeVoiceSubmissionAccepted(
-        RitualVoiceSubmissionSnapshot submission)
+    private void HandleAuthoritativeValidation(
+        RitualValidationSnapshot validation)
     {
         NetworkRitualAuthority authority = ResolveRitualAuthority();
         if (authority == null ||
-            submission.RitualSequenceId.Value != authority.Snapshot.SequenceId.Value ||
-            submission.TurnSequenceId.Value !=
+            incantationManager == null ||
+            validation.RitualSequenceId.Value !=
+                authority.Snapshot.SequenceId.Value ||
+            validation.TurnSequenceId.Value !=
                 authority.Snapshot.Turn.SequenceId.Value)
         {
             return;
         }
 
-        ProcessRecognizedPhraseForLegacyValidation(submission.RecognizedText);
+        PhraseValidationFailureReason legacyFailureReason =
+            MapLegacyValidationFailureReason(validation.FailureReason);
+        incantationManager.ApplyAuthoritativePhraseState(
+            validation.PhraseWords,
+            validation.ExpectedWordIndex);
+        PhraseValidationResult result =
+            validation.ValidationMode ==
+                RitualValidationMode.WordByWordRealtime
+                ? incantationManager.BuildAuthoritativeWordValidationResult(
+                    validation.IsAccepted,
+                    validation.ValidatedWordIndex,
+                    validation.ExpectedWord,
+                    validation.RejectedWord,
+                    legacyFailureReason)
+                : incantationManager.BuildAuthoritativeValidationResult(
+                    validation.IsAccepted,
+                    validation.AcceptedWordCount,
+                    validation.FirstRejectedWordIndex,
+                    validation.RejectedWord,
+                    legacyFailureReason);
+
+        if (validation.ValidationMode ==
+            RitualValidationMode.WordByWordRealtime)
+        {
+            ApplyAuthoritativeWordValidation(validation, result);
+            return;
+        }
+
+        ApplyAuthoritativePhraseValidation(validation, result);
+    }
+
+    private void ApplyAuthoritativeWordValidation(
+        RitualValidationSnapshot validation,
+        PhraseValidationResult result)
+    {
+        incantationManager.ApplyAuthoritativeWordValidation(result);
+        if (!validation.IsAccepted)
+        {
+            Debug.Log($"Incorrect word: {validation.RejectedWord}");
+            HandleSpeechAliasSuggestion(
+                validation.ReceivedText,
+                validation.ExpectedWord);
+            return;
+        }
+
+        Debug.Log($"Correct word: {validation.ExpectedWord}");
+        if (!incantationManager.IsCompleted)
+            return;
+
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
+
+        CompleteSuccessfulPlayerTurn();
+    }
+
+    private void ApplyAuthoritativePhraseValidation(
+        RitualValidationSnapshot validation,
+        PhraseValidationResult result)
+    {
+        incantationManager.ApplyAuthoritativePhraseValidation(result);
+        if (!validation.IsAccepted)
+        {
+            incantationManager.ResetCurrentPhraseProgress();
+            Debug.Log(
+                $"Phrase incomplete after authoritative validation: {validation.FailureReason}");
+            RestartListeningAfterFailedAttempt();
+            return;
+        }
+
+        UnsubscribeFromVoiceRecognizer();
+        StopListening();
+
+        if (hourglassController != null)
+            hourglassController.StopHourglass();
+
+        CompleteSuccessfulPlayerTurn();
+    }
+
+    private static PhraseValidationFailureReason
+        MapLegacyValidationFailureReason(
+            RitualValidationFailureReason failureReason)
+    {
+        return failureReason switch
+        {
+            RitualValidationFailureReason.Empty =>
+                PhraseValidationFailureReason.Empty,
+            RitualValidationFailureReason.WrongWord =>
+                PhraseValidationFailureReason.WrongWord,
+            RitualValidationFailureReason.TooFewWords =>
+                PhraseValidationFailureReason.TooFewWords,
+            _ => PhraseValidationFailureReason.None
+        };
     }
 
     private void ProcessFullPhraseRecognition(string recognizedPhrase, string normalizedPhrase)

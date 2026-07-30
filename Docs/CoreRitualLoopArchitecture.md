@@ -198,9 +198,11 @@ In network sessions, recognition remains local but submission ownership is autho
 `RitualController` forwards raw recognized text through the locally owned `NetworkPlayer`.
 `NetworkRitualAuthority` derives sender identity from the FishNet connection, validates the
 locked roster, active participant, ritual/turn/submission sequence, accepted Book arrival, timer
-window, and text bounds, then publishes the accepted immutable snapshot/event. It does not judge
-phrase correctness. The accepted event temporarily enters the existing `RitualController`
-validation path; offline recognition still uses that path directly.
+window, and text bounds. It then retrieves the server phrase and exclusively judges the accepted
+submission through the existing deterministic `PhraseValidator`, publishing one immutable result.
+`RitualController` applies that result to legacy progress, feedback, and consequences without
+comparing speech itself. Offline recognition still evaluates and applies through the same
+validator directly.
 
 ### Hourglass
 

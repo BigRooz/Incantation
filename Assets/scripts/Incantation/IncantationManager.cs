@@ -125,50 +125,11 @@ public class IncantationManager : MonoBehaviour
             return false;
         }
 
-        int judgedWordIndex = CurrentWordIndex;
-        string expectedWord = CurrentWord;
-        string normalizedSpokenWord = NormalizePhrase(spokenWord, phraseNormalizer);
-        string normalizedExpectedWord = NormalizeWord(expectedWord);
-
-        activePhraseValidationResult = default(PhraseValidationResult);
-        activePhraseReplayIndex = 0;
-        hasActivePhraseReplay = true;
-        OnPhraseReplayReset?.Invoke();
-
-        if (normalizedSpokenWord == normalizedExpectedWord)
-        {
-            PhraseValidationWordResult acceptedWord = new PhraseValidationWordResult(
-                judgedWordIndex,
-                expectedWord,
-                normalizedSpokenWord,
-                PhraseValidationWordState.Success);
-
-            currentIncantation[CurrentWordIndex].MarkCompleted();
-            CurrentWordIndex++;
-            onCorrectWord.Invoke();
-            OnPhraseReplayAcceptedWord?.Invoke(acceptedWord);
-
-            hasActivePhraseReplay = false;
-
-            if (IsCompleted)
-                onIncantationCompleted.Invoke();
-
-            OnPhraseReplayFinished?.Invoke();
-            return true;
-        }
-
-        PhraseValidationWordResult rejectedWord = new PhraseValidationWordResult(
-            judgedWordIndex,
-            expectedWord,
-            normalizedSpokenWord,
-            PhraseValidationWordState.Failed);
-
-        hasActivePhraseReplay = false;
-        onIncorrectWord.Invoke();
-        OnPhraseReplayRejectedWord?.Invoke(rejectedWord);
-        ResetCurrentPhraseProgress();
-        OnPhraseReplayFinished?.Invoke();
-        return false;
+        PhraseValidationResult result = EvaluateCurrentWordRealtime(
+            spokenWord,
+            phraseNormalizer);
+        ApplyAuthoritativeWordValidation(result);
+        return result.IsSuccess;
     }
 
     public bool TryCompleteCurrentPhrase(string spokenPhrase, VoicePhraseNormalizer phraseNormalizer)
@@ -186,10 +147,9 @@ public class IncantationManager : MonoBehaviour
 
     public PhraseValidationResult StartPhraseJudgmentReplay(string spokenPhrase, VoicePhraseNormalizer phraseNormalizer)
     {
-        string normalizedSpokenPhrase = NormalizePhrase(spokenPhrase, phraseNormalizer);
-        string normalizedExpectedPhrase = NormalizePhrase(GetCurrentIncantationText(), null);
-
-        activePhraseValidationResult = PhraseValidator.Validate(normalizedExpectedPhrase, normalizedSpokenPhrase);
+        activePhraseValidationResult = EvaluateCurrentPhrase(
+            spokenPhrase,
+            phraseNormalizer);
         LastPhraseValidationResult = activePhraseValidationResult;
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = activePhraseValidationResult.WordTimeline.Length > 0;
@@ -201,6 +161,217 @@ public class IncantationManager : MonoBehaviour
             ReplayActivePhraseJudgment();
 
         return activePhraseValidationResult;
+    }
+
+    public PhraseValidationResult EvaluateCurrentWordRealtime(
+        string spokenWord,
+        VoicePhraseNormalizer phraseNormalizer)
+    {
+        if (IsCompleted || currentIncantation.Count == 0)
+        {
+            return PhraseValidator.ValidateWord(
+                string.Empty,
+                spokenWord,
+                CurrentWordIndex);
+        }
+
+        return PhraseValidator.ValidateWord(
+            NormalizeWord(CurrentWord),
+            NormalizePhrase(spokenWord, phraseNormalizer),
+            CurrentWordIndex);
+    }
+
+    public PhraseValidationResult EvaluateCurrentPhrase(
+        string spokenPhrase,
+        VoicePhraseNormalizer phraseNormalizer)
+    {
+        string normalizedSpokenPhrase = NormalizePhrase(
+            spokenPhrase,
+            phraseNormalizer);
+        string normalizedExpectedPhrase = NormalizePhrase(
+            GetCurrentIncantationText(),
+            null);
+        return PhraseValidator.Validate(
+            normalizedExpectedPhrase,
+            normalizedSpokenPhrase);
+    }
+
+    public void ApplyAuthoritativeWordValidation(PhraseValidationResult result)
+    {
+        activePhraseValidationResult = result;
+        LastPhraseValidationResult = result;
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = true;
+        OnPhraseReplayReset?.Invoke();
+
+        if (result.WordTimeline.Length == 0)
+        {
+            hasActivePhraseReplay = false;
+            OnPhraseReplayFinished?.Invoke();
+            return;
+        }
+
+        PhraseValidationWordResult wordResult = result.WordTimeline[0];
+        hasActivePhraseReplay = false;
+
+        if (result.IsSuccess && !IsCompleted)
+        {
+            currentIncantation[CurrentWordIndex].MarkCompleted();
+            CurrentWordIndex++;
+            onCorrectWord.Invoke();
+            OnPhraseReplayAcceptedWord?.Invoke(wordResult);
+
+            if (IsCompleted)
+                onIncantationCompleted.Invoke();
+        }
+        else
+        {
+            onIncorrectWord.Invoke();
+            OnPhraseReplayRejectedWord?.Invoke(wordResult);
+            ResetCurrentPhraseProgress();
+        }
+
+        OnPhraseReplayFinished?.Invoke();
+    }
+
+    public void ApplyAuthoritativePhraseValidation(PhraseValidationResult result)
+    {
+        activePhraseValidationResult = result;
+        LastPhraseValidationResult = result;
+        activePhraseReplayIndex = 0;
+        hasActivePhraseReplay = result.WordTimeline.Length > 0;
+        OnPhraseReplayReset?.Invoke();
+
+        if (!hasActivePhraseReplay)
+            OnPhraseReplayFinished?.Invoke();
+        else
+            ReplayActivePhraseJudgment();
+    }
+
+    public PhraseValidationResult BuildAuthoritativeValidationResult(
+        bool isAccepted,
+        int acceptedWordCount,
+        int firstRejectedWordIndex,
+        string rejectedWord,
+        PhraseValidationFailureReason failureReason)
+    {
+        int clampedAcceptedWordCount = Mathf.Clamp(
+            acceptedWordCount,
+            0,
+            currentIncantation.Count);
+        int timelineLength = clampedAcceptedWordCount;
+        if (!isAccepted &&
+            firstRejectedWordIndex >= 0 &&
+            firstRejectedWordIndex < currentIncantation.Count)
+        {
+            timelineLength = Mathf.Max(
+                timelineLength,
+                firstRejectedWordIndex + 1);
+        }
+
+        PhraseValidationWordResult[] timeline =
+            new PhraseValidationWordResult[timelineLength];
+        for (int wordIndex = 0; wordIndex < timelineLength; wordIndex++)
+        {
+            string expectedWord = currentIncantation[wordIndex].Text;
+            bool acceptedWord = wordIndex < clampedAcceptedWordCount;
+            string receivedWord = acceptedWord
+                ? expectedWord
+                : rejectedWord ?? string.Empty;
+            PhraseValidationWordState state = acceptedWord
+                ? PhraseValidationWordState.Success
+                : string.IsNullOrEmpty(receivedWord)
+                    ? PhraseValidationWordState.Missing
+                    : PhraseValidationWordState.Failed;
+            timeline[wordIndex] = new PhraseValidationWordResult(
+                wordIndex,
+                expectedWord,
+                receivedWord,
+                state);
+        }
+
+        return new PhraseValidationResult(
+            isAccepted,
+            clampedAcceptedWordCount,
+            firstRejectedWordIndex,
+            failureReason,
+            timeline);
+    }
+
+    public PhraseValidationResult BuildAuthoritativeWordValidationResult(
+        bool isAccepted,
+        int wordIndex,
+        string expectedWord,
+        string rejectedWord,
+        PhraseValidationFailureReason failureReason)
+    {
+        PhraseValidationWordResult wordResult =
+            new PhraseValidationWordResult(
+                wordIndex,
+                expectedWord ?? string.Empty,
+                rejectedWord ?? string.Empty,
+                isAccepted
+                    ? PhraseValidationWordState.Success
+                    : PhraseValidationWordState.Failed);
+        return new PhraseValidationResult(
+            isAccepted,
+            isAccepted ? 1 : 0,
+            isAccepted ? -1 : wordIndex,
+            failureReason,
+            new[] { wordResult });
+    }
+
+    public void ApplyAuthoritativePhraseState(
+        string[] words,
+        int expectedWordIndex)
+    {
+        string[] safeWords = words ?? Array.Empty<string>();
+        bool phraseChanged = currentIncantation.Count != safeWords.Length;
+        if (!phraseChanged)
+        {
+            for (int wordIndex = 0;
+                wordIndex < safeWords.Length;
+                wordIndex++)
+            {
+                if (string.Equals(
+                        currentIncantation[wordIndex]?.Text,
+                        safeWords[wordIndex],
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                phraseChanged = true;
+                break;
+            }
+        }
+
+        if (phraseChanged)
+        {
+            currentIncantation.Clear();
+            foreach (string word in safeWords)
+            {
+                currentIncantation.Add(new IncantationWord(word));
+            }
+
+            onIncantationGenerated.Invoke();
+        }
+
+        CurrentWordIndex = Mathf.Clamp(
+            expectedWordIndex,
+            0,
+            currentIncantation.Count);
+        for (int wordIndex = 0;
+            wordIndex < currentIncantation.Count;
+            wordIndex++)
+        {
+            if (wordIndex < CurrentWordIndex)
+                currentIncantation[wordIndex].MarkCompleted();
+            else
+                currentIncantation[wordIndex].MarkIncomplete();
+        }
+
+        ResetPhraseReplayFeedback();
     }
 
     public void ResetCurrentPhraseProgress()
@@ -340,7 +511,7 @@ public class IncantationManager : MonoBehaviour
         return false;
     }
 
-    private string GetCurrentIncantationText()
+    public string GetCurrentIncantationText()
     {
         if (currentIncantation.Count == 0)
             return string.Empty;

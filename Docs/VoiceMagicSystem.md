@@ -37,6 +37,10 @@ Voice recognizers produce candidates.
 
 Ritual validation decides whether those candidates satisfy the current phrase.
 
+In multiplayer, `NetworkRitualAuthority` alone performs that decision after authenticating the
+voice submission. Clients receive and apply an immutable validation result; they never determine
+correctness locally. Offline play continues to use the same `PhraseValidator` rules locally.
+
 In `WordByWordRealtime`, the recognizer emits recognized words or aliases and the ritual accepts or rejects the next expected word.
 
 In `FullPhrase`, the recognizer emits a full transcript candidate and the ritual validates it against the full visible phrase.

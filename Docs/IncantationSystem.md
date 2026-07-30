@@ -60,7 +60,11 @@ Unity Dictation and Azure are not part of the current implementation plan and mu
 
 `VoicePhraseNormalizer` may build alias lookup from the ritual word library so adding or changing a ritual word affects recognition normalization in one place.
 
-`RitualController` decides when a ritual phase starts and ends. `IncantationManager` decides whether the spoken candidate satisfies the current phrase state.
+Offline, `IncantationManager` evaluates and applies candidates through `PhraseValidator`. During
+a network ritual, `NetworkRitualAuthority` is the only phrase judge: it reads the server
+`IncantationManager` phrase, uses the same pure evaluation methods, and publishes an immutable
+verdict. Each peer's `IncantationManager` applies that verdict for progress and presentation
+without independently comparing the submitted speech.
 
 ## Spell Phrase Boundary
 

@@ -55,6 +55,39 @@ public class PhraseValidator : MonoBehaviour
         return new PhraseValidationResult(true, expectedWords.Length, -1, PhraseValidationFailureReason.None, wordTimeline);
     }
 
+    public static PhraseValidationResult ValidateWord(
+        string expectedWord,
+        string recognizedWord,
+        int wordIndex)
+    {
+        string normalizedExpectedWord = NormalizePhrase(expectedWord);
+        string normalizedRecognizedWord = NormalizePhrase(recognizedWord);
+        bool isSuccess = !string.IsNullOrEmpty(normalizedExpectedWord) &&
+            string.Equals(
+                normalizedExpectedWord,
+                normalizedRecognizedWord,
+                StringComparison.Ordinal);
+        PhraseValidationFailureReason failureReason = isSuccess
+            ? PhraseValidationFailureReason.None
+            : string.IsNullOrEmpty(normalizedRecognizedWord)
+                ? PhraseValidationFailureReason.Empty
+                : PhraseValidationFailureReason.WrongWord;
+        PhraseValidationWordResult wordResult = new PhraseValidationWordResult(
+            wordIndex,
+            expectedWord,
+            normalizedRecognizedWord,
+            isSuccess
+                ? PhraseValidationWordState.Success
+                : PhraseValidationWordState.Failed);
+
+        return new PhraseValidationResult(
+            isSuccess,
+            isSuccess ? 1 : 0,
+            isSuccess ? -1 : wordIndex,
+            failureReason,
+            new[] { wordResult });
+    }
+
     public PhraseValidationResult ValidatePhrase(string expectedPhrase, string recognizedPhrase)
     {
         return Validate(expectedPhrase, recognizedPhrase);

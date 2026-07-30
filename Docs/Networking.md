@@ -396,10 +396,13 @@ RPC carries ritual, turn, and submission sequence values but no trusted player i
 roster, active participant, accepted Book arrival, live timer window, sequence freshness, and
 bounded normalized text, then publishes an immutable accepted-submission snapshot/event.
 
-The authority does not judge phrase correctness, accept words, advance the turn, or apply a
-failure. Until those responsibilities migrate, the accepted event is the only network path into
-the existing `RitualController` validator. Offline recognition continues to use the original
-direct local path.
+The authority passes every accepted submission through the existing deterministic
+`PhraseValidator` rules against the server's current `IncantationManager` phrase and configured
+validation mode. It publishes one immutable `RitualValidationSnapshot` for each submission.
+Clients never compare recognized text with the expected phrase during a network ritual.
+`RitualController` temporarily applies the server verdict to the existing word-replay,
+feedback, and success/failure consequence flow. Offline recognition continues to evaluate and
+apply locally through the same validator.
 
 This prevents a stale or non-active client from advancing the ritual, but it does not prevent a modified client from lying about recognized speech. For a social party game, that limited trust model is acceptable for the first release. Server-side audio recognition would add latency, privacy, bandwidth, and operational cost and is not justified unless cheating becomes a real problem.
 

@@ -124,7 +124,10 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
     Accepted Book arrival starts it automatically; expiration only publishes state/events.
   - Accepts recognized-text submissions only through a connection-owned `NetworkPlayer`, derives
     the player from the FishNet connection, validates the authoritative turn and timer window, and
-    publishes immutable accepted-submission state without deciding whether the phrase is correct.
+    publishes immutable accepted-submission state.
+  - Is the sole multiplayer phrase judge. It retrieves the server's current
+    `IncantationManager` phrase, invokes the existing deterministic `PhraseValidator` rules for
+    the selected mode, and publishes one immutable validation result per submission.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
     Book, activate voice, validate phrases, start legacy turns, or control consequence flow.
 - `Assets/Scripts/Ritual/RitualController.cs`
@@ -134,8 +137,8 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Starts and stops the hourglass.
   - Starts and stops voice recognition.
   - In network sessions forwards raw recognized text through the locally owned `NetworkPlayer`
-    and runs legacy validation only after the authority publishes acceptance. Offline sessions
-    retain the direct recognizer-to-validation path.
+    and applies only the authority's accepted/rejected validation result. Offline sessions retain
+    direct evaluation and application through the same validator.
   - Applies `WordByWordRealtime` or `FullPhrase` validation behavior.
   - Bridges into `CoreRitualLoopBridge` when available.
 

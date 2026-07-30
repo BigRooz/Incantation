@@ -66,8 +66,9 @@ The current v0.1 prototype includes:
 - `NetworkRitualAuthority` for network timer truth, with `HourglassController` retaining the
   offline countdown and acting as the network presentation/compatibility bridge.
 - `NetworkPlayer` as the connection-owned ritual voice-submission ingress, with
-  `NetworkRitualAuthority` authenticating and publishing accepted text while
-  `RitualController` temporarily retains phrase validation.
+  `NetworkRitualAuthority` authenticating input and exclusively judging it with the existing
+  deterministic phrase rules. `RitualController` temporarily applies the immutable verdict to
+  legacy presentation and consequences.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
 For a visual overview of ownership, dependencies, events, and extension points, read `Docs/SYSTEM_DIAGRAM.md`.
@@ -111,11 +112,11 @@ Do not assume newer core-loop scripts have replaced the current prototype runtim
 
 In a FishNet ritual, raw recognized speech follows one path:
 `IVoiceRecognizer` -> `RitualController` -> locally owned `NetworkPlayer` server RPC ->
-`NetworkRitualAuthority` acceptance -> `RitualController` legacy validation. The submitted
+`NetworkRitualAuthority` validation -> `RitualController` legacy result application. The submitted
 contract contains stable sequence values and text, never a trusted player ID. The server derives
 identity from the RPC connection and rejects candidates that do not belong to the current active
 participant, accepted Book arrival, and running timer window. Offline sessions bypass this bridge
-and preserve the existing direct validation flow.
+and preserve direct evaluation and application through the same `PhraseValidator`.
 
 ## Network Scene Startup
 
