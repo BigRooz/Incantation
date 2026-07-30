@@ -97,7 +97,7 @@ public class RitualController : MonoBehaviour
     private string lastProcessedWhisperPhrase = string.Empty;
     private NetworkRitualAuthority ritualAuthority;
     private NetworkRitualAuthority subscribedRitualAuthority;
-    private uint handledTurnOutcomeSequence;
+    private uint handledConsequenceSequence;
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
@@ -164,7 +164,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         currentFailedSeat = null;
-        handledTurnOutcomeSequence = 0;
+        handledConsequenceSequence = 0;
         CurrentFailedPlayer = null;
         hasLoggedMissingFailedPlayerTransform = false;
         hasLoggedDebugAbsorptionPlayerOverride = false;
@@ -1051,8 +1051,10 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeValidation;
         subscribedRitualAuthority.ValidationRejected +=
             HandleAuthoritativeValidation;
-        subscribedRitualAuthority.TurnOutcomeCommitted +=
-            HandleAuthoritativeTurnOutcome;
+        subscribedRitualAuthority.ConsequenceCommitted +=
+            HandleAuthoritativeConsequence;
+        subscribedRitualAuthority.ConsequenceSnapshotChanged +=
+            HandleAuthoritativeConsequence;
     }
 
     private void UnsubscribeFromRitualAuthority()
@@ -1064,8 +1066,10 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeValidation;
         subscribedRitualAuthority.ValidationRejected -=
             HandleAuthoritativeValidation;
-        subscribedRitualAuthority.TurnOutcomeCommitted -=
-            HandleAuthoritativeTurnOutcome;
+        subscribedRitualAuthority.ConsequenceCommitted -=
+            HandleAuthoritativeConsequence;
+        subscribedRitualAuthority.ConsequenceSnapshotChanged -=
+            HandleAuthoritativeConsequence;
         subscribedRitualAuthority = null;
     }
 
@@ -1161,26 +1165,27 @@ public class RitualController : MonoBehaviour
 
     }
 
-    private void HandleAuthoritativeTurnOutcome(
-        TurnOutcomeSnapshot outcome)
+    private void HandleAuthoritativeConsequence(
+        RitualConsequenceSnapshot consequence)
     {
         NetworkRitualAuthority authority = ResolveRitualAuthority();
         if (authority == null ||
-            !outcome.HasOutcome ||
-            outcome.OutcomeSequenceId.Value <=
-                handledTurnOutcomeSequence ||
-            outcome.RitualSequenceId.Value !=
+            !consequence.HasConsequence ||
+            consequence.ConsequenceSequenceId.Value <=
+                handledConsequenceSequence ||
+            consequence.RitualSequenceId.Value !=
                 authority.Snapshot.SequenceId.Value ||
-            outcome.TurnSequenceId.Value !=
+            consequence.TurnSequenceId.Value !=
                 authority.Snapshot.Turn.SequenceId.Value)
         {
             return;
         }
 
-        handledTurnOutcomeSequence = outcome.OutcomeSequenceId.Value;
-        switch (outcome.OutcomeType)
+        handledConsequenceSequence =
+            consequence.ConsequenceSequenceId.Value;
+        switch (consequence.ConsequenceType)
         {
-            case TurnOutcomeType.Success:
+            case RitualConsequenceType.TurnSucceeded:
                 UnsubscribeFromVoiceRecognizer();
                 StopListening();
 
@@ -1190,7 +1195,7 @@ public class RitualController : MonoBehaviour
                 CompleteSuccessfulPlayerTurn();
                 break;
 
-            case TurnOutcomeType.TimerExpired:
+            case RitualConsequenceType.TimerExpired:
                 StopListening();
                 FailRitual(
                     "Timeout: authoritative ritual timer expired.",

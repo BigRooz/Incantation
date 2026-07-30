@@ -131,8 +131,11 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Is the sole multiplayer turn-result writer. A phrase-completing accepted validation or its
     own timer expiration may commit one immutable `TurnOutcomeSnapshot`; duplicate and stale
     sources are rejected.
+  - Is the sole multiplayer consequence selector and writer. Each current turn outcome maps to
+    exactly one immutable `RitualConsequenceSnapshot`; stale, duplicate, mismatched, or
+    client-originated commits are rejected.
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
-    Book, activate voice, validate phrases, start legacy turns, or control consequence flow.
+    Book, activate voice, start legacy turns, or execute consequence presentation.
 - `Assets/Scripts/Ritual/RitualController.cs`
   - Current prototype orchestrator.
   - Selects occupied seats through `SeatManager`.
@@ -142,8 +145,9 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - In network sessions forwards raw recognized text through the locally owned `NetworkPlayer`
     and applies only the authority's accepted/rejected validation result. Offline sessions retain
     direct evaluation and application through the same validator.
-  - In network sessions enters its existing success or timeout consequence flow only after
-    `TurnOutcomeCommitted`; it does not infer an official result from validation or timer visuals.
+  - In network sessions enters its existing success or timeout compatibility flow only after
+    `ConsequenceCommitted`; it does not infer an official result or consequence from validation,
+    timer visuals, or the turn outcome alone.
   - Applies `WordByWordRealtime` or `FullPhrase` validation behavior.
   - Bridges into `CoreRitualLoopBridge` when available.
 

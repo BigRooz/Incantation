@@ -207,9 +207,12 @@ validator directly.
 Network validation rejection remains retryable while authoritative time remains. A turn ends
 only when an accepted validation completes the visible phrase or the server timer expires.
 `NetworkRitualAuthority` validates that source and publishes exactly one immutable turn outcome.
-`RitualController` waits for that outcome before entering its temporary legacy success or timeout
-pipeline. The outcome commit itself does not move the Book, change Seats, eliminate a player,
-start Book Prison, advance the turn, or change ritual phase.
+It then selects and commits exactly one immutable consequence for that outcome: successful turns
+produce `TurnSucceeded`, while authoritative timeouts produce `TimerExpired`.
+`RitualController` waits for `ConsequenceCommitted` before entering its temporary legacy success
+or timeout presentation pipeline. The consequence commit itself does not move the Book, change
+Seats, eliminate a player, start Book Prison, advance the turn, or change ritual phase; those
+executions remain behind the compatibility bridge.
 
 ### Hourglass
 
@@ -221,7 +224,7 @@ Responsibilities:
 
 - Start pressure after authoritative Book arrival.
 - Stop pressure on an accepted server stop request or ritual stop.
-- Publish server-authoritative timeout without choosing its consequence.
+- Publish server-authoritative timeout for consequence selection by ritual authority.
 
 Does not own:
 

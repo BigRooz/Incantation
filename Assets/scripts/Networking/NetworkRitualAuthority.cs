@@ -10,9 +10,9 @@ using UnityEngine;
 namespace Incantation.Networking
 {
     /// <summary>
-    /// Owns server-authoritative ritual state through accepted voice submission and deterministic
-    /// phrase validation. Physical Book execution, speech recognition, result consequences,
-    /// phrase progression, and elimination remain outside this component.
+    /// Owns server-authoritative ritual state through deterministic turn outcome and consequence
+    /// selection. Physical Book execution, speech recognition, consequence presentation, phrase
+    /// progression, and elimination execution remain outside this component.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
@@ -85,6 +85,15 @@ namespace Incantation.Networking
         private readonly SyncVar<uint> turnOutcomeTimerSequence = new(0);
         private readonly SyncVar<double> turnOutcomeServerTimestamp = new(0d);
         private readonly SyncVar<uint> turnOutcomeRevision = new(0);
+        private readonly SyncVar<uint> consequenceSequence = new(0);
+        private readonly SyncVar<uint> consequenceRitualSequence = new(0);
+        private readonly SyncVar<uint> consequenceTurnSequence = new(0);
+        private readonly SyncVar<uint> consequenceOutcomeSequence = new(0);
+        private readonly SyncVar<string> consequencePlayerId = new(string.Empty);
+        private readonly SyncVar<RitualConsequenceType> consequenceType =
+            new(RitualConsequenceType.None);
+        private readonly SyncVar<double> consequenceServerTimestamp = new(0d);
+        private readonly SyncVar<uint> consequenceRevision = new(0);
         private readonly SyncVar<RitualOutcome> latestRitualOutcome = new(RitualOutcome.None);
         private readonly SyncVar<RitualFailureReason> failureReason =
             new(RitualFailureReason.None);
@@ -118,6 +127,7 @@ namespace Incantation.Networking
         private bool timerExpiredNotificationPending;
         private bool validationNotificationPending;
         private bool turnOutcomeNotificationPending;
+        private bool consequenceNotificationPending;
         private bool ownsDiscoveryReference;
         private NetworkBookAuthority networkBookAuthority;
         private RitualController ritualController;
@@ -145,6 +155,10 @@ namespace Incantation.Networking
             CreateCurrentTurnOutcomeSnapshot();
         public TurnOutcomeSnapshot LatestTurnOutcome =>
             CreateTurnOutcomeSnapshot();
+        public RitualConsequenceSnapshot CurrentConsequence =>
+            CreateCurrentConsequenceSnapshot();
+        public RitualConsequenceSnapshot LatestConsequence =>
+            CreateConsequenceSnapshot();
         public bool IsTimerRunning => isTimerRunning.Value;
         public double TimerDeadline => timerDeadlineNetworkTime.Value;
         public double RemainingTime => CalculateRemainingTime(GetCurrentNetworkTime());
@@ -164,6 +178,8 @@ namespace Incantation.Networking
         public event Action<RitualValidationSnapshot> ValidationRejected;
         public event Action<TurnOutcomeSnapshot> TurnOutcomeCommitted;
         public event Action<TurnOutcomeSnapshot> TurnOutcomeSnapshotChanged;
+        public event Action<RitualConsequenceSnapshot> ConsequenceCommitted;
+        public event Action<RitualConsequenceSnapshot> ConsequenceSnapshotChanged;
 
         private void OnEnable()
         {
@@ -184,7 +200,8 @@ namespace Incantation.Networking
                  !timerNotificationPending &&
                  !timerExpiredNotificationPending &&
                  !validationNotificationPending &&
-                 !turnOutcomeNotificationPending) ||
+                 !turnOutcomeNotificationPending &&
+                 !consequenceNotificationPending) ||
                 !ownsDiscoveryReference)
                 return;
 
@@ -209,7 +226,7 @@ namespace Incantation.Networking
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log(
-                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, VoiceSubmission={snapshot.VoiceSubmission.SubmissionSequence}, VoicePlayer={snapshot.VoiceSubmission.PlayerId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, TurnOutcome={snapshot.TurnOutcome.OutcomeType}, TurnOutcomeSequence={snapshot.TurnOutcome.OutcomeSequenceId.Value}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, VoiceSubmission={snapshot.VoiceSubmission.SubmissionSequence}, VoicePlayer={snapshot.VoiceSubmission.PlayerId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, TurnOutcome={snapshot.TurnOutcome.OutcomeType}, TurnOutcomeSequence={snapshot.TurnOutcome.OutcomeSequenceId.Value}, Consequence={snapshot.Consequence.ConsequenceType}, ConsequenceSequence={snapshot.Consequence.ConsequenceSequenceId.Value}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
                     this);
 #endif
             }
@@ -244,6 +261,13 @@ namespace Incantation.Networking
                 TurnOutcomeSnapshotChanged?.Invoke(
                     CreateCurrentTurnOutcomeSnapshot());
             }
+
+            if (consequenceNotificationPending)
+            {
+                consequenceNotificationPending = false;
+                ConsequenceSnapshotChanged?.Invoke(
+                    CreateCurrentConsequenceSnapshot());
+            }
         }
 
         private void Update()
@@ -267,11 +291,13 @@ namespace Incantation.Networking
             timerRevision.OnChange += HandleTimerRevisionChanged;
             validationRevision.OnChange += HandleValidationRevisionChanged;
             turnOutcomeRevision.OnChange += HandleTurnOutcomeRevisionChanged;
+            consequenceRevision.OnChange += HandleConsequenceRevisionChanged;
             snapshotRevision.OnChange += HandleSnapshotRevisionChanged;
             rosterNotificationPending = true;
             snapshotNotificationPending = true;
             validationNotificationPending = true;
             turnOutcomeNotificationPending = true;
+            consequenceNotificationPending = true;
         }
 
         public override void OnStopNetwork()
@@ -281,6 +307,7 @@ namespace Incantation.Networking
             timerRevision.OnChange -= HandleTimerRevisionChanged;
             validationRevision.OnChange -= HandleValidationRevisionChanged;
             turnOutcomeRevision.OnChange -= HandleTurnOutcomeRevisionChanged;
+            consequenceRevision.OnChange -= HandleConsequenceRevisionChanged;
             snapshotRevision.OnChange -= HandleSnapshotRevisionChanged;
             rosterNotificationPending = false;
             snapshotNotificationPending = false;
@@ -289,6 +316,7 @@ namespace Incantation.Networking
             timerExpiredNotificationPending = false;
             validationNotificationPending = false;
             turnOutcomeNotificationPending = false;
+            consequenceNotificationPending = false;
             ReleaseDiscoveryReference();
             base.OnStopNetwork();
         }
@@ -378,6 +406,13 @@ namespace Incantation.Networking
             turnOutcomeValidationSequence.Value = 0;
             turnOutcomeTimerSequence.Value = 0;
             turnOutcomeServerTimestamp.Value = 0d;
+            consequenceSequence.Value = 0;
+            consequenceRitualSequence.Value = 0;
+            consequenceTurnSequence.Value = 0;
+            consequenceOutcomeSequence.Value = 0;
+            consequencePlayerId.Value = string.Empty;
+            consequenceType.Value = RitualConsequenceType.None;
+            consequenceServerTimestamp.Value = 0d;
             latestRitualOutcome.Value = RitualOutcome.None;
             failureReason.Value = RitualFailureReason.None;
             isGameOver.Value = false;
@@ -1301,6 +1336,91 @@ namespace Incantation.Networking
                 outcome.ValidationSequence,
                 outcome.TimerSequence,
                 outcome.ServerTimestamp);
+            return TryCommitConsequence(outcome);
+        }
+
+        private bool TryCommitConsequence(TurnOutcomeSnapshot outcome)
+        {
+            if (!IsServerInitialized)
+                return RejectConsequence("Only the server may commit consequences.");
+
+            TurnOutcomeSnapshot currentOutcome = CreateCurrentTurnOutcomeSnapshot();
+            if (!currentOutcome.HasOutcome ||
+                outcome.RitualSequenceId.Value != ritualSequence.Value ||
+                outcome.TurnSequenceId.Value != turnSequence.Value ||
+                outcome.OutcomeSequenceId.Value !=
+                    currentOutcome.OutcomeSequenceId.Value ||
+                !string.Equals(
+                    outcome.PlayerId,
+                    currentOutcome.PlayerId,
+                    StringComparison.Ordinal))
+            {
+                return RejectConsequence(
+                    "The originating outcome is missing, stale, or does not belong to the active turn.");
+            }
+
+            RitualConsequenceSnapshot existing = CreateConsequenceSnapshot();
+            if (existing.HasConsequence &&
+                existing.OutcomeSequenceId.Value ==
+                    outcome.OutcomeSequenceId.Value)
+            {
+                return RejectConsequence(
+                    $"Outcome {outcome.OutcomeSequenceId.Value} already has consequence {existing.ConsequenceType}.");
+            }
+
+            RitualConsequenceType selectedConsequence =
+                outcome.OutcomeType switch
+                {
+                    TurnOutcomeType.Success =>
+                        RitualConsequenceType.TurnSucceeded,
+                    TurnOutcomeType.TimerExpired =>
+                        RitualConsequenceType.TimerExpired,
+                    _ => RitualConsequenceType.None
+                };
+            if (selectedConsequence == RitualConsequenceType.None)
+            {
+                return RejectConsequence(
+                    $"Outcome type {outcome.OutcomeType} has no enabled consequence in this migration.");
+            }
+
+            if (consequenceSequence.Value == uint.MaxValue)
+                return RejectConsequence("The consequence sequence is exhausted.");
+
+            uint nextConsequenceSequence = consequenceSequence.Value + 1;
+            double serverTimestamp = GetCurrentNetworkTime();
+            consequenceSequence.Value = nextConsequenceSequence;
+            consequenceRitualSequence.Value = outcome.RitualSequenceId.Value;
+            consequenceTurnSequence.Value = outcome.TurnSequenceId.Value;
+            consequenceOutcomeSequence.Value =
+                outcome.OutcomeSequenceId.Value;
+            consequencePlayerId.Value = outcome.PlayerId;
+            consequenceType.Value = selectedConsequence;
+            consequenceServerTimestamp.Value = serverTimestamp;
+            consequenceRevision.Value++;
+            snapshotRevision.Value++;
+
+            RitualConsequenceSnapshot consequence =
+                CreateConsequenceSnapshot();
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Consequence Committed\n" +
+                $"Consequence = {consequence.ConsequenceType}\n" +
+                $"Player = {consequence.PlayerId}\n" +
+                $"TurnSequence = {consequence.TurnSequenceId.Value}\n" +
+                $"OutcomeSequence = {consequence.OutcomeSequenceId.Value}\n" +
+                $"ConsequenceSequence = {consequence.ConsequenceSequenceId.Value}\n" +
+                $"ServerTimestamp = {consequence.ServerTimestamp}",
+                this);
+
+            ConsequenceCommitted?.Invoke(consequence);
+            PublishConsequenceObserversRpc(
+                consequence.RitualSequenceId.Value,
+                consequence.TurnSequenceId.Value,
+                consequence.OutcomeSequenceId.Value,
+                consequence.ConsequenceSequenceId.Value,
+                consequence.PlayerId,
+                consequence.ConsequenceType,
+                consequence.ServerTimestamp);
             return true;
         }
 
@@ -1323,6 +1443,27 @@ namespace Incantation.Networking
                 committedOutcome,
                 originatingValidationSequence,
                 originatingTimerSequence,
+                serverTimestamp));
+        }
+
+        [ObserversRpc(ExcludeServer = true)]
+        private void PublishConsequenceObserversRpc(
+            uint committedRitualSequence,
+            uint committedTurnSequence,
+            uint originatingOutcomeSequence,
+            uint committedConsequenceSequence,
+            string derivedPlayerId,
+            RitualConsequenceType committedConsequence,
+            double serverTimestamp)
+        {
+            ConsequenceCommitted?.Invoke(new RitualConsequenceSnapshot(
+                new RitualSequenceId(committedRitualSequence),
+                new RitualTurnSequenceId(committedTurnSequence),
+                new RitualOutcomeSequenceId(originatingOutcomeSequence),
+                new RitualConsequenceSequenceId(
+                    committedConsequenceSequence),
+                derivedPlayerId,
+                committedConsequence,
                 serverTimestamp));
         }
 
@@ -1496,6 +1637,8 @@ namespace Incantation.Networking
             RitualValidationSnapshot validation = CreateValidationSnapshot();
             TurnOutcomeSnapshot turnOutcome =
                 CreateCurrentTurnOutcomeSnapshot();
+            RitualConsequenceSnapshot consequence =
+                CreateCurrentConsequenceSnapshot();
             RitualPhraseSnapshot phrase = new(
                 new RitualPhraseSequenceId(phraseVersion.Value),
                 new RitualWordSequenceId((uint)Mathf.Max(0, expectedWordIndex.Value)),
@@ -1524,6 +1667,7 @@ namespace Incantation.Networking
                 voiceSubmission,
                 validation,
                 turnOutcome,
+                consequence,
                 phrase,
                 outcome,
                 isGameOver.Value,
@@ -1649,6 +1793,39 @@ namespace Incantation.Networking
                 TurnOutcomeType.None,
                 0,
                 0,
+                0d);
+        }
+
+        private RitualConsequenceSnapshot CreateConsequenceSnapshot()
+        {
+            return new RitualConsequenceSnapshot(
+                new RitualSequenceId(consequenceRitualSequence.Value),
+                new RitualTurnSequenceId(consequenceTurnSequence.Value),
+                new RitualOutcomeSequenceId(
+                    consequenceOutcomeSequence.Value),
+                new RitualConsequenceSequenceId(consequenceSequence.Value),
+                consequencePlayerId.Value,
+                consequenceType.Value,
+                consequenceServerTimestamp.Value);
+        }
+
+        private RitualConsequenceSnapshot CreateCurrentConsequenceSnapshot()
+        {
+            RitualConsequenceSnapshot latest =
+                CreateConsequenceSnapshot();
+            if (latest.RitualSequenceId.Value == ritualSequence.Value &&
+                latest.TurnSequenceId.Value == turnSequence.Value)
+            {
+                return latest;
+            }
+
+            return new RitualConsequenceSnapshot(
+                new RitualSequenceId(ritualSequence.Value),
+                new RitualTurnSequenceId(turnSequence.Value),
+                new RitualOutcomeSequenceId(0),
+                new RitualConsequenceSequenceId(0),
+                activePlayerId.Value,
+                RitualConsequenceType.None,
                 0d);
         }
 
@@ -2038,6 +2215,19 @@ namespace Incantation.Networking
             return false;
         }
 
+        private bool RejectConsequence(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Consequence Rejected\n" +
+                $"Reason = {reason}\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"TurnSequence = {turnSequence.Value}\n" +
+                $"OutcomeSequence = {turnOutcomeSequence.Value}",
+                this);
+            return false;
+        }
+
         private bool TryCollectApprovedPlayers(
             out List<NetworkPlayer> approvedPlayers,
             out HashSet<NetworkPlayer> approvedPlayerSet)
@@ -2301,6 +2491,14 @@ namespace Incantation.Networking
             bool asServer)
         {
             turnOutcomeNotificationPending = true;
+        }
+
+        private void HandleConsequenceRevisionChanged(
+            uint previousRevision,
+            uint currentRevision,
+            bool asServer)
+        {
+            consequenceNotificationPending = true;
         }
 
         private void HandleSnapshotRevisionChanged(

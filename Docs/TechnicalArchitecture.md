@@ -66,9 +66,10 @@ The current v0.1 prototype includes:
 - `NetworkRitualAuthority` for network timer truth, with `HourglassController` retaining the
   offline countdown and acting as the network presentation/compatibility bridge.
 - `NetworkPlayer` as the connection-owned ritual voice-submission ingress, with
-  `NetworkRitualAuthority` authenticating input and exclusively judging it with the existing
-  deterministic phrase rules. `RitualController` temporarily applies the immutable verdict to
-  legacy presentation and consequences.
+  `NetworkRitualAuthority` authenticating input, exclusively judging it with the existing
+  deterministic phrase rules, committing the official turn outcome, and selecting its one
+  authoritative consequence. `RitualController` temporarily applies immutable validation and
+  consequence snapshots to legacy presentation.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
 For a visual overview of ownership, dependencies, events, and extension points, read `Docs/SYSTEM_DIAGRAM.md`.
@@ -121,10 +122,12 @@ and preserve direct evaluation and application through the same `PhraseValidator
 Official network turn completion is a separate authority boundary. Phrase-completing validation
 and authoritative timer expiration converge inside `NetworkRitualAuthority`, which commits
 exactly one immutable `TurnOutcomeSnapshot` for the current ritual, turn, and active player.
-The outcome contains stable source sequence IDs and no Unity references. `RitualController`
-reacts to that result through its existing success or timeout consequence pipeline; Book
-movement, Seat changes, elimination, Book Prison, next-turn selection, and phase progression
-remain legacy-owned.
+The outcome contains stable source sequence IDs and no Unity references. The authority validates
+the current ritual, turn, player, and originating outcome before committing exactly one
+`RitualConsequenceSnapshot`. `RitualController` reacts only to that consequence through its
+existing success or timeout compatibility pipeline. Book movement, Seat changes, elimination,
+Book Prison, next-turn selection, and phase progression remain legacy execution awaiting later
+migration or bridge removal.
 
 ## Network Scene Startup
 

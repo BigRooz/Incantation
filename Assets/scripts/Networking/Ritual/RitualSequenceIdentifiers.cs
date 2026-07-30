@@ -106,4 +106,25 @@ namespace Incantation.Networking.Ritual
         public static bool operator ==(RitualOutcomeSequenceId left, RitualOutcomeSequenceId right) => left.Equals(right);
         public static bool operator !=(RitualOutcomeSequenceId left, RitualOutcomeSequenceId right) => !left.Equals(right);
     }
+
+    public readonly struct RitualConsequenceSequenceId :
+        IEquatable<RitualConsequenceSequenceId>,
+        IComparable<RitualConsequenceSequenceId>
+    {
+        public RitualConsequenceSequenceId(uint value)
+        {
+            Value = value;
+        }
+
+        public uint Value { get; }
+
+        public int CompareTo(RitualConsequenceSequenceId other) => Value.CompareTo(other.Value);
+        public bool Equals(RitualConsequenceSequenceId other) => Value == other.Value;
+        public override bool Equals(object obj) => obj is RitualConsequenceSequenceId other && Equals(other);
+        public override int GetHashCode() => Value.GetHashCode();
+        public override string ToString() => Value.ToString();
+
+        public static bool operator ==(RitualConsequenceSequenceId left, RitualConsequenceSequenceId right) => left.Equals(right);
+        public static bool operator !=(RitualConsequenceSequenceId left, RitualConsequenceSequenceId right) => !left.Equals(right);
+    }
 }
