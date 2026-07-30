@@ -129,6 +129,58 @@ existing success or timeout compatibility pipeline. Book movement, Seat changes,
 Book Prison, next-turn selection, and phase progression remain legacy execution awaiting later
 migration or bridge removal.
 
+## Final Multiplayer Ritual Authority Ownership
+
+`NetworkRitualAuthority` is the only multiplayer gameplay writer for the migrated ritual
+decisions. The final ownership review is:
+
+| Decision | Sole authoritative writer | Other participants |
+| --- | --- | --- |
+| Roster | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | `NetworkPlayer` and `SeatManager` provide validated identity, occupancy, and physical-order inputs. |
+| Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | `RitualController` supplies its legacy requested Seat as a validated expectation but cannot write participant state. |
+| Book command | `NetworkRitualAuthority.TryRequestBookMoveToCurrentParticipant` | `BookMover` adapts legacy requests; `NetworkBookAuthority` executes the accepted command. |
+| Book arrival | `NetworkRitualAuthority.TryCommitBookArrival` | `NetworkBookAuthority` detects completion and submits a stable-data report. |
+| Timer | `NetworkRitualAuthority` timer start, stop, and expiration paths | `HourglassController` and `Timer` present snapshots and forward a server stop request. |
+| Voice submission acceptance | `NetworkRitualAuthority.TryAcceptVoiceSubmission` | The recognizer supplies local input; the owning `NetworkPlayer` authenticates transport. |
+| Phrase validation | `NetworkRitualAuthority` deterministic validation commit | `IncantationManager` supplies the server phrase and applies immutable results for presentation. |
+| Turn outcome | `NetworkRitualAuthority.TryCommitTurnOutcome` | Validation and timer state are immutable originating evidence only. |
+| Consequence | `NetworkRitualAuthority.TryCommitConsequence` | `RitualController` executes the published compatibility/presentation sequence. |
+
+All synchronized fields for these decisions are private to `NetworkRitualAuthority`. Public
+consumers receive immutable snapshots, read-only queries, or events. Client-to-server voice
+transport is the only client request in this decision chain; sender identity is derived from the
+FishNet connection and clients cannot call a commit path.
+
+### Compatibility Boundaries That Intentionally Remain
+
+- `RitualController` remains the offline gameplay orchestrator and the network presentation/
+  execution coordinator. It owns local voice-listening lifecycle, retry feedback, phrase replay,
+  Book acceptance timing, failure visuals, absorption handoff, and the existing prototype
+  elimination/next-turn execution. During a network session it cannot validate speech, expire
+  time, commit an outcome, or choose a consequence.
+- `BookMover.MoveToSeat` remains the shared offline/network call surface. Offline it executes the
+  original interpolation. In a network session it converts the requested `Seat` to a stable ID
+  and forwards it to ritual authority as an expectation; it cannot issue a network movement
+  command. `MoveToSeatAuthoritatively` remains the execution entry used by
+  `NetworkBookAuthority` and the offline path.
+- `NetworkBookAuthority` remains transport authority for the one physical Book. It resolves an
+  accepted stable Seat ID, runs interpolation, synchronizes pose/state, and reports completion;
+  it never selects the participant or destination.
+- `HourglassController` and `Timer` remain necessary because the existing scene, UI, audio, and
+  UnityEvents consume them. Their local countdown is enabled only offline. Network sessions apply
+  authoritative snapshots and never compute gameplay expiration.
+- `IncantationManager` remains the offline phrase/validation implementation and the network phrase
+  presentation model. Its local evaluation methods are reached only by offline flow; network
+  recognition returns after submitting to `NetworkRitualAuthority`, then applies the immutable
+  server result.
+- The focused `Committed` events preserve immediate presentation, while matching snapshot-change
+  events restore state for late or re-enabled consumers. Sequence guards make the dual delivery
+  idempotent; neither event is a second writer.
+
+These bridges are not orphaned: each has a current caller or serialized scene consumer. Removing
+them now would change offline play, Book movement presentation, timer UI/events, phrase replay,
+or failure presentation and is therefore outside architecture cleanup.
+
 ## Network Scene Startup
 
 `Assets/Scenes/Bootstrap.unity` is a networking launcher, not a gameplay scene. The

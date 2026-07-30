@@ -1487,14 +1487,6 @@ public class RitualController : MonoBehaviour
         return false;
     }
 
-    private bool IsRecognizedPhraseValid(string normalizedPhrase)
-    {
-        if (isUsingCoreRitualLoopPhraseAuthority && TryResolveReadyCoreRitualLoopBridge())
-            return coreRitualLoopBridge.ValidatePhrase(normalizedPhrase);
-
-        return CoreRitualLoop.ValidatePhraseCandidate(GetNormalizedCurrentIncantationText(), normalizedPhrase);
-    }
-
     private void FailRitual(
         string reason,
         bool stopHourglass = true)

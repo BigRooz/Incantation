@@ -150,6 +150,24 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
     timer visuals, or the turn outcome alone.
   - Applies `WordByWordRealtime` or `FullPhrase` validation behavior.
   - Bridges into `CoreRitualLoopBridge` when available.
+  - Its old unused `IsRecognizedPhraseValid` decision helper was retired after network validation
+    moved to `NetworkRitualAuthority`; offline validation continues through the live
+    `IncantationManager` paths.
+
+### Multiplayer Ritual Single-Writer Audit
+
+The completed authority migration has one synchronized writer for each scoped decision:
+
+- Roster, active participant, semantic Book command, accepted Book arrival, timer lifecycle,
+  accepted voice submission, phrase validation, turn outcome, and consequence are written only
+  by `NetworkRitualAuthority`.
+- `NetworkPlayer` transports owner speech with FishNet-authenticated sender identity.
+- `NetworkBookAuthority` executes accepted movement and reports arrival.
+- `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and `RitualController` retain
+  offline implementations and network presentation/compatibility responsibilities only.
+
+The detailed method-level ownership table and the rationale for every retained bridge live in
+`Docs/TechnicalArchitecture.md`.
 
 ### Core Ritual Loop
 

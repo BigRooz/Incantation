@@ -1066,62 +1066,23 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
    transition before opening it. Confirm the current-state query restores the correct Circle
    page and count without waiting for another membership event.
 
-Production Steam discovery, Steam transport, authoritative ritual gameplay, networked voice,
-and authoritative shared lobby presentation remain unimplemented. Steamworks.NET and
-FishySteamworks are not installed.
+Production Steam discovery, Steam transport, social voice chat, and authoritative shared lobby
+presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.
 
-`NetworkRitualAuthority` now provides the first server-owned replicated ritual snapshot
-foundation on the existing `MainGame` `SharedBookNetworkAuthority` scene object. Its primitive
-and enum FishNet fields expose immutable ritual contracts, and a final snapshot revision coalesces
-presentation notification after a coherent update. Non-roster test fields remain writable only
-through the server-guarded, development-only deterministic test method. No current ritual, Book,
-timer, phrase, voice, outcome, elimination, or turn behavior consumes or writes this state yet.
+`NetworkRitualAuthority` is the final single writer for the migrated multiplayer ritual chain on
+the existing `MainGame` `SharedBookNetworkAuthority` scene object. It owns the locked roster,
+active participant, semantic Book command, accepted Book arrival, timer lifecycle, accepted
+voice submission, deterministic phrase validation, turn outcome, and selected consequence.
+Private FishNet synchronized fields publish immutable value-only snapshots; clients have no
+commit RPC for these decisions.
 
-The same authority now owns the locked multiplayer ritual roster. Each `NetworkPlayer` receives
-a server-generated session player ID that does not expose or reuse a FishNet connection ID. On
-the server, roster creation validates Circle membership, stable player IDs, assigned Seat IDs,
-duplicate players, duplicate Seats, capacity, and the configured physical Seat registry before
-mutating synchronized state. Entries are copied by iterating `SeatManager.GetPhysicalSeats(...)`;
-they are never sorted by join order, client/connection ID, or numeric Seat value. Clients receive
-immutable roster snapshots and read-only active, alive, eliminated, player-by-Seat, and
-Seat-by-player queries. Alive/eliminated state is representational only in this milestone:
-existing elimination and ritual execution remain legacy-owned and do not write this roster.
-
-Active participant ownership now belongs to `NetworkRitualAuthority`. One server-only
-`TryCommitNextActiveParticipant()` method walks the locked roster circularly in its existing
-physical traversal order, skips inactive or non-alive entries, validates current active state,
-and commits active player ID, active Seat ID, and the next turn sequence before publishing one
-snapshot revision. Clients have read-only active participant queries and no RPC mutation path.
-
-Book movement command ownership now also belongs to `NetworkRitualAuthority`. Its server-only
-`TryRequestBookMoveToCurrentParticipant()` validates the locked roster, active/alive
-participant, configured target Seat ID, and one-request-per-turn invariant before issuing an
-immutable stable-ID `RitualBookMovementCommand`. `NetworkBookAuthority` accepts only that
-command and remains the physical interpolation, synchronization, and movement-completion
-detector; it does not select a target or advance ritual state. On completion it reports an
-immutable stable-data `RitualBookArrivalReport` to the server-only
-`NetworkRitualAuthority.TryCommitBookArrival()` entry point. Ritual authority rejects stale,
-duplicate, mismatched movement, ritual, turn, and target identifiers before publishing the
-latest immutable arrival snapshot and one read-only notification. No gameplay starts from that
-notification yet. `BookMover` temporarily converts the legacy
-ritual target to a stable Seat ID and forwards it through the ritual authority, while offline
-movement retains the original direct interpolation path. `BookController.OnArrived` remains
-temporarily intact only to preserve the current legacy ritual callback. Voice, phrases,
-validation, success/failure, elimination, and ritual phases remain legacy-owned until their
-focused migration tasks.
-
-Ritual timer ownership now belongs to `NetworkRitualAuthority`. Every accepted Book arrival
-starts exactly one server timer using a synchronized timer sequence, ritual/turn identity,
-duration, start network time, and deadline. The server alone compares FishNet network time to
-the deadline and commits expiration; clients derive presentation progress from the replicated
-deadline but never decide gameplay timeout. `RitualTimerSnapshot` publishes running, expired,
-duration, timestamps, and read-time remaining values through the top-level ritual snapshot and
-focused read-only notifications. `HourglassController` is the temporary compatibility bridge:
-offline it retains the original local countdown, while network sessions mirror authoritative
-snapshots into the legacy `Timer` for visuals and existing callback compatibility. Legacy
-success may request a validated server stop, but no external system writes timer state. The
-authority's `TimerExpired` event does not itself advance turns, declare failure, eliminate a
-player, or start consequences.
+`NetworkPlayer` is only the authenticated owner-to-server speech transport.
+`NetworkBookAuthority` is only Book command execution, pose synchronization, and arrival
+reporting. `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and
+`RitualController` keep the offline implementations and current presentation compatibility.
+In a network session their decision paths either return after forwarding input or apply
+authoritative snapshots. The method-level ownership audit and retained-bridge rationale are
+maintained in `Docs/TechnicalArchitecture.md`.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

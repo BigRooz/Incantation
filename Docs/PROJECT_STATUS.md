@@ -106,6 +106,10 @@ The current prototype includes:
 48. One server-authoritative immutable consequence per turn outcome, selected and published only
     by `NetworkRitualAuthority` while `RitualController` remains the temporary presentation and
     legacy-execution bridge.
+49. A completed multiplayer ritual single-writer audit covering roster, active participant, Book
+    command/arrival, timer, voice submission, phrase validation, turn outcome, and consequence.
+    The unreachable pre-migration validation helper was removed; every retained bridge has an
+    offline or presentation caller.
 
 ## Ritual Creation
 
@@ -368,6 +372,10 @@ When a bug becomes part of the current project state, add it here briefly and re
 - `RitualController` applies authoritative validation snapshots to legacy phrase presentation and
   waits for authoritative consequence snapshots before entering the compatibility flow.
   Consequence presentation/execution and phrase progression remain bridged.
+- The remaining ritual bridges are intentional rather than duplicate authorities: `BookMover`
+  adapts stable Seat requests and executes interpolation, `NetworkBookAuthority` transports the
+  one Book and reports arrival, `HourglassController`/`Timer` present time, and
+  `IncantationManager` applies phrase feedback. Their offline implementations remain required.
 - Failed-seat elimination still lives in the prototype `RitualController` flow rather than a dedicated production game-mode rules layer.
 - Inspector reference coverage is incomplete for some camera and production audio mixer values.
 - `LobbyPlayerStateController` still duplicates lobby state while the Living Book flow is preserved; it must become an adapter/consumer of authoritative `NetworkPlayer` state.
