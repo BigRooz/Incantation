@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
@@ -47,6 +49,13 @@ namespace Incantation.Networking
         private readonly SyncVar<bool> isTimerRunning = new(false);
         private readonly SyncVar<bool> isTimerExpired = new(false);
         private readonly SyncVar<uint> timerRevision = new(0);
+        private readonly SyncVar<uint> acceptedVoiceRitualSequence = new(0);
+        private readonly SyncVar<uint> acceptedVoiceTurnSequence = new(0);
+        private readonly SyncVar<uint> acceptedVoiceSubmissionSequence = new(0);
+        private readonly SyncVar<string> acceptedVoicePlayerId = new(string.Empty);
+        private readonly SyncVar<string> acceptedVoiceRecognizedText = new(string.Empty);
+        private readonly SyncVar<double> acceptedVoiceServerTimestamp = new(0d);
+        private readonly SyncVar<uint> voiceSubmissionRevision = new(0);
         private readonly SyncVar<RitualOutcome> latestRitualOutcome = new(RitualOutcome.None);
         private readonly SyncVar<RitualFailureReason> failureReason =
             new(RitualFailureReason.None);
@@ -94,6 +103,8 @@ namespace Incantation.Networking
         public uint RequestedBookMovementSequence => requestedBookMovementSequence.Value;
         public RitualBookArrivalSnapshot BookArrival => CreateBookArrivalSnapshot();
         public RitualTimerSnapshot CurrentTimerSnapshot => CreateTimerSnapshot();
+        public RitualVoiceSubmissionSnapshot LatestVoiceSubmission =>
+            CreateVoiceSubmissionSnapshot();
         public bool IsTimerRunning => isTimerRunning.Value;
         public double TimerDeadline => timerDeadlineNetworkTime.Value;
         public double RemainingTime => CalculateRemainingTime(GetCurrentNetworkTime());
@@ -107,6 +118,7 @@ namespace Incantation.Networking
         public event Action<RitualBookArrivalSnapshot> BookArrivalAccepted;
         public event Action<RitualTimerSnapshot> TimerSnapshotChanged;
         public event Action<RitualTimerSnapshot> TimerExpired;
+        public event Action<RitualVoiceSubmissionSnapshot> VoiceSubmissionAccepted;
 
         private void OnEnable()
         {
@@ -150,7 +162,7 @@ namespace Incantation.Networking
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log(
-                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
+                    $"[Ritual Snapshot] Session={snapshot.RitualSessionId}, Ritual={snapshot.SequenceId.Value}, Phase={snapshot.Phase}, Roster={snapshot.Roster.Count}, Turn={snapshot.Turn.SequenceId.Value}, ActivePlayer={snapshot.ActivePlayerId}, ActiveSeat={snapshot.Turn.ActiveSeatId}, Direction={snapshot.TraversalDirection}, ArrivalMovement={snapshot.BookArrival.MovementSequence}, ArrivalSeat={snapshot.BookArrival.TargetSeatId}, TimerSequence={snapshot.Timer.TimerSequence}, TimerRunning={snapshot.Timer.IsRunning}, TimerExpired={snapshot.Timer.IsExpired}, TimerRemaining={snapshot.Timer.RemainingTime}, VoiceSubmission={snapshot.VoiceSubmission.SubmissionSequence}, VoicePlayer={snapshot.VoiceSubmission.PlayerId}, Validation={snapshot.ValidationMode}, Phrase={snapshot.Phrase.SequenceId.Value}, Unlocked={snapshot.Phrase.UnlockedWordCount}, Expected={snapshot.Phrase.ExpectedWordIndex}, Start={snapshot.Turn.StartedAtNetworkTime}, Deadline={snapshot.Turn.EndsAtNetworkTime}, Outcome={snapshot.Outcome.Outcome}, Failure={snapshot.Outcome.FailureReason}, GameOver={snapshot.IsGameOver}, Winner={snapshot.WinnerPlayerId}.",
                     this);
 #endif
             }
@@ -269,6 +281,12 @@ namespace Incantation.Networking
             timerRemainingTime.Value = 90d;
             isTimerRunning.Value = false;
             isTimerExpired.Value = false;
+            acceptedVoiceRitualSequence.Value = 0;
+            acceptedVoiceTurnSequence.Value = 0;
+            acceptedVoiceSubmissionSequence.Value = 0;
+            acceptedVoicePlayerId.Value = string.Empty;
+            acceptedVoiceRecognizedText.Value = string.Empty;
+            acceptedVoiceServerTimestamp.Value = 0d;
             latestRitualOutcome.Value = RitualOutcome.None;
             failureReason.Value = RitualFailureReason.None;
             isGameOver.Value = false;
@@ -625,6 +643,230 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Validates recognized speech against server-owned sender, roster, turn, arrival, and
+        /// timer state. This accepts input only and performs no phrase judgment.
+        /// </summary>
+        public bool TryAcceptVoiceSubmission(
+            NetworkConnection sender,
+            RitualVoiceSubmission submission)
+        {
+            int connectionId = sender != null ? sender.ClientId : -1;
+            if (!IsServerInitialized)
+            {
+                return RejectVoiceSubmission(
+                    "Only the server may accept recognized speech.",
+                    connectionId,
+                    submission);
+            }
+
+            if (sender == null ||
+                !sender.IsActive ||
+                !sender.IsAuthenticated)
+            {
+                return RejectVoiceSubmission(
+                    "The sending connection is missing, inactive, or unauthenticated.",
+                    connectionId,
+                    submission);
+            }
+
+            RitualRosterSnapshot roster = CreateRosterSnapshot();
+            if (roster.Version == 0 || roster.Count == 0)
+            {
+                return RejectVoiceSubmission(
+                    "The authoritative ritual roster is unavailable.",
+                    connectionId,
+                    submission);
+            }
+
+            if (!TryResolvePlayerForConnection(
+                    sender,
+                    out NetworkPlayer submittingNetworkPlayer,
+                    out string connectionResolutionReason))
+            {
+                return RejectVoiceSubmission(
+                    connectionResolutionReason,
+                    connectionId,
+                    submission);
+            }
+
+            if (!roster.TryGetSeatByPlayer(
+                    submittingNetworkPlayer.PlayerId,
+                    out int submittingSeatId) ||
+                !roster.TryGetPlayerBySeat(
+                    submittingSeatId,
+                    out RitualRosterEntrySnapshot submittingParticipant))
+            {
+                return RejectVoiceSubmission(
+                    "The sending connection does not resolve to a locked roster participant.",
+                    connectionId,
+                    submission);
+            }
+
+            if (!submittingParticipant.IsActive || !submittingParticipant.IsAlive)
+            {
+                return RejectVoiceSubmission(
+                    "The submitting roster participant is inactive or not alive.",
+                    connectionId,
+                    submission);
+            }
+
+            if (!string.Equals(
+                    submittingParticipant.PlayerId,
+                    activePlayerId.Value,
+                    StringComparison.Ordinal) ||
+                submittingParticipant.SeatId != activeSeatId.Value)
+            {
+                return RejectVoiceSubmission(
+                    "Only the current active participant may submit recognized speech.",
+                    connectionId,
+                    submission);
+            }
+
+            if (submission.RitualSequence != ritualSequence.Value)
+            {
+                return RejectVoiceSubmission(
+                    $"Ritual {submission.RitualSequence} does not match active ritual {ritualSequence.Value}.",
+                    connectionId,
+                    submission);
+            }
+
+            if (submission.TurnSequence != turnSequence.Value)
+            {
+                return RejectVoiceSubmission(
+                    $"Turn {submission.TurnSequence} does not match active turn {turnSequence.Value}.",
+                    connectionId,
+                    submission);
+            }
+
+            if (!BookArrival.HasArrived ||
+                BookArrival.RitualSequenceId.Value != ritualSequence.Value ||
+                BookArrival.TurnSequenceId.Value != turnSequence.Value ||
+                BookArrival.TargetSeatId != activeSeatId.Value)
+            {
+                return RejectVoiceSubmission(
+                    "Authoritative Book arrival is not accepted for the active turn.",
+                    connectionId,
+                    submission);
+            }
+
+            double serverTimestamp = GetCurrentNetworkTime();
+            if (!isTimerRunning.Value ||
+                isTimerExpired.Value ||
+                timerRitualSequence.Value != ritualSequence.Value ||
+                timerTurnSequence.Value != turnSequence.Value)
+            {
+                return RejectVoiceSubmission(
+                    "The authoritative timer is not running for the active ritual turn.",
+                    connectionId,
+                    submission);
+            }
+
+            if (serverTimestamp >= timerDeadlineNetworkTime.Value)
+            {
+                return RejectVoiceSubmission(
+                    $"The authoritative deadline {timerDeadlineNetworkTime.Value} has passed.",
+                    connectionId,
+                    submission);
+            }
+
+            if (submission.SubmissionSequence == 0)
+            {
+                return RejectVoiceSubmission(
+                    "Submission sequence 0 is invalid.",
+                    connectionId,
+                    submission);
+            }
+
+            if (acceptedVoiceTurnSequence.Value == submission.TurnSequence &&
+                submission.SubmissionSequence <=
+                    acceptedVoiceSubmissionSequence.Value)
+            {
+                return RejectVoiceSubmission(
+                    $"Submission sequence {submission.SubmissionSequence} is duplicate or older than accepted sequence {acceptedVoiceSubmissionSequence.Value}.",
+                    connectionId,
+                    submission);
+            }
+
+            if (double.IsNaN(submission.ClientCaptureTimestamp) ||
+                double.IsInfinity(submission.ClientCaptureTimestamp) ||
+                submission.ClientCaptureTimestamp < 0d)
+            {
+                return RejectVoiceSubmission(
+                    "Client capture timestamp is malformed.",
+                    connectionId,
+                    submission);
+            }
+
+            if (!TryNormalizeRecognizedText(
+                    submission.RecognizedText,
+                    out string normalizedRecognizedText,
+                    out string contentRejectionReason))
+            {
+                return RejectVoiceSubmission(
+                    contentRejectionReason,
+                    connectionId,
+                    submission);
+            }
+
+            RitualVoiceSubmissionSnapshot acceptedSubmission = new(
+                new RitualSequenceId(submission.RitualSequence),
+                new RitualTurnSequenceId(submission.TurnSequence),
+                submission.SubmissionSequence,
+                submittingParticipant.PlayerId,
+                normalizedRecognizedText,
+                serverTimestamp);
+
+            acceptedVoiceRitualSequence.Value = submission.RitualSequence;
+            acceptedVoiceTurnSequence.Value = submission.TurnSequence;
+            acceptedVoiceSubmissionSequence.Value = submission.SubmissionSequence;
+            acceptedVoicePlayerId.Value = submittingParticipant.PlayerId;
+            acceptedVoiceRecognizedText.Value = normalizedRecognizedText;
+            acceptedVoiceServerTimestamp.Value = serverTimestamp;
+            voiceSubmissionRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Voice Submission Accepted\n" +
+                $"PlayerId = {submittingParticipant.PlayerId}\n" +
+                $"ConnectionId = {connectionId}\n" +
+                $"TurnSequence = {submission.TurnSequence}\n" +
+                $"SubmissionSequence = {submission.SubmissionSequence}\n" +
+                $"RecognizedText = {normalizedRecognizedText}\n" +
+                $"ServerTimestamp = {serverTimestamp}",
+                this);
+
+            VoiceSubmissionAccepted?.Invoke(acceptedSubmission);
+            PublishAcceptedVoiceSubmissionObserversRpc(
+                submission.RitualSequence,
+                submission.TurnSequence,
+                submission.SubmissionSequence,
+                submittingParticipant.PlayerId,
+                normalizedRecognizedText,
+                serverTimestamp);
+            return true;
+        }
+
+        [ObserversRpc(ExcludeServer = true)]
+        private void PublishAcceptedVoiceSubmissionObserversRpc(
+            uint acceptedRitualSequence,
+            uint acceptedTurnSequence,
+            uint acceptedSubmissionSequence,
+            string derivedPlayerId,
+            string recognizedText,
+            double serverTimestamp)
+        {
+            RitualVoiceSubmissionSnapshot acceptedSubmission = new(
+                new RitualSequenceId(acceptedRitualSequence),
+                new RitualTurnSequenceId(acceptedTurnSequence),
+                acceptedSubmissionSequence,
+                derivedPlayerId,
+                recognizedText,
+                serverTimestamp);
+            VoiceSubmissionAccepted?.Invoke(acceptedSubmission);
+        }
+
+        /// <summary>
         /// Validates and locks one server-owned ritual roster from the approved NetworkPlayer
         /// assignments in SeatManager's configured physical traversal.
         /// </summary>
@@ -770,6 +1012,8 @@ namespace Incantation.Networking
                 timerDeadlineNetworkTime.Value);
             RitualBookArrivalSnapshot bookArrival = CreateBookArrivalSnapshot();
             RitualTimerSnapshot timer = CreateTimerSnapshot();
+            RitualVoiceSubmissionSnapshot voiceSubmission =
+                CreateVoiceSubmissionSnapshot();
             RitualPhraseSnapshot phrase = new(
                 new RitualPhraseSequenceId(phraseVersion.Value),
                 new RitualWordSequenceId((uint)Mathf.Max(0, expectedWordIndex.Value)),
@@ -795,6 +1039,7 @@ namespace Incantation.Networking
                 turn,
                 bookArrival,
                 timer,
+                voiceSubmission,
                 phrase,
                 outcome,
                 isGameOver.Value,
@@ -845,6 +1090,107 @@ namespace Incantation.Networking
                 turnStartNetworkTime.Value,
                 timerDeadlineNetworkTime.Value,
                 CalculateRemainingTime(GetCurrentNetworkTime()));
+        }
+
+        private RitualVoiceSubmissionSnapshot CreateVoiceSubmissionSnapshot()
+        {
+            return new RitualVoiceSubmissionSnapshot(
+                new RitualSequenceId(acceptedVoiceRitualSequence.Value),
+                new RitualTurnSequenceId(acceptedVoiceTurnSequence.Value),
+                acceptedVoiceSubmissionSequence.Value,
+                acceptedVoicePlayerId.Value,
+                acceptedVoiceRecognizedText.Value,
+                acceptedVoiceServerTimestamp.Value);
+        }
+
+        private bool TryResolvePlayerForConnection(
+            NetworkConnection sender,
+            out NetworkPlayer resolvedPlayer,
+            out string rejectionReason)
+        {
+            resolvedPlayer = null;
+            int matchCount = 0;
+
+            foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
+            {
+                if (player == null ||
+                    player.Connection == null ||
+                    !player.Connection.Equals(sender))
+                {
+                    continue;
+                }
+
+                matchCount++;
+                resolvedPlayer = player;
+            }
+
+            if (matchCount == 1)
+            {
+                rejectionReason = string.Empty;
+                return true;
+            }
+
+            rejectionReason = matchCount == 0
+                ? "The sending connection has no server-owned NetworkPlayer."
+                : $"The sending connection resolves to {matchCount} NetworkPlayer instances.";
+            resolvedPlayer = null;
+            return false;
+        }
+
+        private static bool TryNormalizeRecognizedText(
+            string recognizedText,
+            out string normalizedText,
+            out string rejectionReason)
+        {
+            normalizedText = string.Empty;
+            if (string.IsNullOrWhiteSpace(recognizedText))
+            {
+                rejectionReason = "Recognized text is empty.";
+                return false;
+            }
+
+            if (recognizedText.Length >
+                RitualVoiceSubmission.MaximumRecognizedTextLength)
+            {
+                rejectionReason =
+                    $"Recognized text exceeds {RitualVoiceSubmission.MaximumRecognizedTextLength} characters.";
+                return false;
+            }
+
+            StringBuilder builder = new(recognizedText.Length);
+            bool previousWasWhitespace = true;
+            foreach (char character in recognizedText)
+            {
+                if (char.IsControl(character) && !char.IsWhiteSpace(character))
+                {
+                    rejectionReason = "Recognized text contains control characters.";
+                    return false;
+                }
+
+                if (char.IsWhiteSpace(character))
+                {
+                    if (!previousWasWhitespace)
+                    {
+                        builder.Append(' ');
+                        previousWasWhitespace = true;
+                    }
+
+                    continue;
+                }
+
+                builder.Append(character);
+                previousWasWhitespace = false;
+            }
+
+            normalizedText = builder.ToString().Trim();
+            if (normalizedText.Length == 0)
+            {
+                rejectionReason = "Recognized text is empty after normalization.";
+                return false;
+            }
+
+            rejectionReason = string.Empty;
+            return true;
         }
 
         private bool TryStartTimerForArrival(
@@ -975,6 +1321,22 @@ namespace Incantation.Networking
                 "[RitualAuthority]\n" +
                 "Timer Rejected\n" +
                 $"Reason = {reason}",
+                this);
+            return false;
+        }
+
+        private bool RejectVoiceSubmission(
+            string reason,
+            int connectionId,
+            RitualVoiceSubmission submission)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Voice Submission Rejected\n" +
+                $"Reason = {reason}\n" +
+                $"ConnectionId = {connectionId}\n" +
+                $"TurnSequence = {submission.TurnSequence}\n" +
+                $"SubmissionSequence = {submission.SubmissionSequence}",
                 this);
             return false;
         }

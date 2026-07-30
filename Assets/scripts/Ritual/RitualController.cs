@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Incantation.Networking;
+using Incantation.Networking.Ritual;
 using UnityEngine;
 
 public enum VoiceValidationMode
@@ -93,6 +95,8 @@ public class RitualController : MonoBehaviour
     private Seat preferredStartingSeat;
     private Seat currentFailedSeat;
     private string lastProcessedWhisperPhrase = string.Empty;
+    private NetworkRitualAuthority ritualAuthority;
+    private NetworkRitualAuthority subscribedRitualAuthority;
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
@@ -102,11 +106,13 @@ public class RitualController : MonoBehaviour
     {
         SubscribeToHourglass();
         SubscribeToVoiceRecognizer();
+        SubscribeToRitualAuthority();
     }
 
     private void OnDisable()
     {
         StopRitual();
+        UnsubscribeFromRitualAuthority();
         UnsubscribeFromVoiceRecognizer();
         UnsubscribeFromHourglass();
     }
@@ -969,6 +975,23 @@ public class RitualController : MonoBehaviour
         if (isUsingWhisperRecognizer && IsDuplicateWhisperUpdate(recognizedPhrase))
             return;
 
+        if (TryForwardAuthoritativeVoiceSubmission(recognizedPhrase))
+            return;
+
+        ProcessRecognizedPhraseForLegacyValidation(recognizedPhrase);
+    }
+
+    private void ProcessRecognizedPhraseForLegacyValidation(string recognizedPhrase)
+    {
+        if (ritualFailed || playerTurnComplete || !isTurnActive)
+            return;
+
+        if (IsEmptySpeechUpdate(recognizedPhrase))
+            return;
+
+        if (!ResolveVoiceRecognizer() || incantationManager == null)
+            return;
+
         ResolveVoicePhraseNormalizer();
         string normalizedPhrase = voicePhraseNormalizer != null
             ? voicePhraseNormalizer.Normalize(recognizedPhrase)
@@ -981,6 +1004,77 @@ public class RitualController : MonoBehaviour
         }
 
         ProcessSequentialWordRecognition(recognizedPhrase, normalizedPhrase);
+    }
+
+    private bool TryForwardAuthoritativeVoiceSubmission(string recognizedPhrase)
+    {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null || !authority.IsNetworkSessionActive)
+            return false;
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null ||
+            !localPlayer.RequestRitualVoiceSubmission(recognizedPhrase))
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Voice Submission Rejected\n" +
+                "Reason = Local recognized speech could not be submitted through the owning NetworkPlayer.",
+                this);
+        }
+
+        return true;
+    }
+
+    private void SubscribeToRitualAuthority()
+    {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null || subscribedRitualAuthority == authority)
+            return;
+
+        UnsubscribeFromRitualAuthority();
+        subscribedRitualAuthority = authority;
+        subscribedRitualAuthority.VoiceSubmissionAccepted +=
+            HandleAuthoritativeVoiceSubmissionAccepted;
+    }
+
+    private void UnsubscribeFromRitualAuthority()
+    {
+        if (subscribedRitualAuthority == null)
+            return;
+
+        subscribedRitualAuthority.VoiceSubmissionAccepted -=
+            HandleAuthoritativeVoiceSubmissionAccepted;
+        subscribedRitualAuthority = null;
+    }
+
+    private NetworkRitualAuthority ResolveRitualAuthority()
+    {
+        if (ritualAuthority == null)
+            ritualAuthority = NetworkRitualAuthority.Instance;
+
+        if (ritualAuthority == null)
+        {
+            ritualAuthority = FindFirstObjectByType<NetworkRitualAuthority>(
+                FindObjectsInactive.Include);
+        }
+
+        return ritualAuthority;
+    }
+
+    private void HandleAuthoritativeVoiceSubmissionAccepted(
+        RitualVoiceSubmissionSnapshot submission)
+    {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null ||
+            submission.RitualSequenceId.Value != authority.Snapshot.SequenceId.Value ||
+            submission.TurnSequenceId.Value !=
+                authority.Snapshot.Turn.SequenceId.Value)
+        {
+            return;
+        }
+
+        ProcessRecognizedPhraseForLegacyValidation(submission.RecognizedText);
     }
 
     private void ProcessFullPhraseRecognition(string recognizedPhrase, string normalizedPhrase)

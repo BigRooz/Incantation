@@ -194,6 +194,14 @@ Current recognizer guidance:
 
 Voice systems must not independently advance turns, mutate the phrase, eliminate players, or choose the next seat.
 
+In network sessions, recognition remains local but submission ownership is authoritative.
+`RitualController` forwards raw recognized text through the locally owned `NetworkPlayer`.
+`NetworkRitualAuthority` derives sender identity from the FishNet connection, validates the
+locked roster, active participant, ritual/turn/submission sequence, accepted Book arrival, timer
+window, and text bounds, then publishes the accepted immutable snapshot/event. It does not judge
+phrase correctness. The accepted event temporarily enters the existing `RitualController`
+validation path; offline recognition still uses that path directly.
+
 ### Hourglass
 
 Offline, `HourglassController` retains local timer pressure for the prototype. In a FishNet

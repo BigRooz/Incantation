@@ -388,7 +388,18 @@ It must not own:
 
 ### Voice Recognition Trust Model
 
-The active player's machine must run the current Windows keyword or optional full-phrase recognizer because microphone capture is local. The client sends normalized recognition candidates with a turn/word sequence identifier to the host. The host validates the candidate against authoritative ritual state.
+The active player's machine runs the current Windows keyword or optional full-phrase recognizer
+because microphone capture is local. In a network ritual, `RitualController` forwards each
+recognized text candidate through the locally owned `NetworkPlayer`. Its owner-required server
+RPC carries ritual, turn, and submission sequence values but no trusted player identity.
+`NetworkRitualAuthority` derives the sender from the FishNet connection, verifies the locked
+roster, active participant, accepted Book arrival, live timer window, sequence freshness, and
+bounded normalized text, then publishes an immutable accepted-submission snapshot/event.
+
+The authority does not judge phrase correctness, accept words, advance the turn, or apply a
+failure. Until those responsibilities migrate, the accepted event is the only network path into
+the existing `RitualController` validator. Offline recognition continues to use the original
+direct local path.
 
 This prevents a stale or non-active client from advancing the ritual, but it does not prevent a modified client from lying about recognized speech. For a social party game, that limited trust model is acceptable for the first release. Server-side audio recognition would add latency, privacy, bandwidth, and operational cost and is not justified unless cheating becomes a real problem.
 

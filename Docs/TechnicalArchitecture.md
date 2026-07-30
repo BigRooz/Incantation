@@ -65,6 +65,9 @@ The current v0.1 prototype includes:
 - `WhisperVoiceRecognizer` for Whisper-based recognition paths.
 - `NetworkRitualAuthority` for network timer truth, with `HourglassController` retaining the
   offline countdown and acting as the network presentation/compatibility bridge.
+- `NetworkPlayer` as the connection-owned ritual voice-submission ingress, with
+  `NetworkRitualAuthority` authenticating and publishing accepted text while
+  `RitualController` temporarily retains phrase validation.
 - Lighting and ambience components for fire flicker, hourglass light possession, room veil, and cabin atmosphere.
 
 For a visual overview of ownership, dependencies, events, and extension points, read `Docs/SYSTEM_DIAGRAM.md`.
@@ -105,6 +108,14 @@ The project is in an incremental migration, not a completed rewrite.
 `CoreRitualLoopBridge` adapts the newer core phrase path into the legacy `IncantationManager` model while UI and feedback still depend on it.
 
 Do not assume newer core-loop scripts have replaced the current prototype runtime. Prefer incremental migration that keeps Play Mode working.
+
+In a FishNet ritual, raw recognized speech follows one path:
+`IVoiceRecognizer` -> `RitualController` -> locally owned `NetworkPlayer` server RPC ->
+`NetworkRitualAuthority` acceptance -> `RitualController` legacy validation. The submitted
+contract contains stable sequence values and text, never a trusted player ID. The server derives
+identity from the RPC connection and rejects candidates that do not belong to the current active
+participant, accepted Book arrival, and running timer window. Offline sessions bypass this bridge
+and preserve the existing direct validation flow.
 
 ## Network Scene Startup
 

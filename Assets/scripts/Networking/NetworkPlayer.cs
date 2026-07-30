@@ -4,6 +4,7 @@ using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Character;
+using Incantation.Networking.Ritual;
 using UnityEngine;
 
 namespace Incantation.Networking
@@ -40,6 +41,8 @@ namespace Incantation.Networking
         private bool isReadyRequestPending;
         private bool isPriestNameRequestPending;
         private bool ritualStartAuthorized;
+        private uint localVoiceSubmissionTurnSequence;
+        private uint localVoiceSubmissionSequence;
 
         public static IReadOnlyList<NetworkPlayer> ActivePlayers => activePlayers;
         public static NetworkPlayer LocalPlayer { get; private set; }
@@ -180,6 +183,73 @@ namespace Incantation.Networking
 
                 return count;
             }
+        }
+
+        /// <summary>
+        /// Sends locally recognized speech through this connection-owned player identity.
+        /// The payload contains no trusted player ID; the server derives identity from sender.
+        /// </summary>
+        public bool RequestRitualVoiceSubmission(string recognizedText)
+        {
+            if (!IsOwner ||
+                string.IsNullOrWhiteSpace(recognizedText) ||
+                recognizedText.Length > RitualVoiceSubmission.MaximumRecognizedTextLength)
+            {
+                return false;
+            }
+
+            NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+            if (authority == null || !authority.IsNetworkSessionActive)
+                return false;
+
+            RitualSnapshot ritualSnapshot = authority.Snapshot;
+            uint currentTurnSequence = ritualSnapshot.Turn.SequenceId.Value;
+            if (currentTurnSequence == 0)
+                return false;
+
+            if (localVoiceSubmissionTurnSequence != currentTurnSequence)
+            {
+                localVoiceSubmissionTurnSequence = currentTurnSequence;
+                localVoiceSubmissionSequence = 0;
+            }
+
+            if (localVoiceSubmissionSequence == uint.MaxValue)
+                return false;
+
+            localVoiceSubmissionSequence++;
+            RitualVoiceSubmission submission = new(
+                ritualSnapshot.SequenceId.Value,
+                currentTurnSequence,
+                localVoiceSubmissionSequence,
+                recognizedText,
+                Time.realtimeSinceStartupAsDouble);
+
+            if (IsServerInitialized)
+            {
+                return authority.TryAcceptVoiceSubmission(Owner, submission);
+            }
+
+            SubmitRitualVoiceServerRpc(submission);
+            return true;
+        }
+
+        [ServerRpc]
+        private void SubmitRitualVoiceServerRpc(
+            RitualVoiceSubmission submission,
+            NetworkConnection sender = null)
+        {
+            NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+            if (authority == null)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority]\n" +
+                    "Voice Submission Rejected\n" +
+                    "Reason = NetworkRitualAuthority is unavailable.",
+                    this);
+                return;
+            }
+
+            authority.TryAcceptVoiceSubmission(sender, submission);
         }
 
         public static int ReadyCircleMemberCount
