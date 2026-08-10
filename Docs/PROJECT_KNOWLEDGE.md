@@ -114,6 +114,9 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Server-owned FishNet scene authority for the future multiplayer ritual state.
   - Owns the immutable multiplayer ritual roster copied from approved `NetworkPlayer` identity
     and Seat assignments in `SeatManager` physical traversal order.
+  - Begins the authoritative runtime lifecycle as part of the first validated roster lock:
+    ritual sequence zero advances to a real sequence and `Inactive` legally becomes `Preparing`.
+    Later detailed phase progression remains on the temporary legacy bridge.
   - Is the sole multiplayer writer for active player and active Seat. Its one deterministic
     commit method traverses the authoritative roster and skips inactive or eliminated entries.
   - Is the sole multiplayer issuer of Book movement commands and the sole gameplay authority
@@ -121,7 +124,8 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Replicates value-only ritual, roster, and arrival snapshots and publishes coalesced
     read-only events.
   - Owns ritual timer duration, start/stop, deadline, remaining-time calculation, and expiration.
-    Accepted Book arrival starts it automatically; expiration only publishes state/events.
+    Accepted Book arrival starts it automatically; expiration commits its timeout source into the
+    single turn-outcome and consequence chain.
   - Accepts recognized-text submissions only through a connection-owned `NetworkPlayer`, derives
     the player from the FishNet connection, validates the authoritative turn and timer window, and
     publishes immutable accepted-submission state.

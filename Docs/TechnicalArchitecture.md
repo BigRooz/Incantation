@@ -122,6 +122,11 @@ and preserve direct evaluation and application through the same `PhraseValidator
 Official network turn completion is a separate authority boundary. Phrase-completing validation
 and authoritative timer expiration converge inside `NetworkRitualAuthority`, which commits
 exactly one immutable `TurnOutcomeSnapshot` for the current ritual, turn, and active player.
+Locking the first authoritative roster begins the runtime ritual lifecycle by advancing the
+ritual sequence from zero and legally transitioning `Inactive` to `Preparing`. This must happen
+before active-participant, Book, timer, validation, outcome, or consequence records are created;
+sequence zero is reserved for unavailable/uninitialized ritual state. Detailed phase progression
+beyond `Preparing` remains on the documented legacy bridge until that focused migration.
 The outcome contains stable source sequence IDs and no Unity references. The authority validates
 the current ritual, turn, player, and originating outcome before committing exactly one
 `RitualConsequenceSnapshot`. `RitualController` reacts only to that consequence through its
@@ -136,7 +141,7 @@ decisions. The final ownership review is:
 
 | Decision | Sole authoritative writer | Other participants |
 | --- | --- | --- |
-| Roster | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | `NetworkPlayer` and `SeatManager` provide validated identity, occupancy, and physical-order inputs. |
+| Roster and ritual entry | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | The first validated roster lock advances the ritual sequence and transitions `Inactive` to `Preparing`; `NetworkPlayer` and `SeatManager` provide validated identity, occupancy, and physical-order inputs. |
 | Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | `RitualController` supplies its legacy requested Seat as a validated expectation but cannot write participant state. |
 | Book command | `NetworkRitualAuthority.TryRequestBookMoveToCurrentParticipant` | `BookMover` adapts legacy requests; `NetworkBookAuthority` executes the accepted command. |
 | Book arrival | `NetworkRitualAuthority.TryCommitBookArrival` | `NetworkBookAuthority` detects completion and submits a stable-data report. |

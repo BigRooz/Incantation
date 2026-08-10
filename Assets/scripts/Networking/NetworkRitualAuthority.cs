@@ -676,6 +676,15 @@ namespace Incantation.Networking
                     $"Ritual {report.RitualSequence} does not match active ritual {ritualSequence.Value}.");
             }
 
+            if (ritualSequence.Value == 0 ||
+                ritualPhase.Value == RitualPhase.Inactive)
+            {
+                return RejectBookArrival(
+                    $"The authoritative ritual lifecycle is not active. " +
+                    $"RitualSequence={ritualSequence.Value}, " +
+                    $"Phase={ritualPhase.Value}.");
+            }
+
             if (double.IsNaN(report.CompletionNetworkTime) ||
                 double.IsInfinity(report.CompletionNetworkTime) ||
                 report.CompletionNetworkTime < 0d)
@@ -1222,7 +1231,12 @@ namespace Incantation.Networking
             if (ritualSequence.Value == 0 || turnSequence.Value == 0)
             {
                 return RejectTurnOutcome(
-                    "The current ritual or turn sequence is unavailable.");
+                    $"The current ritual or turn sequence is unavailable. " +
+                    $"RitualSequence={ritualSequence.Value}, " +
+                    $"TurnSequence={turnSequence.Value}, " +
+                    $"Phase={ritualPhase.Value}, " +
+                    $"RequestedOutcome={requestedOutcome}, " +
+                    $"OriginatingTimer={originatingTimerSequence}.");
             }
 
             if (!TryGetCurrentActiveParticipant(
@@ -1585,6 +1599,9 @@ namespace Incantation.Networking
                 return false;
             }
 
+            if (!TryBeginRitualLifecycleForRosterLock())
+                return false;
+
             ritualRoster.Clear();
             foreach (NetworkRitualRosterEntry entry in candidateRoster)
             {
@@ -1594,7 +1611,65 @@ namespace Incantation.Networking
             rosterRevision.Value++;
             snapshotRevision.Value++;
             Debug.Log(
-                $"{nameof(NetworkRitualAuthority)} locked {candidateRoster.Count} players in {traversalDirection.Value} physical SeatManager order.",
+                "[RitualAuthority]\n" +
+                "Ritual Roster Locked\n" +
+                $"Players = {candidateRoster.Count}\n" +
+                $"Traversal = {traversalDirection.Value}\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"Phase = {ritualPhase.Value}",
+                this);
+            return true;
+        }
+
+        private bool TryBeginRitualLifecycleForRosterLock()
+        {
+            if (ritualPhase.Value == RitualPhase.Preparing &&
+                ritualSequence.Value > 0)
+            {
+                return true;
+            }
+
+            if (ritualPhase.Value != RitualPhase.Inactive)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority]\n" +
+                    "Ritual Lifecycle Start Rejected\n" +
+                    $"Reason = Phase {ritualPhase.Value} cannot begin a roster-backed ritual.\n" +
+                    $"RitualSequence = {ritualSequence.Value}",
+                    this);
+                return false;
+            }
+
+            if (!RitualPhaseTransitions.IsLegal(
+                    ritualPhase.Value,
+                    RitualPhase.Preparing))
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority]\n" +
+                    "Ritual Lifecycle Start Rejected\n" +
+                    "Reason = Inactive to Preparing is not a legal ritual phase transition.",
+                    this);
+                return false;
+            }
+
+            if (ritualSequence.Value == uint.MaxValue)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority]\n" +
+                    "Ritual Lifecycle Start Rejected\n" +
+                    "Reason = The ritual sequence is exhausted.",
+                    this);
+                return false;
+            }
+
+            ritualSequence.Value++;
+            ritualPhase.Value = RitualPhase.Preparing;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Ritual Lifecycle Started\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"Phase = {ritualPhase.Value}",
                 this);
             return true;
         }
