@@ -287,6 +287,9 @@ Runtime ownership:
 - Host: `NetworkBookAuthority` copies `BookModel` position/rotation into the network proxy.
 - Client: `NetworkBookAuthority` applies the authoritative proxy position/rotation to its
   existing `BookModel`; it never creates another presentation.
+- The proxy aligns to `BookModel` in `Awake`, before FishNet captures initial scene-object
+  transform state. Keep the serialized references assigned; do not rely on the proxy's origin
+  transform as the initial Book pose.
 - `TargetSeatId` is replicated from `SeatManager`'s stable configured physical-order ID.
 - `MovementSequence` identifies every authoritative move, including consecutive redirects, and
   `IsMoving` synchronizes the server-owned start/arrival lifecycle.

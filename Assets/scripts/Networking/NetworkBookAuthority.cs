@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using FishNet.Component.Transforming;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
@@ -33,6 +34,9 @@ namespace Incantation.Networking
         private NetworkRitualAuthority ritualAuthority;
         private RitualBookMovementCommand activeMovementCommand;
         private bool hasActiveMovementCommand;
+        private bool visibleBookStateCaptured;
+        private bool lastVisibleBookActiveSelf;
+        private bool lastVisibleBookActiveInHierarchy;
 
         public static NetworkBookAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
@@ -50,10 +54,15 @@ namespace Incantation.Networking
         private void Awake()
         {
             Instance = this;
+            AlignProxyToVisibleBook("Awake before FishNet scene-object initialization");
+            CaptureVisibleBookActiveState();
+            LogVisibleBookResolved("Awake");
         }
 
         private void LateUpdate()
         {
+            LogVisibleBookActiveStateChange();
+
             if (!IsNetworkSessionActive || presentationTransform == null)
                 return;
 
@@ -79,14 +88,24 @@ namespace Incantation.Networking
             isMoving.OnChange += HandleMovementStateChanged;
             presentationState.OnChange += HandlePresentationStateChanged;
 
-            if (IsServerInitialized && presentationTransform != null)
-            {
-                transform.SetPositionAndRotation(
-                    presentationTransform.position,
-                    presentationTransform.rotation);
-            }
+            if (IsServerInitialized)
+                AlignProxyToVisibleBook("OnStartNetwork server confirmation");
 
             ApplyTargetSeat(targetSeatId.Value);
+            LogVisibleBookResolved("OnStartNetwork");
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            AlignProxyToVisibleBook("OnStartServer");
+            LogVisibleBookResolved("OnStartServer");
+        }
+
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            LogVisibleBookResolved("OnStartClient");
         }
 
         public override void OnStopNetwork()
@@ -102,6 +121,88 @@ namespace Incantation.Networking
         {
             if (Instance == this)
                 Instance = null;
+        }
+
+        private void AlignProxyToVisibleBook(string reason)
+        {
+            if (presentationTransform == null)
+            {
+                Debug.LogWarning(
+                    "[SharedBook]\n" +
+                    "Visible Book resolution failed\n" +
+                    $"Reason = {reason}\n" +
+                    "PresentationTransform = Missing",
+                    this);
+                return;
+            }
+
+            transform.SetPositionAndRotation(
+                presentationTransform.position,
+                presentationTransform.rotation);
+        }
+
+        private void CaptureVisibleBookActiveState()
+        {
+            if (presentationTransform == null)
+                return;
+
+            visibleBookStateCaptured = true;
+            lastVisibleBookActiveSelf =
+                presentationTransform.gameObject.activeSelf;
+            lastVisibleBookActiveInHierarchy =
+                presentationTransform.gameObject.activeInHierarchy;
+        }
+
+        private void LogVisibleBookActiveStateChange()
+        {
+            if (presentationTransform == null)
+                return;
+
+            bool activeSelf = presentationTransform.gameObject.activeSelf;
+            bool activeInHierarchy =
+                presentationTransform.gameObject.activeInHierarchy;
+            if (visibleBookStateCaptured &&
+                activeSelf == lastVisibleBookActiveSelf &&
+                activeInHierarchy == lastVisibleBookActiveInHierarchy)
+            {
+                return;
+            }
+
+            string previousState = visibleBookStateCaptured
+                ? $"ActiveSelf={lastVisibleBookActiveSelf}, ActiveInHierarchy={lastVisibleBookActiveInHierarchy}"
+                : "Uncaptured";
+            Debug.LogWarning(
+                "[SharedBook]\n" +
+                "Visible Book active state changed\n" +
+                $"Previous = {previousState}\n" +
+                $"ActiveSelf = {activeSelf}\n" +
+                $"ActiveInHierarchy = {activeInHierarchy}\n" +
+                $"ProxyActive = {gameObject.activeInHierarchy}",
+                this);
+            CaptureVisibleBookActiveState();
+        }
+
+        private void LogVisibleBookResolved(string lifecycle)
+        {
+            if (presentationTransform == null)
+                return;
+
+            GameObject visibleBook = presentationTransform.gameObject;
+            Debug.Log(
+                "[SharedBook]\n" +
+                "Visible Book resolved\n" +
+                $"Lifecycle = {lifecycle}\n" +
+                $"Name = {visibleBook.name}\n" +
+                $"ActiveSelf = {visibleBook.activeSelf}\n" +
+                $"ActiveInHierarchy = {visibleBook.activeInHierarchy}\n" +
+                $"Parent = {(presentationTransform.parent != null ? presentationTransform.parent.name : "none")}\n" +
+                $"ContainsNetworkObject = {visibleBook.GetComponent<NetworkObject>() != null}\n" +
+                $"ContainsNetworkTransform = {visibleBook.GetComponent<NetworkTransform>() != null}\n" +
+                $"ProxyActiveSelf = {gameObject.activeSelf}\n" +
+                $"ProxyActiveInHierarchy = {gameObject.activeInHierarchy}\n" +
+                $"ServerInitialized = {IsServerInitialized}\n" +
+                $"ClientInitialized = {IsClientInitialized}",
+                this);
         }
 
         /// <summary>

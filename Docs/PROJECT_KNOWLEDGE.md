@@ -273,6 +273,12 @@ The detailed method-level ownership table and the rationale for every retained b
   - Raises movement and ritual accepted events.
   - Its duration-based arrival remains a temporary legacy gameplay callback.
 
+- `Assets/Scripts/Networking/NetworkBookAuthority.cs`
+  - Owns the invisible FishNet transform proxy for the one persistent visible Book.
+  - Aligns the proxy to `BookModel` in `Awake`, before FishNet scene-object initialization, so a
+    joining client never receives the proxy's serialized origin as the visible Book pose.
+  - Copies pose only: it never copies proxy activation into `BookModel` or creates another Book.
+
 - `Assets/Scripts/Book/BookFeedbackController.cs`, `BookTextMagicEffect.cs`, and related book visual scripts
   - Visual or feedback support.
   - Must not choose traversal, mutate phrases, validate speech, or own turn results.

@@ -174,7 +174,10 @@ FishNet connection and clients cannot call a commit path.
   `NetworkBookAuthority` and the offline path.
 - `NetworkBookAuthority` remains transport authority for the one physical Book. It resolves an
   accepted stable Seat ID, runs interpolation, synchronizes pose/state, and reports completion;
-  it never selects the participant or destination.
+  it never selects the participant or destination. Its invisible proxy is aligned to the visible
+  Book during `Awake`, before FishNet initializes or captures scene-object transform state. A
+  joining client therefore cannot apply the proxy's serialized origin pose to `BookModel`.
+  Proxy active state is never copied to the visible Book.
 - `HourglassController` and `Timer` remain necessary because the existing scene, UI, audio, and
   UnityEvents consume them. Their local countdown is enabled only offline. Network sessions apply
   authoritative snapshots and never compute gameplay expiration.
