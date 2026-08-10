@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -41,6 +42,7 @@ public class PlayerAbsorptionController : MonoBehaviour
     private bool hasLoggedNullTargetWarning;
     private bool hasLoggedMissingAbsorptionTargetWarning;
     private bool isAbsorbing;
+    private readonly List<PreservedCameraPose> preservedCameraPoses = new();
 
     public void BeginAbsorption(GameObject target)
     {
@@ -48,6 +50,13 @@ public class PlayerAbsorptionController : MonoBehaviour
     }
 
     public void BeginAbsorption(Transform target)
+    {
+        BeginAbsorption(target, preserveActiveCameraWorldPose: false);
+    }
+
+    public void BeginAbsorption(
+        Transform target,
+        bool preserveActiveCameraWorldPose)
     {
         if (isAbsorbing)
             return;
@@ -65,6 +74,7 @@ public class PlayerAbsorptionController : MonoBehaviour
         }
 
         StoreOriginalState(target);
+        CaptureActiveCameraPoses(preserveActiveCameraWorldPose);
         absorptionRoutine = StartCoroutine(RunAbsorption());
     }
 
@@ -85,6 +95,8 @@ public class PlayerAbsorptionController : MonoBehaviour
         activeTarget.rotation = originalRotation;
         activeTarget.localScale = originalScale;
         activeTarget.gameObject.SetActive(originalActiveState);
+        RestorePreservedCameraPoses();
+        preservedCameraPoses.Clear();
     }
 
     private void StoreOriginalState(Transform target)
@@ -157,7 +169,9 @@ public class PlayerAbsorptionController : MonoBehaviour
 
         isAbsorbing = false;
         absorptionRoutine = null;
+        RestorePreservedCameraPoses();
         onAbsorptionFinished?.Invoke();
+        preservedCameraPoses.Clear();
     }
 
     private void ApplyAbsorptionFrame(float normalizedTime, Vector3 targetPosition, Quaternion targetRotation)
@@ -171,6 +185,72 @@ public class PlayerAbsorptionController : MonoBehaviour
         activeTarget.position = Vector3.LerpUnclamped(originalPosition, targetPosition, movementAmount);
         activeTarget.rotation = Quaternion.SlerpUnclamped(originalRotation, targetRotation, movementAmount);
         activeTarget.localScale = originalScale * scaleAmount;
+        RestorePreservedCameraPoses();
+    }
+
+    private void CaptureActiveCameraPoses(bool preserveActiveCameraWorldPose)
+    {
+        preservedCameraPoses.Clear();
+        if (!preserveActiveCameraWorldPose || activeTarget == null)
+            return;
+
+        Camera[] cameras = FindObjectsByType<Camera>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        for (int i = 0; i < cameras.Length; i++)
+        {
+            Camera camera = cameras[i];
+            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
+                continue;
+
+            preservedCameraPoses.Add(new PreservedCameraPose(camera.transform));
+            Debug.Log(
+                "[DeathCamera] Camera Mutation Request\n" +
+                $"Camera = {camera.name}\n" +
+                $"Hierarchy = {GetHierarchyPath(camera.transform)}\n" +
+                "Operation = Move / Rotate by absorbed ancestor\n" +
+                "Result = Ignored\n" +
+                $"Source = {nameof(PlayerAbsorptionController)}",
+                this);
+        }
+    }
+
+    private void RestorePreservedCameraPoses()
+    {
+        for (int i = 0; i < preservedCameraPoses.Count; i++)
+            preservedCameraPoses[i].Restore();
+    }
+
+    private static string GetHierarchyPath(Transform target)
+    {
+        if (target == null)
+            return "none";
+
+        string path = target.name;
+        for (Transform parent = target.parent; parent != null; parent = parent.parent)
+            path = $"{parent.name}/{path}";
+
+        return path;
+    }
+
+    private readonly struct PreservedCameraPose
+    {
+        private readonly Transform cameraTransform;
+        private readonly Vector3 position;
+        private readonly Quaternion rotation;
+
+        public PreservedCameraPose(Transform cameraTransform)
+        {
+            this.cameraTransform = cameraTransform;
+            position = cameraTransform.position;
+            rotation = cameraTransform.rotation;
+        }
+
+        public void Restore()
+        {
+            if (cameraTransform != null)
+                cameraTransform.SetPositionAndRotation(position, rotation);
+        }
     }
 
     private Quaternion GetAbsorptionRotation(Vector3 targetPosition)

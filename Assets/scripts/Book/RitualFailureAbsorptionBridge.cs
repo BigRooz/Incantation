@@ -1,3 +1,4 @@
+using Incantation.Networking;
 using UnityEngine;
 
 /// <summary>
@@ -42,7 +43,7 @@ public class RitualFailureAbsorptionBridge : MonoBehaviour
 
         if (deathVisionVignetteController == null)
         {
-            playerAbsorptionController.BeginAbsorption(failedPlayer);
+            BeginAbsorption(failedPlayer);
             return;
         }
 
@@ -59,8 +60,50 @@ public class RitualFailureAbsorptionBridge : MonoBehaviour
             return;
         }
 
-        playerAbsorptionController.BeginAbsorption(pendingFailedPlayer);
+        BeginAbsorption(pendingFailedPlayer);
         pendingFailedPlayer = null;
+    }
+
+    private void BeginAbsorption(Transform failedPlayer)
+    {
+        bool preserveLocalCamera = IsRemoteNetworkElimination(out string ownershipReason);
+        Debug.Log(
+            "[DeathCamera] Camera Mutation Request\n" +
+            $"EliminatedPlayerId = {ritualController.CurrentFailedPlayerId}\n" +
+            $"LocalPlayerId = {(NetworkPlayer.LocalPlayer != null ? NetworkPlayer.LocalPlayer.PlayerId : "none")}\n" +
+            $"LocalOwner = {!preserveLocalCamera}\n" +
+            "Operation = Move / Rotate absorbed character root\n" +
+            $"Result = {(preserveLocalCamera ? "Active local cameras preserved" : "Accepted")}\n" +
+            $"Source = {nameof(RitualFailureAbsorptionBridge)}\n" +
+            $"Reason = {ownershipReason}",
+            this);
+        playerAbsorptionController.BeginAbsorption(failedPlayer, preserveLocalCamera);
+    }
+
+    private bool IsRemoteNetworkElimination(out string reason)
+    {
+        NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+        if (authority == null || !authority.IsNetworkSessionActive)
+        {
+            reason = "Offline ritual preserves existing camera behavior.";
+            return false;
+        }
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null)
+        {
+            reason = "No locally owned NetworkPlayer is available; camera mutation is rejected safely.";
+            return true;
+        }
+
+        bool isLocalOwner = string.Equals(
+            ritualController.CurrentFailedPlayerId,
+            localPlayer.PlayerId,
+            System.StringComparison.Ordinal);
+        reason = isLocalOwner
+            ? "The authoritative eliminated PlayerId is locally owned."
+            : "The authoritative eliminated PlayerId is remotely owned.";
+        return !isLocalOwner;
     }
 
     private void SubscribeToVignette()

@@ -58,12 +58,14 @@ public class BookPrisonSpectatorController : MonoBehaviour
         StorePlayerState(player);
         ConfigurePortalView();
 
-        if (movePlayerToPrison)
-            player.SetPositionAndRotation(slot.spawnPoint.position, slot.spawnPoint.rotation);
-
         bool isLocalDeathCameraTarget = TryResolveLocalDeathCameraTarget(
             out NetworkPlayer eliminatedNetworkPlayer,
             out string resolutionReason);
+        if (movePlayerToPrison)
+            MovePlayerToPrisonPreservingRemoteCamera(
+                player,
+                slot.spawnPoint,
+                isLocalDeathCameraTarget);
         if (activateSpectatorCamera && isLocalDeathCameraTarget)
             ActivateSlotCamera(slot);
         else if (!activateSpectatorCamera)
@@ -230,6 +232,49 @@ public class BookPrisonSpectatorController : MonoBehaviour
 
             slot.spectatorCamera.enabled = false;
             slot.spectatorCamera.gameObject.SetActive(false);
+        }
+    }
+
+    private void MovePlayerToPrisonPreservingRemoteCamera(
+        Transform player,
+        Transform destination,
+        bool isLocalDeathCameraTarget)
+    {
+        Camera[] protectedCameras = !isLocalDeathCameraTarget
+            ? FindObjectsByType<Camera>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None)
+            : System.Array.Empty<Camera>();
+        Vector3[] positions = new Vector3[protectedCameras.Length];
+        Quaternion[] rotations = new Quaternion[protectedCameras.Length];
+        for (int i = 0; i < protectedCameras.Length; i++)
+        {
+            Camera camera = protectedCameras[i];
+            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
+                continue;
+
+            positions[i] = camera.transform.position;
+            rotations[i] = camera.transform.rotation;
+        }
+
+        player.SetPositionAndRotation(destination.position, destination.rotation);
+
+        for (int i = 0; i < protectedCameras.Length; i++)
+        {
+            Camera camera = protectedCameras[i];
+            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
+                continue;
+
+            camera.transform.SetPositionAndRotation(positions[i], rotations[i]);
+            Debug.Log(
+                "[DeathCamera] Camera Mutation Request\n" +
+                $"Camera = {camera.name}\n" +
+                $"EliminatedPlayerId = {GetEliminatedPlayerId()}\n" +
+                "LocalOwner = false\n" +
+                "Operation = Move / Rotate by Book Prison ancestor\n" +
+                "Result = Ignored\n" +
+                $"Source = {nameof(BookPrisonSpectatorController)}",
+                this);
         }
     }
 
