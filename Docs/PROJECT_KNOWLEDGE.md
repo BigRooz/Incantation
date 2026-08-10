@@ -145,7 +145,7 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Lives on the existing `SharedBookNetworkAuthority` scene object but does not interpolate the
     Book, activate voice, start legacy turns, or execute consequence presentation.
 - `Assets/Scripts/Ritual/RitualController.cs`
-  - Current prototype orchestrator.
+  - Current offline prototype orchestrator and network presentation/compatibility consumer.
   - Selects occupied seats through `SeatManager`.
   - Moves the book.
   - Starts and stops the hourglass.
@@ -153,18 +153,17 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - In network sessions forwards raw recognized text through the locally owned `NetworkPlayer`
     and applies only the authority's accepted/rejected validation result. Offline sessions retain
     direct evaluation and application through the same validator.
-  - In network sessions enters its existing success or timeout compatibility flow only after
-    `ConsequenceCommitted`; it does not infer an official result or consequence from validation,
-    timer visuals, or the turn outcome alone.
+  - In network sessions never starts its legacy `RitualLoop`; Host and remote Client therefore
+    cannot independently select Seats, move the Book, grow phrases, or advance turns.
   - Applies `WordByWordRealtime` or `FullPhrase` validation behavior.
   - Bridges into `CoreRitualLoopBridge` when available.
   - Its old unused `IsRecognizedPhraseValid` decision helper was retired after network validation
     moved to `NetworkRitualAuthority`; offline validation continues through the live
     `IncantationManager` paths.
 
-### Multiplayer Ritual Single-Writer Audit
+### Multiplayer Ritual Single-Writer Boundary
 
-The completed authority migration has one synchronized writer for each scoped decision:
+The current boundary has one synchronized writer for each migrated decision:
 
 - Roster, active participant, semantic Book command, accepted Book arrival, timer lifecycle,
   accepted voice submission, phrase validation, turn outcome, and consequence are written only
@@ -173,6 +172,11 @@ The completed authority migration has one synchronized writer for each scoped de
 - `NetworkBookAuthority` executes accepted movement and reports arrival.
 - `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and `RitualController` retain
   offline implementations and network presentation/compatibility responsibilities only.
+
+`NetworkRitualAuthority.TryStartAuthoritativeRitual()` uses existing decisions to lock the
+roster, select the first participant, and issue the first Book command. REALIGN-002 is still
+required for authoritative phrase initialization/growth, turn activation and voice gating,
+subsequent turn/rotation advancement, elimination, and game-over progression.
 
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.

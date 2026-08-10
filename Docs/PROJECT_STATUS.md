@@ -106,10 +106,10 @@ The current prototype includes:
 48. One server-authoritative immutable consequence per turn outcome, selected and published only
     by `NetworkRitualAuthority` while `RitualController` remains the temporary presentation and
     legacy-execution bridge.
-49. A completed multiplayer ritual single-writer audit covering roster, active participant, Book
+49. A multiplayer ritual single-writer boundary covering roster, active participant, Book
     command/arrival, timer, voice submission, phrase validation, turn outcome, and consequence.
-    The unreachable pre-migration validation helper was removed; every retained bridge has an
-    offline or presentation caller.
+    Network ritual start no longer launches `RitualController.RitualLoop` on Host or Client;
+    `RitualController` remains the unchanged local orchestrator only for offline play.
 
 ## Ritual Creation
 
@@ -233,9 +233,11 @@ the local Host-owned `NetworkPlayer` to start. The server rejects requests that 
 its local Host connection, confirms FishNet is still running as Host, and evaluates the current
 connected Circle roster so disconnected players are not retained by the Ready gate. A non-empty
 roster must be entirely Ready. On success, one FishNet ObserversRpc notifies every participant,
-and each peer executes the existing Book-text and `LobbyController.StartLobbyRitual()` handoff.
-`LobbyController` remains the single gameplay startup implementation for camera, Book
-interaction, Seat preference, ritual initialization, and `RitualController.StartRitual()`.
+and each peer executes the existing Book-text and `LobbyController.StartLobbyRitual()` presentation
+handoff. On the server, `NetworkRitualAuthority` locks the roster, selects the first participant,
+and issues the first Book command. `RitualController.StartRitual()` does not start its local
+`RitualLoop` in a network session, and `LobbyController`'s locally selected Seat is ignored as a
+network starting-participant preference. Offline startup is unchanged.
 
 The seated Circle page presents readiness by local ritual role. The Host sees `RITUAL STATUS`,
 `Waiting for Priests to Ready Up`, and `Ready: X / Y`, where `Y` is the current connected
@@ -331,6 +333,9 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - A local lobby player state component still duplicates part of the lobby state during migration. The existing Living Book lobby page observes this local state and refreshes its actions and status text through the existing Book text-transition system. It must be converted to consume authoritative `NetworkPlayer` state.
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
+- Network authoritative progression is deliberately incomplete after the first Book command.
+  REALIGN-002 must add authoritative phrase initialization/growth, turn activation and local
+  voice-capture gating, next-turn/rotation advancement, elimination, and game-over progression.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
 - Timeout and retry behavior exist in prototype form.
 - Failed players can be eliminated after the Book Prison transition, and the ritual can continue with remaining alive seats.

@@ -1069,7 +1069,8 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
 Production Steam discovery, Steam transport, social voice chat, and authoritative shared lobby
 presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.
 
-`NetworkRitualAuthority` is the final single writer for the migrated multiplayer ritual chain on
+`NetworkRitualAuthority` is the intended sole orchestrator and single writer for the migrated
+multiplayer ritual chain on
 the existing `MainGame` `SharedBookNetworkAuthority` scene object. It owns the locked roster,
 active participant, semantic Book command, accepted Book arrival, timer lifecycle, accepted
 voice submission, deterministic phrase validation, turn outcome, and selected consequence.
@@ -1080,9 +1081,11 @@ commit RPC for these decisions.
 `NetworkBookAuthority` is only Book command execution, pose synchronization, and arrival
 reporting. `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and
 `RitualController` keep the offline implementations and current presentation compatibility.
-In a network session their decision paths either return after forwarding input or apply
-authoritative snapshots. The method-level ownership audit and retained-bridge rationale are
-maintained in `Docs/TechnicalArchitecture.md`.
+In a network session `RitualController.StartRitual()` does not launch its legacy local loop on
+Host or Client. The server authority starts the first roster/participant/Book-command sequence;
+phrase initialization/growth, authoritative turn activation, subsequent advancement,
+elimination, and game-over progression remain required work for REALIGN-002. The method-level
+ownership audit and retained-bridge rationale are maintained in `Docs/TechnicalArchitecture.md`.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

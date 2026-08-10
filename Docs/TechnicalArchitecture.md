@@ -138,15 +138,17 @@ existing success or timeout compatibility pipeline. Book movement, Seat changes,
 Book Prison, next-turn selection, and phase progression remain legacy execution awaiting later
 migration or bridge removal.
 
-## Final Multiplayer Ritual Authority Ownership
+## Multiplayer Ritual Authority Boundary
 
-`NetworkRitualAuthority` is the only multiplayer gameplay writer for the migrated ritual
-decisions. The final ownership review is:
+`NetworkRitualAuthority` is the intended sole multiplayer gameplay orchestrator and the only
+writer for the migrated ritual decisions. `RitualController.StartRitual()` is presentation-only
+in an active FishNet session and never starts the legacy `RitualLoop`; offline play still starts
+that loop unchanged. The current ownership review is:
 
 | Decision | Sole authoritative writer | Other participants |
 | --- | --- | --- |
 | Roster and ritual entry | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | FishNet's authenticated server connections resolve exactly one owned `NetworkPlayer` each; stable player/Seat identity is then ordered through `SeatManager`. The first validated lock advances the ritual sequence and transitions `Inactive` to `Preparing`. |
-| Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | `RitualController` supplies its legacy requested Seat as a validated expectation but cannot write participant state. |
+| Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | Network start selects the first participant from the authoritative roster. A peer's locally selected lobby Seat is never used as the network starting participant. |
 | Book command | `NetworkRitualAuthority.TryRequestBookMoveToCurrentParticipant` | `BookMover` adapts legacy requests; `NetworkBookAuthority` executes the accepted command. |
 | Book arrival | `NetworkRitualAuthority.TryCommitBookArrival` | `NetworkBookAuthority` detects completion and submits a stable-data report. |
 | Timer | `NetworkRitualAuthority` timer start, stop, and expiration paths | `RitualController.hourglassDuration` supplies the one offline/network duration configuration. `HourglassController` and `Timer` present snapshots and forward a server stop request. |
@@ -162,11 +164,9 @@ FishNet connection and clients cannot call a commit path.
 
 ### Compatibility Boundaries That Intentionally Remain
 
-- `RitualController` remains the offline gameplay orchestrator and the network presentation/
-  execution coordinator. It owns local voice-listening lifecycle, retry feedback, phrase replay,
-  Book acceptance timing, failure visuals, absorption handoff, and the existing prototype
-  elimination/next-turn execution. During a network session it cannot validate speech, expire
-  time, commit an outcome, or choose a consequence.
+- `RitualController` remains the offline gameplay orchestrator. During a network ritual it is a
+  presentation/compatibility consumer and its legacy `RitualLoop` is not started on either Host
+  or remote Client. Its authoritative validation and consequence subscriptions remain intact.
 - An authoritative timeout consequence carries its stable `PlayerId` into
   `RitualController.CurrentFailedPlayerId` for the duration of the legacy failure presentation.
   `BookPrisonSpectatorController` resolves that exact ID to a `NetworkPlayer` and activates the
@@ -208,6 +208,16 @@ FishNet connection and clients cannot call a commit path.
 These bridges are not orphaned: each has a current caller or serialized scene consumer. Removing
 them now would change offline play, Book movement presentation, timer UI/events, phrase replay,
 or failure presentation and is therefore outside architecture cleanup.
+
+### REALIGN-002 Required Authoritative Progression
+
+Network start currently locks the roster, selects the first participant, and issues the first
+Book command through existing `NetworkRitualAuthority` decisions. The authority does not yet
+initialize the shared phrase, activate local voice capture from authoritative turn state, grow
+the phrase after a completed rotation, advance after success/failure, execute elimination, or
+complete game-over/winner flow without the removed local loop. REALIGN-002 must implement those
+drivers inside the authority/event-consumer boundary; they must not be restored by restarting a
+local `RitualLoop` or by treating a peer's selected Seat as authoritative.
 
 ## Network Scene Startup
 

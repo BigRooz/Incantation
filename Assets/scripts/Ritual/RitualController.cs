@@ -58,6 +58,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private bool enableDebugLogs = false;
 
     private Coroutine ritualRoutine;
+    private bool isNetworkPresentationActive;
     private Coroutine turnRoutine;
     private Coroutine retryListeningRoutine;
     private Coroutine successfulTurnRoutine;
@@ -156,7 +157,7 @@ public class RitualController : MonoBehaviour
             return;
         }
 
-        if (ritualRoutine != null)
+        if (ritualRoutine != null || isNetworkPresentationActive)
         {
             LogDebug("StartRitual ignored because ritual is already running");
             return;
@@ -172,11 +173,39 @@ public class RitualController : MonoBehaviour
         hasLoggedMissingFailedPlayerTransform = false;
         hasLoggedDebugAbsorptionPlayerOverride = false;
         activeRitualController = this;
+
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority != null && authority.IsNetworkSessionActive)
+        {
+            isNetworkPresentationActive = true;
+            Debug.Log(
+                "[RitualController]\n" +
+                "Network Ritual Start\n" +
+                "Mode = PresentationOnly\n" +
+                "LocalRitualLoopStarted = False",
+                this);
+            return;
+        }
+
         ritualRoutine = StartCoroutine(RitualLoop());
+        Debug.Log(
+            "[RitualController]\n" +
+            "Offline Ritual Start\n" +
+            "Mode = LocalAuthority\n" +
+            "LocalRitualLoopStarted = True",
+            this);
     }
 
     public void SetPreferredStartingSeat(Seat seat)
     {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority != null && authority.IsNetworkSessionActive)
+        {
+            LogDebug(
+                "Preferred starting Seat ignored because network ritual participant selection is server-authoritative.");
+            return;
+        }
+
         preferredStartingSeat = seat;
     }
 
@@ -199,6 +228,8 @@ public class RitualController : MonoBehaviour
 
         if (activeRitualController == this)
             activeRitualController = null;
+
+        isNetworkPresentationActive = false;
 
         hourglassFinished = false;
         isWaitingForOccupiedSeat = false;

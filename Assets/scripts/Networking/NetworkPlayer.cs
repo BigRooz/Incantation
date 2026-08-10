@@ -507,6 +507,15 @@ namespace Incantation.Networking
                 return false;
             }
 
+            NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+            if (authority == null || !authority.TryStartAuthoritativeRitual())
+            {
+                Debug.LogWarning(
+                    "Ritual start rejected by the server: NetworkRitualAuthority could not begin authoritative progression.",
+                    this);
+                return false;
+            }
+
             ritualStartAuthorized = true;
             BroadcastRitualStartObserversRpc();
             return true;

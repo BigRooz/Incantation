@@ -583,6 +583,30 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Begins the authoritative network ritual using the existing roster, traversal, and
+        /// Book-command decisions. This intentionally starts only the first turn. Authoritative
+        /// phrase initialization and subsequent turn progression remain for REALIGN-002.
+        /// </summary>
+        public bool TryStartAuthoritativeRitual()
+        {
+            if (!IsServerInitialized)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority] Network ritual start rejected: only the server may orchestrate ritual start.",
+                    this);
+                return false;
+            }
+
+            if (ritualRoster.Count == 0 && !TryBuildRosterFromCurrentSeating())
+                return false;
+
+            if (CurrentActiveSeatId == NoSeatId && !TryCommitNextActiveParticipant())
+                return false;
+
+            return TryRequestBookMoveToCurrentParticipant();
+        }
+
+        /// <summary>
         /// Temporary stable-ID bridge for the legacy ritual flow. The requested Seat is treated
         /// only as an expectation; authoritative traversal selects participants until it reaches
         /// that Seat, then the normal command path decides whether movement may be issued.
