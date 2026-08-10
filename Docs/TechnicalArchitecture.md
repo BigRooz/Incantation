@@ -44,6 +44,10 @@ Seat requests to the server; the server rejects an ID already assigned to anothe
 player and replicates accepted changes. `SeatManager` derives stable zero-based IDs from the
 configured clockwise physical Seat list, resolves a Seat occupant through active
 `NetworkPlayer` instances, and refreshes Seat availability presentation.
+Authoritative ritual roster construction does not consume that presentation-oriented global
+lookup. On the server it enumerates FishNet's live authenticated connections, requires exactly
+one initialized owned `NetworkPlayer` for each, validates stable `PlayerId` and synchronized
+`SeatId`, then orders the validated players through `SeatManager`'s physical Seat list.
 `NetworkCharacterPresentation` is a one-to-one observer attached to the NetworkPlayer prefab.
 On each client it binds exactly one visual character to its observed player, resolves the
 local scene character only for the owning player, creates an independent visual instance for
@@ -141,7 +145,7 @@ decisions. The final ownership review is:
 
 | Decision | Sole authoritative writer | Other participants |
 | --- | --- | --- |
-| Roster and ritual entry | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | The first validated roster lock advances the ritual sequence and transitions `Inactive` to `Preparing`; `NetworkPlayer` and `SeatManager` provide validated identity, occupancy, and physical-order inputs. |
+| Roster and ritual entry | `NetworkRitualAuthority.TryBuildRosterFromCurrentSeating` | FishNet's authenticated server connections resolve exactly one owned `NetworkPlayer` each; stable player/Seat identity is then ordered through `SeatManager`. The first validated lock advances the ritual sequence and transitions `Inactive` to `Preparing`. |
 | Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | `RitualController` supplies its legacy requested Seat as a validated expectation but cannot write participant state. |
 | Book command | `NetworkRitualAuthority.TryRequestBookMoveToCurrentParticipant` | `BookMover` adapts legacy requests; `NetworkBookAuthority` executes the accepted command. |
 | Book arrival | `NetworkRitualAuthority.TryCommitBookArrival` | `NetworkBookAuthority` detects completion and submits a stable-data report. |

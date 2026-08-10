@@ -114,6 +114,10 @@ Do not assume the presence of `CoreRitualLoop` means the old runtime has been re
   - Server-owned FishNet scene authority for the future multiplayer ritual state.
   - Owns the immutable multiplayer ritual roster copied from approved `NetworkPlayer` identity
     and Seat assignments in `SeatManager` physical traversal order.
+  - Resolves roster candidates from FishNet's live authenticated server connections and each
+    connection's owned objects. It requires exactly one initialized server `NetworkPlayer` per
+    connection and never derives ritual identity from character presentation, join order,
+    connection ID, or the process-global presentation registry.
   - Begins the authoritative runtime lifecycle as part of the first validated roster lock:
     ritual sequence zero advances to a real sequence and `Inactive` legally becomes `Preparing`.
     Later detailed phase progression remains on the temporary legacy bridge.

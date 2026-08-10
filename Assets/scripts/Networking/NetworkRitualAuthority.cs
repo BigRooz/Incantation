@@ -1575,13 +1575,20 @@ namespace Incantation.Networking
             List<Seat> orderedSeats = seatManager.GetPhysicalSeats(seatDirection);
             List<NetworkRitualRosterEntry> candidateRoster =
                 new(approvedPlayers.Count);
+            Dictionary<int, NetworkPlayer> approvedPlayersBySeat = new();
+            foreach (NetworkPlayer approvedPlayer in approvedPlayers)
+                approvedPlayersBySeat.Add(approvedPlayer.SeatId, approvedPlayer);
 
             foreach (Seat seat in orderedSeats)
             {
                 int seatId = seatManager.GetSeatId(seat);
-                NetworkPlayer player = NetworkPlayer.FindBySeatId(seatId);
-                if (player == null || !approvedPlayerSet.Contains(player))
+                if (!approvedPlayersBySeat.TryGetValue(
+                        seatId,
+                        out NetworkPlayer player) ||
+                    !approvedPlayerSet.Contains(player))
+                {
                     continue;
+                }
 
                 candidateRoster.Add(
                     new NetworkRitualRosterEntry(
@@ -2053,33 +2060,10 @@ namespace Incantation.Networking
             out NetworkPlayer resolvedPlayer,
             out string rejectionReason)
         {
-            resolvedPlayer = null;
-            int matchCount = 0;
-
-            foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
-            {
-                if (player == null ||
-                    player.Connection == null ||
-                    !player.Connection.Equals(sender))
-                {
-                    continue;
-                }
-
-                matchCount++;
-                resolvedPlayer = player;
-            }
-
-            if (matchCount == 1)
-            {
-                rejectionReason = string.Empty;
-                return true;
-            }
-
-            rejectionReason = matchCount == 0
-                ? "The sending connection has no server-owned NetworkPlayer."
-                : $"The sending connection resolves to {matchCount} NetworkPlayer instances.";
-            resolvedPlayer = null;
-            return false;
+            return TryResolveServerOwnedPlayer(
+                sender,
+                out resolvedPlayer,
+                out rejectionReason);
         }
 
         private static bool TryNormalizeRecognizedText(
@@ -2328,24 +2312,49 @@ namespace Incantation.Networking
             approvedPlayers = new List<NetworkPlayer>();
             approvedPlayerSet = new HashSet<NetworkPlayer>();
 
-            foreach (NetworkPlayer player in NetworkPlayer.ActivePlayers)
+            if (ServerManager == null)
             {
-                if (player == null)
+                Debug.LogError(
+                    "[RitualAuthority]\n" +
+                    "Roster Participant Resolution Failed\n" +
+                    "Reason = FishNet ServerManager is unavailable.",
+                    this);
+                return false;
+            }
+
+            foreach (NetworkConnection connection in
+                ServerManager.Clients.Values)
+            {
+                if (connection == null ||
+                    !connection.IsActive ||
+                    !connection.IsAuthenticated)
                 {
-                    Debug.LogError(
-                        $"{nameof(NetworkRitualAuthority)} rejected an inconsistent roster containing a missing network player.",
-                        this);
+                    continue;
+                }
+
+                if (!TryResolveServerOwnedPlayer(
+                        connection,
+                        out NetworkPlayer player,
+                        out string resolutionReason))
+                {
+                    LogRosterParticipantResolutionFailure(
+                        connection,
+                        player,
+                        resolutionReason);
                     return false;
                 }
 
                 if (!player.IsCircleMember)
                     continue;
 
+                LogRosterParticipantResolved(connection, player);
+
                 if (!approvedPlayerSet.Add(player))
                 {
-                    Debug.LogError(
-                        $"{nameof(NetworkRitualAuthority)} rejected a duplicate network player in the approved ritual roster.",
-                        this);
+                    LogRosterParticipantResolutionFailure(
+                        connection,
+                        player,
+                        "The same server-owned NetworkPlayer resolved for more than one authenticated connection.");
                     return false;
                 }
 
@@ -2369,6 +2378,119 @@ namespace Incantation.Networking
             }
 
             return true;
+        }
+
+        private static bool TryResolveServerOwnedPlayer(
+            NetworkConnection connection,
+            out NetworkPlayer resolvedPlayer,
+            out string rejectionReason)
+        {
+            resolvedPlayer = null;
+            if (connection == null)
+            {
+                rejectionReason = "The FishNet connection reference is null.";
+                return false;
+            }
+
+            int matchCount = 0;
+            foreach (NetworkObject ownedObject in connection.Objects)
+            {
+                if (ownedObject == null)
+                    continue;
+
+                NetworkPlayer candidate =
+                    ownedObject.GetComponent<NetworkPlayer>();
+                if (candidate == null ||
+                    !candidate.IsServerInitialized ||
+                    candidate.Connection == null ||
+                    !candidate.Connection.Equals(connection))
+                {
+                    continue;
+                }
+
+                matchCount++;
+                resolvedPlayer = candidate;
+            }
+
+            if (matchCount == 1)
+            {
+                rejectionReason = string.Empty;
+                return true;
+            }
+
+            rejectionReason = matchCount == 0
+                ? "The authenticated connection owns no initialized server NetworkPlayer."
+                : $"The authenticated connection owns {matchCount} initialized NetworkPlayer components.";
+            if (matchCount != 1)
+                resolvedPlayer = null;
+
+            return false;
+        }
+
+        private void LogRosterParticipantResolutionFailure(
+            NetworkConnection connection,
+            NetworkPlayer player,
+            string reason)
+        {
+            int connectionId = connection?.ClientId ?? -1;
+            string playerId = player != null
+                ? player.PlayerId
+                : "unavailable";
+            int resolvedSeatId = player != null
+                ? player.SeatId
+                : NetworkPlayer.UnassignedSeatId;
+            Seat physicalSeat = seatManager != null
+                ? seatManager.GetSeatById(resolvedSeatId)
+                : null;
+            string occupant = physicalSeat != null &&
+                physicalSeat.currentPlayer != null
+                    ? physicalSeat.currentPlayer.name
+                    : "none";
+
+            Debug.LogError(
+                "[RitualAuthority]\n" +
+                "Roster Participant Resolution Failed\n" +
+                $"ConnectionId = {connectionId}\n" +
+                $"PlayerId = {playerId}\n" +
+                $"SeatId = {resolvedSeatId}\n" +
+                $"CircleMember = {player != null && player.IsCircleMember}\n" +
+                $"ReadyState = {(player != null ? player.ReadyState : ReadyState.NotReady)}\n" +
+                $"ServerInitialized = {player != null && player.IsServerInitialized}\n" +
+                $"ClientInitialized = {player != null && player.IsClientInitialized}\n" +
+                $"PhysicalSeat = {(physicalSeat != null ? physicalSeat.name : "none")}\n" +
+                $"PresentationOccupant = {occupant}\n" +
+                $"NetworkPlayerFound = {player != null}\n" +
+                "Discovery = FishNet server connection owned objects\n" +
+                $"Reason = {reason}",
+                this);
+        }
+
+        private void LogRosterParticipantResolved(
+            NetworkConnection connection,
+            NetworkPlayer player)
+        {
+            Seat physicalSeat = seatManager != null
+                ? seatManager.GetSeatById(player.SeatId)
+                : null;
+            string occupant = physicalSeat != null &&
+                physicalSeat.currentPlayer != null
+                    ? physicalSeat.currentPlayer.name
+                    : "none";
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Roster Participant Resolved\n" +
+                $"ConnectionId = {connection.ClientId}\n" +
+                $"PlayerId = {player.PlayerId}\n" +
+                $"SeatId = {player.SeatId}\n" +
+                $"CircleMember = {player.IsCircleMember}\n" +
+                $"ReadyState = {player.ReadyState}\n" +
+                $"ServerInitialized = {player.IsServerInitialized}\n" +
+                $"ClientInitialized = {player.IsClientInitialized}\n" +
+                $"PhysicalSeat = {(physicalSeat != null ? physicalSeat.name : "none")}\n" +
+                $"PresentationOccupant = {occupant}\n" +
+                "Discovery = FishNet server connection owned objects",
+                this);
         }
 
         private bool TryValidateApprovedPlayers(IReadOnlyList<NetworkPlayer> approvedPlayers)
