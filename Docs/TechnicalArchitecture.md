@@ -167,6 +167,12 @@ FishNet connection and clients cannot call a commit path.
   Book acceptance timing, failure visuals, absorption handoff, and the existing prototype
   elimination/next-turn execution. During a network session it cannot validate speech, expire
   time, commit an outcome, or choose a consequence.
+- An authoritative timeout consequence carries its stable `PlayerId` into
+  `RitualController.CurrentFailedPlayerId` for the duration of the legacy failure presentation.
+  `BookPrisonSpectatorController` resolves that exact ID to a `NetworkPlayer` and activates the
+  prison camera only when that object reports `IsOwner`. Seat transforms, character-presentation
+  hierarchy, host role, and current active Seat are not camera-ownership evidence. Remote peers
+  still run the shared prison and aftermath visuals; they only ignore the local camera switch.
 - `BookMover.MoveToSeat` remains the shared offline/network call surface. Offline it executes the
   original interpolation. In a network session it converts the requested `Seat` to a stable ID
   and forwards it to ritual authority as an expectation; it cannot issue a network movement

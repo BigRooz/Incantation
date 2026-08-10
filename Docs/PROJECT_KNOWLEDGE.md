@@ -385,6 +385,12 @@ Retry and timeout behavior exists in prototype form.
 
 Timeout failure now waits for the absorption, book aftermath, and Book Prison handoff chain before eliminating the failed Seat.
 
+During a network timeout, the authoritative consequence's stable player ID is retained through
+that presentation chain. Book Prison camera ownership is resolved by exact
+`PlayerId -> NetworkPlayer` matching and requires `NetworkPlayer.IsOwner`; transform ancestry is
+diagnostic only. This keeps shared remote death presentation intact while only the eliminated
+player's client enters its prison camera. Offline rituals retain the original local camera behavior.
+
 After `RitualController.CompleteCurrentFailedPlayerElimination()` runs, `SeatManager` frees the failed Seat and the ritual loop selects the next alive occupied Seat in physical table order.
 
 Last-player-remaining presentation is still a TODO; when only one alive Seat remains, the ritual stops instead of starting another timed turn.

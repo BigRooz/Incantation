@@ -512,7 +512,7 @@ Recommended setup:
 - Place `BookPrisonSpectatorController` on the book-side failure sequence object, preferably `Book > BookModel > BookFailureSequence`.
 - Use `Tools/Incantation/Validate Book Prison Spectator` to inspect spectator wiring in the open scene.
 - Use `Tools/Incantation/Repair Book Prison Spectator` to add the controller if missing, preserve existing assignments, populate an empty `prisonSlots` array from clearly named numbered objects when they exist, assign the scene `RitualController` when found, connect the portal RenderTexture references when possible, and wire `BookAftermathController.onAftermathFinished` to `BookPrisonSpectatorController.SendCurrentFailedPlayerToBookPrison()`.
-- `ritualController`: assign the scene `RitualController`. The spectator controller reads `RitualController.CurrentFailedPlayer` after failure and does not search for player objects.
+- `ritualController`: assign the scene `RitualController`. The spectator controller reads `RitualController.CurrentFailedPlayer` after failure. In a network ritual it also uses the retained authoritative `CurrentFailedPlayerId` to resolve the exact `NetworkPlayer`; it activates the prison camera only for that player's owning client.
 - `prisonSlots`: assign up to 8 fixed Book Prison slots. Each slot needs a `spawnPoint` and a `spectatorCamera`.
 - `prisonSlots[x].spawnPoint`: assign the fixed position for a consumed player in the DeathZone/Book Prison room.
 - `prisonSlots[x].spectatorCamera`: assign the fixed camera for that dead player slot.
@@ -541,7 +541,7 @@ Runtime behavior:
 - `SendPlayerToBookPrison(player)` can be called directly by tests or custom scene events with an explicit player Transform.
 - `SendPlayerToBookPrison(player)` chooses the first `prisonSlots` entry with an assigned `spawnPoint` that is not already occupied, so the first dead player goes to slot 1, the second dead player goes to slot 2, and so on by Inspector array order.
 - Dead players cannot move freely in this MVP. The Book Prison is fixed-position spectator presentation only; do not add movement controls to this controller.
-- Before activating the assigned slot camera, the controller deactivates every other prison slot camera.
+- Before activating the assigned slot camera for the locally owned eliminated player, the controller deactivates every other prison slot camera. Remote elimination presentation does not alter the local prison-camera state.
 - When `bookPortalCamera` and `bookPortalRenderTexture` are both assigned, the controller assigns `bookPortalCamera.targetTexture`.
 - When `portalScreenRenderer` and `bookPortalRenderTexture` are both assigned, the controller assigns the portal screen material's main texture at runtime.
 - `ResetSpectatorView()` marks every prison slot unoccupied, deactivates all prison slot cameras, and restores player Transform/active state for Play Mode testing.

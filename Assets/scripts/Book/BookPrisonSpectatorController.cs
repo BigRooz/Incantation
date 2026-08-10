@@ -61,16 +61,37 @@ public class BookPrisonSpectatorController : MonoBehaviour
         if (movePlayerToPrison)
             player.SetPositionAndRotation(slot.spawnPoint.position, slot.spawnPoint.rotation);
 
-        bool isLocalDeathCameraTarget = IsLocalDeathCameraTarget(player);
+        bool isLocalDeathCameraTarget = TryResolveLocalDeathCameraTarget(
+            out NetworkPlayer eliminatedNetworkPlayer,
+            out string resolutionReason);
         if (activateSpectatorCamera && isLocalDeathCameraTarget)
             ActivateSlotCamera(slot);
-        else
+        else if (!activateSpectatorCamera)
             DeactivateAllSlotCameras();
 
+        NetworkCharacterPresentation eliminatedPresentation =
+            eliminatedNetworkPlayer != null
+                ? eliminatedNetworkPlayer.GetComponent<NetworkCharacterPresentation>()
+                : null;
+        GameObject presentedCharacter = eliminatedPresentation != null
+            ? eliminatedPresentation.CharacterInstance
+            : null;
+        bool presentationMatchesFailedTransform =
+            presentedCharacter != null &&
+            (player == presentedCharacter.transform ||
+                player.IsChildOf(presentedCharacter.transform) ||
+                presentedCharacter.transform.IsChildOf(player));
+
         Debug.Log(
-            $"Death Camera request for eliminated player '{player.name}': " +
-            $"local ownership={isLocalDeathCameraTarget}, " +
-            $"activation={(activateSpectatorCamera && isLocalDeathCameraTarget ? "accepted" : "ignored")}.",
+            "[DeathCamera]\n" +
+            $"EliminatedPlayerId = {GetEliminatedPlayerId()}\n" +
+            $"EliminatedSeat = {(eliminatedNetworkPlayer != null ? eliminatedNetworkPlayer.SeatId : NetworkPlayer.UnassignedSeatId)}\n" +
+            $"OwnerConnectionId = {(eliminatedNetworkPlayer?.Connection != null ? eliminatedNetworkPlayer.Connection.ClientId : -1)}\n" +
+            $"Presentation = {(presentedCharacter != null ? presentedCharacter.name : "none")}\n" +
+            $"PresentationMatchesFailedTransform = {presentationMatchesFailedTransform}\n" +
+            $"LocalOwner = {isLocalDeathCameraTarget}\n" +
+            $"CameraActivation = {(activateSpectatorCamera && isLocalDeathCameraTarget ? "accepted" : "ignored")}\n" +
+            $"Reason = {resolutionReason}",
             this);
 
         if (deactivateTablePlayerModel)
@@ -140,34 +161,59 @@ public class BookPrisonSpectatorController : MonoBehaviour
         activeSlot.spectatorCamera.enabled = true;
     }
 
-    private static bool IsLocalDeathCameraTarget(Transform player)
+    private bool TryResolveLocalDeathCameraTarget(
+        out NetworkPlayer eliminatedNetworkPlayer,
+        out string resolutionReason)
     {
-        IReadOnlyList<NetworkPlayer> activePlayers = NetworkPlayer.ActivePlayers;
-        if (activePlayers.Count == 0)
+        eliminatedNetworkPlayer = null;
+        string eliminatedPlayerId = GetEliminatedPlayerId();
+        NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+        bool isNetworkSession = authority != null &&
+            authority.IsNetworkSessionActive;
+        if (!isNetworkSession)
+        {
+            resolutionReason =
+                "Offline ritual preserves local death-camera behavior.";
             return true;
+        }
 
+        if (string.IsNullOrEmpty(eliminatedPlayerId))
+        {
+            resolutionReason =
+                "The authoritative consequence did not provide an eliminated PlayerId.";
+            return false;
+        }
+
+        IReadOnlyList<NetworkPlayer> activePlayers = NetworkPlayer.ActivePlayers;
         for (int i = 0; i < activePlayers.Count; i++)
         {
             NetworkPlayer networkPlayer = activePlayers[i];
-            if (networkPlayer == null)
-                continue;
-
-            NetworkCharacterPresentation presentation =
-                networkPlayer.GetComponent<NetworkCharacterPresentation>();
-            GameObject character = presentation != null ? presentation.CharacterInstance : null;
-            if (character == null)
-                continue;
-
-            Transform characterTransform = character.transform;
-            if (player == characterTransform ||
-                player.IsChildOf(characterTransform) ||
-                characterTransform.IsChildOf(player))
+            if (networkPlayer == null ||
+                !string.Equals(
+                    networkPlayer.PlayerId,
+                    eliminatedPlayerId,
+                    System.StringComparison.Ordinal))
             {
-                return networkPlayer.IsOwner;
+                continue;
             }
+
+            eliminatedNetworkPlayer = networkPlayer;
+            resolutionReason = networkPlayer.IsOwner
+                ? "The authoritative eliminated NetworkPlayer is locally owned."
+                : "The authoritative eliminated NetworkPlayer is remotely owned.";
+            return networkPlayer.IsOwner;
         }
 
+        resolutionReason =
+            $"No active NetworkPlayer matches authoritative PlayerId {eliminatedPlayerId}.";
         return false;
+    }
+
+    private string GetEliminatedPlayerId()
+    {
+        return ritualController != null
+            ? ritualController.CurrentFailedPlayerId
+            : string.Empty;
     }
 
     private void DeactivateAllSlotCameras()

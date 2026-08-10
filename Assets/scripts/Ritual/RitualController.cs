@@ -101,6 +101,7 @@ public class RitualController : MonoBehaviour
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
+    public string CurrentFailedPlayerId { get; private set; } = string.Empty;
     public bool RitualFailed => ritualFailed;
     public IncantationManager CurrentIncantationManager => incantationManager;
     public VoicePhraseNormalizer CurrentVoicePhraseNormalizer =>
@@ -167,6 +168,7 @@ public class RitualController : MonoBehaviour
         currentFailedSeat = null;
         handledConsequenceSequence = 0;
         CurrentFailedPlayer = null;
+        CurrentFailedPlayerId = string.Empty;
         hasLoggedMissingFailedPlayerTransform = false;
         hasLoggedDebugAbsorptionPlayerOverride = false;
         activeRitualController = this;
@@ -205,6 +207,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         CurrentFailedPlayer = null;
+        CurrentFailedPlayerId = string.Empty;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
         hasLoggedMissingVoicePhraseNormalizer = false;
@@ -1200,7 +1203,8 @@ public class RitualController : MonoBehaviour
                 StopListening();
                 FailRitual(
                     "Timeout: authoritative ritual timer expired.",
-                    stopHourglass: false);
+                    stopHourglass: false,
+                    failedPlayerId: consequence.PlayerId);
                 break;
         }
     }
@@ -1490,13 +1494,15 @@ public class RitualController : MonoBehaviour
 
     private void FailRitual(
         string reason,
-        bool stopHourglass = true)
+        bool stopHourglass = true,
+        string failedPlayerId = null)
     {
         if (ritualFailed)
             return;
 
         currentFailedSeat = CurrentActiveSeat;
         CurrentFailedPlayer = GetCurrentActivePlayerTransform();
+        CurrentFailedPlayerId = failedPlayerId ?? string.Empty;
         ritualFailed = true;
         isFailureSequencePending = true;
         Debug.Log($"Ritual failed. {reason}");
@@ -1553,6 +1559,7 @@ public class RitualController : MonoBehaviour
             ritualFailed = true;
             isFailureSequencePending = false;
             CurrentFailedPlayer = null;
+            CurrentFailedPlayerId = string.Empty;
             currentFailedSeat = null;
             LogLastPlayerRemainingTodo(aliveSeats);
             return;
@@ -1566,6 +1573,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         CurrentFailedPlayer = null;
+        CurrentFailedPlayerId = string.Empty;
         currentFailedSeat = null;
 
         SubscribeToVoiceRecognizer();
@@ -1577,6 +1585,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         CurrentFailedPlayer = null;
+        CurrentFailedPlayerId = string.Empty;
         currentFailedSeat = null;
         CurrentActiveSeat = null;
     }
