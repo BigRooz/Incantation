@@ -117,9 +117,6 @@ namespace Incantation.Networking
         [Header("Ritual Roster Source")]
         [SerializeField] private SeatManager seatManager;
 
-        [Header("Authoritative Timer")]
-        [SerializeField, Min(0.1f)] private float timerDurationSeconds = 5f;
-
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
         private bool bookArrivalNotificationPending;
@@ -703,7 +700,14 @@ namespace Incantation.Networking
             if (timerSequence.Value == uint.MaxValue)
                 return RejectBookArrival("The ritual timer sequence is exhausted.");
 
-            double configuredDuration = timerDurationSeconds;
+            RitualController controller = ResolveRitualController();
+            if (controller == null)
+            {
+                return RejectBookArrival(
+                    "The configured ritual turn duration is unavailable because RitualController could not be resolved.");
+            }
+
+            double configuredDuration = controller.ConfiguredTurnDuration;
             if (double.IsNaN(configuredDuration) ||
                 double.IsInfinity(configuredDuration) ||
                 configuredDuration <= 0d)
@@ -1268,15 +1272,22 @@ namespace Incantation.Networking
             }
             else if (requestedOutcome == TurnOutcomeType.TimerExpired)
             {
-                RitualTimerSnapshot timer = CreateTimerSnapshot();
-                if (!timer.IsExpired ||
-                    timer.IsRunning ||
-                    timer.RitualSequenceId.Value != ritualSequence.Value ||
-                    timer.TurnSequenceId.Value != turnSequence.Value ||
-                    timer.TimerSequence != originatingTimerSequence)
+                if (!isTimerExpired.Value ||
+                    isTimerRunning.Value ||
+                    timerRitualSequence.Value != ritualSequence.Value ||
+                    timerTurnSequence.Value != turnSequence.Value ||
+                    timerSequence.Value != originatingTimerSequence)
                 {
                     return RejectTurnOutcome(
-                        "The originating timer expiration does not belong to the active turn.");
+                        $"The originating timer expiration does not belong to the active turn. " +
+                        $"RequestedTimer={originatingTimerSequence}, " +
+                        $"CurrentTimer={timerSequence.Value}, " +
+                        $"TimerRitual={timerRitualSequence.Value}, " +
+                        $"ActiveRitual={ritualSequence.Value}, " +
+                        $"TimerTurn={timerTurnSequence.Value}, " +
+                        $"ActiveTurn={turnSequence.Value}, " +
+                        $"Running={isTimerRunning.Value}, " +
+                        $"Expired={isTimerExpired.Value}.");
                 }
             }
             else
@@ -2107,6 +2118,12 @@ namespace Incantation.Networking
                     $"Timer turn {timerTurnSequence.Value} does not match active turn {turnSequence.Value}.");
             }
 
+            if (timerRitualSequence.Value != ritualSequence.Value)
+            {
+                return RejectTimer(
+                    $"Timer ritual {timerRitualSequence.Value} does not match active ritual {ritualSequence.Value}.");
+            }
+
             double currentTime = GetCurrentNetworkTime();
             if (currentTime < timerDeadlineNetworkTime.Value)
             {
@@ -2114,6 +2131,7 @@ namespace Incantation.Networking
                     $"Timer {timerSequence.Value} cannot expire before deadline {timerDeadlineNetworkTime.Value}; current time is {currentTime}.");
             }
 
+            uint expiredTimerSequence = timerSequence.Value;
             timerRemainingTime.Value = 0d;
             isTimerRunning.Value = false;
             isTimerExpired.Value = true;
@@ -2123,14 +2141,14 @@ namespace Incantation.Networking
             Debug.Log(
                 "[RitualAuthority]\n" +
                 "Timer Expired\n" +
-                $"TimerSequence = {timerSequence.Value}\n" +
+                $"TimerSequence = {expiredTimerSequence}\n" +
                 $"TurnSequence = {timerTurnSequence.Value}\n" +
                 $"Deadline = {timerDeadlineNetworkTime.Value}",
                 this);
             return TryCommitTurnOutcome(
                 TurnOutcomeType.TimerExpired,
                 0,
-                timerSequence.Value);
+                expiredTimerSequence);
         }
 
         private double CalculateRemainingTime(double currentNetworkTime)

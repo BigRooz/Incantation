@@ -105,6 +105,7 @@ public class RitualController : MonoBehaviour
     public IncantationManager CurrentIncantationManager => incantationManager;
     public VoicePhraseNormalizer CurrentVoicePhraseNormalizer =>
         voicePhraseNormalizer;
+    public float ConfiguredTurnDuration => hourglassDuration;
     public RitualValidationMode CurrentNetworkValidationMode =>
         voiceValidationMode == VoiceValidationMode.FullPhrase
             ? RitualValidationMode.FullPhrase

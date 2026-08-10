@@ -189,7 +189,8 @@ Current `MainGame` setup:
 - `voicePhraseNormalizer`: assigned.
 - `speechAliasWordLibrary`: assigned to the ritual word library.
 - `autoStart`: `false` in `MainGame` so the local lobby appears first. Use `LobbyController.StartLobbyRitual()` or the lobby Start Ritual button to call the existing ritual start flow.
-- `hourglassDuration`: `30` seconds. `Prototype tuning`.
+- `hourglassDuration`: `90` seconds in `MainGame`. This is the single configured ritual turn
+  duration used by both offline play and the server-authoritative network deadline.
 - `ritualAcceptancePauseSeconds`: `0.75` seconds. `Prototype tuning`.
 - `enableLearningMode`: `false` unless intentionally collecting speech aliases.
 - `debugAbsorptionPlayerOverride`: temporary local/debug absorption testing only. Leave empty for normal gameplay and multiplayer; assign a visible player root here only when testing absorption with debug-only Seat occupants.
@@ -308,9 +309,10 @@ It changes only synchronized active-player, active-Seat, and turn-sequence value
 Accepted Book commands are executed by `NetworkBookAuthority`, which reports duration-based
 completion to `NetworkRitualAuthority`. The authority validates the movement, ritual, turn, and
 Seat identifiers before publishing its immutable arrival state and read-only notification.
-`timerDurationSeconds` is the server-owned turn duration (currently `5` seconds in the
-prototype). Accepted arrival starts the timer automatically. Clients render from the
-synchronized start/deadline snapshot and cannot expire or stop gameplay time.
+Accepted arrival starts the timer automatically using the assigned `RitualController`'s
+`hourglassDuration`. `NetworkRitualAuthority` owns the resulting deadline; it does not expose a
+second duration setting. Clients render from the synchronized start/deadline snapshot and cannot
+expire or stop gameplay time.
 The separate deterministic snapshot action remains development-only and is never automatic.
 
 ## BookController
@@ -557,7 +559,8 @@ Script defaults:
 
 Runtime note:
 
-- `RitualController` currently starts the hourglass with its own `hourglassDuration` value, currently `30` seconds in `MainGame`.
+- `RitualController.hourglassDuration` is the shared offline/network turn-duration configuration,
+  currently `90` seconds in `MainGame`.
 
 Ownership:
 

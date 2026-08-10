@@ -140,7 +140,7 @@ decisions. The final ownership review is:
 | Active participant | `NetworkRitualAuthority.TryCommitNextActiveParticipant` | `RitualController` supplies its legacy requested Seat as a validated expectation but cannot write participant state. |
 | Book command | `NetworkRitualAuthority.TryRequestBookMoveToCurrentParticipant` | `BookMover` adapts legacy requests; `NetworkBookAuthority` executes the accepted command. |
 | Book arrival | `NetworkRitualAuthority.TryCommitBookArrival` | `NetworkBookAuthority` detects completion and submits a stable-data report. |
-| Timer | `NetworkRitualAuthority` timer start, stop, and expiration paths | `HourglassController` and `Timer` present snapshots and forward a server stop request. |
+| Timer | `NetworkRitualAuthority` timer start, stop, and expiration paths | `RitualController.hourglassDuration` supplies the one offline/network duration configuration. `HourglassController` and `Timer` present snapshots and forward a server stop request. |
 | Voice submission acceptance | `NetworkRitualAuthority.TryAcceptVoiceSubmission` | The recognizer supplies local input; the owning `NetworkPlayer` authenticates transport. |
 | Phrase validation | `NetworkRitualAuthority` deterministic validation commit | `IncantationManager` supplies the server phrase and applies immutable results for presentation. |
 | Turn outcome | `NetworkRitualAuthority.TryCommitTurnOutcome` | Validation and timer state are immutable originating evidence only. |
