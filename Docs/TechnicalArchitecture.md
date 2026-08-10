@@ -191,7 +191,12 @@ FishNet connection and clients cannot call a commit path.
   Proxy active state is never copied to the visible Book.
 - `HourglassController` and `Timer` remain necessary because the existing scene, UI, audio, and
   UnityEvents consume them. Their local countdown is enabled only offline. Network sessions apply
-  authoritative snapshots and never compute gameplay expiration.
+  authoritative snapshots and never compute gameplay expiration. FishNet's synchronized
+  `TimeManager.TicksToTime()` clock is used against the authoritative deadline on every peer.
+  `Timer` retains the authoritative timer sequence and expired state so a late or re-enabled
+  `HourglassVisualController` immediately renders the current state instead of resetting to full.
+  An expired snapshot always forces zero remaining time and terminal sand, while a new timer
+  sequence resets the visual duration from the authoritative duration.
 - `IncantationManager` remains the offline phrase/validation implementation and the network phrase
   presentation model. Its local evaluation methods are reached only by offline flow; network
   recognition returns after submitting to `NetworkRitualAuthority`, then applies the immutable

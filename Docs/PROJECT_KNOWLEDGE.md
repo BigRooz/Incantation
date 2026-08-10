@@ -295,6 +295,10 @@ The detailed method-level ownership table and the rationale for every retained b
   - In network sessions it presents authoritative remaining time and translates synchronized
     lifecycle changes for existing visuals and temporary legacy callbacks without deciding
     expiration.
+  - Retains authoritative `TimerSequence` and `IsExpired` presentation state. Hourglass visuals
+    render that durable state on enable, force terminal sand at expiration, reset from the full
+    authoritative duration for a new sequence, and render the exact synchronized remainder when
+    a successful turn stops the timer.
   - Should signal timeout pressure, not independently own traversal, phrase growth, or elimination rules.
 
 ### Player

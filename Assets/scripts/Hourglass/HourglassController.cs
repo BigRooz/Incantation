@@ -22,6 +22,8 @@ public class HourglassController : MonoBehaviour
 
     private NetworkRitualAuthority ritualAuthority;
     private NetworkRitualAuthority subscribedRitualAuthority;
+    private uint lastLoggedTimerSequence;
+    private bool lastLoggedTimerExpired;
 
     public UnityEvent OnStarted => onStarted;
     public UnityEvent OnWarning => onWarning;
@@ -64,7 +66,7 @@ public class HourglassController : MonoBehaviour
 
         if (TryUseAuthoritativeTimer())
         {
-            timer.ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
+            ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
             return;
         }
 
@@ -94,7 +96,7 @@ public class HourglassController : MonoBehaviour
 
         if (TryUseAuthoritativeTimer())
         {
-            timer.ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
+            ApplyAuthoritativeSnapshot(ritualAuthority.CurrentTimerSnapshot);
             return;
         }
 
@@ -177,7 +179,7 @@ public class HourglassController : MonoBehaviour
 
         if (subscribedRitualAuthority.IsNetworkSessionActive && timer != null)
         {
-            timer.ApplyAuthoritativeSnapshot(
+            ApplyAuthoritativeSnapshot(
                 subscribedRitualAuthority.CurrentTimerSnapshot);
         }
 
@@ -212,6 +214,44 @@ public class HourglassController : MonoBehaviour
         RitualTimerSnapshot snapshot)
     {
         if (timer != null)
-            timer.ApplyAuthoritativeSnapshot(snapshot);
+            ApplyAuthoritativeSnapshot(snapshot);
+    }
+
+    private void ApplyAuthoritativeSnapshot(RitualTimerSnapshot snapshot)
+    {
+        bool timerStarted = snapshot.IsRunning &&
+            snapshot.TimerSequence != lastLoggedTimerSequence;
+        bool timerExpired = snapshot.IsExpired &&
+            (!lastLoggedTimerExpired ||
+                snapshot.TimerSequence != lastLoggedTimerSequence);
+
+        timer.ApplyAuthoritativeSnapshot(snapshot);
+
+        if (timerStarted)
+        {
+            Debug.Log(
+                "[HourglassPresentation]\n" +
+                "Timer Started\n" +
+                $"TimerSequence = {snapshot.TimerSequence}\n" +
+                $"Duration = {snapshot.Duration}\n" +
+                $"AuthoritativeRemaining = {snapshot.RemainingTime}\n" +
+                $"LocalRemaining = {timer.RemainingTime}",
+                this);
+        }
+
+        if (timerExpired)
+        {
+            Debug.Log(
+                "[HourglassPresentation]\n" +
+                "Timer Expired\n" +
+                $"TimerSequence = {snapshot.TimerSequence}\n" +
+                "AuthoritativeRemaining = 0\n" +
+                $"LocalRemaining = {timer.RemainingTime}\n" +
+                $"ForcedTerminalState = {timer.IsExpired && timer.RemainingTime <= 0f}",
+                this);
+        }
+
+        lastLoggedTimerSequence = snapshot.TimerSequence;
+        lastLoggedTimerExpired = snapshot.IsExpired;
     }
 }

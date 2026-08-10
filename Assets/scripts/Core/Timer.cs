@@ -22,9 +22,12 @@ public class Timer : MonoBehaviour
     private bool hasWarned;
     private bool isAuthoritativePresentation;
     private float authoritativeDuration;
+    private uint authoritativeTimerSequence;
 
     public bool IsRunning { get; private set; }
+    public bool IsExpired { get; private set; }
     public float RemainingTime { get; private set; }
+    public uint AuthoritativeTimerSequence => authoritativeTimerSequence;
     public float Duration => isAuthoritativePresentation
         ? authoritativeDuration
         : duration;
@@ -56,6 +59,7 @@ public class Timer : MonoBehaviour
 
         RemainingTime = 0f;
         IsRunning = false;
+        IsExpired = true;
         onFinished.Invoke();
     }
 
@@ -64,6 +68,7 @@ public class Timer : MonoBehaviour
         isAuthoritativePresentation = false;
         RemainingTime = requestedDuration;
         IsRunning = true;
+        IsExpired = false;
         hasWarned = false;
 
         onStarted.Invoke();
@@ -71,6 +76,7 @@ public class Timer : MonoBehaviour
         if (requestedDuration <= 0f)
         {
             IsRunning = false;
+            IsExpired = true;
             onFinished.Invoke();
         }
     }
@@ -82,6 +88,7 @@ public class Timer : MonoBehaviour
             return;
 
         IsRunning = false;
+        IsExpired = false;
         onStopped.Invoke();
     }
 
@@ -89,6 +96,7 @@ public class Timer : MonoBehaviour
     {
         isAuthoritativePresentation = false;
         IsRunning = false;
+        IsExpired = false;
         RemainingTime = duration;
         hasWarned = false;
         onReset.Invoke();
@@ -101,18 +109,20 @@ public class Timer : MonoBehaviour
     public void ApplyAuthoritativeSnapshot(RitualTimerSnapshot snapshot)
     {
         bool wasRunning = IsRunning;
-        bool wasExpired = isAuthoritativePresentation &&
-            !IsRunning &&
-            RemainingTime <= 0f;
+        bool wasExpired = IsExpired;
+        uint previousTimerSequence = authoritativeTimerSequence;
 
         isAuthoritativePresentation = true;
+        authoritativeTimerSequence = snapshot.TimerSequence;
         authoritativeDuration = Mathf.Max(0f, (float)snapshot.Duration);
         RemainingTime = Mathf.Max(0f, (float)snapshot.RemainingTime);
         IsRunning = snapshot.IsRunning;
+        IsExpired = snapshot.IsExpired;
+        bool timerSequenceChanged = previousTimerSequence != authoritativeTimerSequence;
 
         if (snapshot.IsRunning)
         {
-            if (!wasRunning)
+            if (!wasRunning || timerSequenceChanged)
             {
                 hasWarned = false;
                 onStarted.Invoke();
@@ -125,7 +135,7 @@ public class Timer : MonoBehaviour
         if (snapshot.IsExpired)
         {
             RemainingTime = 0f;
-            if (!wasExpired)
+            if (!wasExpired || timerSequenceChanged)
                 onFinished.Invoke();
 
             return;

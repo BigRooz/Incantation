@@ -31,17 +31,23 @@ public class HourglassVisualController : MonoBehaviour
             return;
         }
 
-        activeDuration = GetSafeDuration(timer.RemainingTime);
+        activeDuration = GetSafeDuration(timer.Duration);
         SubscribeToTimer();
 
-        if (resetVisualsOnEnable)
+        if (timer.IsExpired)
         {
-            ApplyVisualProgress(0f);
+            ApplyVisualProgress(1f);
             return;
         }
 
         if (timer.IsRunning)
+        {
             ApplyVisualsFromTimer();
+            return;
+        }
+
+        if (resetVisualsOnEnable)
+            ApplyVisualProgress(0f);
     }
 
     private void OnDisable()
@@ -70,6 +76,7 @@ public class HourglassVisualController : MonoBehaviour
 
         timer.OnStarted.AddListener(HandleTimerStarted);
         timer.OnFinished.AddListener(HandleTimerFinished);
+        timer.OnStopped.AddListener(HandleTimerStopped);
         timer.OnReset.AddListener(HandleTimerReset);
     }
 
@@ -80,18 +87,24 @@ public class HourglassVisualController : MonoBehaviour
 
         timer.OnStarted.RemoveListener(HandleTimerStarted);
         timer.OnFinished.RemoveListener(HandleTimerFinished);
+        timer.OnStopped.RemoveListener(HandleTimerStopped);
         timer.OnReset.RemoveListener(HandleTimerReset);
     }
 
     private void HandleTimerStarted()
     {
-        activeDuration = GetSafeDuration(timer.RemainingTime);
+        activeDuration = GetSafeDuration(timer.Duration);
         ApplyVisualsFromTimer();
     }
 
     private void HandleTimerFinished()
     {
         ApplyVisualProgress(1f);
+    }
+
+    private void HandleTimerStopped()
+    {
+        ApplyVisualsFromTimer();
     }
 
     private void HandleTimerReset()
