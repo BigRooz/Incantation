@@ -99,6 +99,20 @@ public class PlayerAbsorptionController : MonoBehaviour
         preservedCameraPoses.Clear();
     }
 
+    /// <summary>
+    /// Restores only the absorbed target's visual root state for a later presentation.
+    /// Position and rotation remain owned by the presentation controller.
+    /// </summary>
+    public bool TryRestoreAbsorbedTargetForPresentation(Transform target)
+    {
+        if (!hasStoredOriginalState || activeTarget == null || target != activeTarget)
+            return false;
+
+        activeTarget.gameObject.SetActive(originalActiveState);
+        activeTarget.localScale = originalScale;
+        return originalActiveState;
+    }
+
     private void StoreOriginalState(Transform target)
     {
         activeTarget = target;

@@ -61,16 +61,6 @@ public class BookPrisonSpectatorController : MonoBehaviour
         bool isLocalDeathCameraTarget = TryResolveLocalDeathCameraTarget(
             out NetworkPlayer eliminatedNetworkPlayer,
             out string resolutionReason);
-        if (movePlayerToPrison)
-            MovePlayerToPrisonPreservingRemoteCamera(
-                player,
-                slot.spawnPoint,
-                isLocalDeathCameraTarget);
-        if (activateSpectatorCamera && isLocalDeathCameraTarget)
-            ActivateSlotCamera(slot);
-        else if (!activateSpectatorCamera)
-            DeactivateAllSlotCameras();
-
         NetworkCharacterPresentation eliminatedPresentation =
             eliminatedNetworkPlayer != null
                 ? eliminatedNetworkPlayer.GetComponent<NetworkCharacterPresentation>()
@@ -83,6 +73,23 @@ public class BookPrisonSpectatorController : MonoBehaviour
             (player == presentedCharacter.transform ||
                 player.IsChildOf(presentedCharacter.transform) ||
                 presentedCharacter.transform.IsChildOf(player));
+        bool isNetworkSession = NetworkRitualAuthority.Instance != null &&
+            NetworkRitualAuthority.Instance.IsNetworkSessionActive;
+        bool shouldRestoreLocalPresentation = isLocalDeathCameraTarget &&
+            (!isNetworkSession || presentationMatchesFailedTransform);
+
+        if (shouldRestoreLocalPresentation)
+            PrepareLocalDeathPresentation(player);
+
+        if (movePlayerToPrison)
+            MovePlayerToPrisonPreservingRemoteCamera(
+                player,
+                slot.spawnPoint,
+                isLocalDeathCameraTarget);
+        if (activateSpectatorCamera && isLocalDeathCameraTarget)
+            ActivateSlotCamera(slot);
+        else if (!activateSpectatorCamera)
+            DeactivateAllSlotCameras();
 
         Debug.Log(
             "[DeathCamera]\n" +
@@ -100,6 +107,31 @@ public class BookPrisonSpectatorController : MonoBehaviour
             player.gameObject.SetActive(false);
 
         onSpectatorStarted?.Invoke();
+    }
+
+    private void PrepareLocalDeathPresentation(Transform player)
+    {
+        PlayerAbsorptionController absorptionController =
+            GetComponent<PlayerAbsorptionController>();
+        if (absorptionController == null ||
+            !absorptionController.TryRestoreAbsorbedTargetForPresentation(player))
+        {
+            Debug.LogWarning(
+                $"{nameof(BookPrisonSpectatorController)} on '{gameObject.name}' could not restore " +
+                $"the absorbed visual state for locally owned player '{player.name}'. Ensure " +
+                $"{nameof(PlayerAbsorptionController)} is on the same GameObject and absorbed the same target.",
+                this);
+            return;
+        }
+
+        foreach (Camera characterCamera in player.GetComponentsInChildren<Camera>(true))
+            characterCamera.enabled = false;
+
+        foreach (AudioListener audioListener in player.GetComponentsInChildren<AudioListener>(true))
+            audioListener.enabled = false;
+
+        foreach (PlayerMovement playerMovement in player.GetComponentsInChildren<PlayerMovement>(true))
+            playerMovement.enabled = true;
     }
 
     public void SendCurrentFailedPlayerToBookPrison()
