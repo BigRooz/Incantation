@@ -1082,10 +1082,13 @@ commit RPC for these decisions.
 reporting. `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and
 `RitualController` keep the offline implementations and current presentation compatibility.
 In a network session `RitualController.StartRitual()` does not launch its legacy local loop on
-Host or Client. The server authority starts the first roster/participant/Book-command sequence;
-phrase initialization/growth, authoritative turn activation, subsequent advancement,
-elimination, and game-over progression remain required work for REALIGN-002. The method-level
-ownership audit and retained-bridge rationale are maintained in `Docs/TechnicalArchitecture.md`.
+Host or Client. The server authority initializes the one-word phrase, starts the first
+roster/participant/Book-command sequence, starts time only after accepted Book arrival, accepts
+speech only from the active stable player identity, and advances successful turns itself. A wrap
+through the locked physical roster increments the rotation count and appends exactly one word.
+Timeout stops at the existing consequence boundary; elimination, alive mutation, winner, and
+game-over progression remain REALIGN-003 work. The method-level ownership audit and retained-
+bridge rationale are maintained in `Docs/TechnicalArchitecture.md`.
 
 ## Synchronized Priest Names And LAN Seal Editing
 

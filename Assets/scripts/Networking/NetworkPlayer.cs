@@ -204,8 +204,15 @@ namespace Incantation.Networking
 
             RitualSnapshot ritualSnapshot = authority.Snapshot;
             uint currentTurnSequence = ritualSnapshot.Turn.SequenceId.Value;
-            if (currentTurnSequence == 0)
+            if (currentTurnSequence == 0 ||
+                ritualSnapshot.Phase != RitualPhase.AwaitingRecitation ||
+                !string.Equals(
+                    PlayerId,
+                    ritualSnapshot.ActivePlayerId,
+                    StringComparison.Ordinal))
+            {
                 return false;
+            }
 
             if (localVoiceSubmissionTurnSequence != currentTurnSequence)
             {

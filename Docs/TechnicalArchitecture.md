@@ -209,15 +209,31 @@ These bridges are not orphaned: each has a current caller or serialized scene co
 them now would change offline play, Book movement presentation, timer UI/events, phrase replay,
 or failure presentation and is therefore outside architecture cleanup.
 
-### REALIGN-002 Required Authoritative Progression
+### Authoritative Turn And Phrase Lifecycle
 
-Network start currently locks the roster, selects the first participant, and issues the first
-Book command through existing `NetworkRitualAuthority` decisions. The authority does not yet
-initialize the shared phrase, activate local voice capture from authoritative turn state, grow
-the phrase after a completed rotation, advance after success/failure, execute elimination, or
-complete game-over/winner flow without the removed local loop. REALIGN-002 must implement those
-drivers inside the authority/event-consumer boundary; they must not be restored by restarting a
-local `RitualLoop` or by treating a peer's selected Seat as authoritative.
+Network start locks the roster, initializes exactly one phrase word from the configured
+`GrowingIncantationManager` vocabulary, selects the first participant, and issues the first Book
+command. Book arrival transitions the authority to `AwaitingRecitation` and starts the server
+timer. Only the locally owned `NetworkPlayer` whose stable `PlayerId` equals the authoritative
+`ActivePlayerId` enables ritual recognition and submits recognized text.
+
+Successful validation transitions `AwaitingRecitation -> ResolvingTurn`. After publishing the
+success consequence, `NetworkRitualAuthority` selects the next eligible roster entry itself. A
+physical rotation completes only when that ordered traversal wraps past the end of the locked
+roster; the authority then transitions through `CompletingRotation`, increments
+`CompletedRotationCount`, and appends exactly one word before entering `BookMoving` for the next
+turn. No `RitualController` coroutine participates in this progression.
+
+Timeout transitions to `ResolvingTurn` and publishes the existing failure consequence, then
+stops. Existing failure visuals may finish, but their compatibility callback is prevented from
+mutating local Seat elimination state during a network session. Authoritative alive-state
+mutation, elimination, post-death traversal, and winner/game-over progression remain REALIGN-003
+work.
+
+`IncantationManager.incantationLength` remains an offline legacy generation setting: its
+`GenerateIncantation()` method chooses that many unique random words when the offline core bridge
+is unavailable. It is not read as network phrase length. Network phrase presentation uses
+`ApplyAuthoritativePhraseState` and never generates or grows phrase content locally.
 
 ## Network Scene Startup
 

@@ -110,6 +110,9 @@ The current prototype includes:
     command/arrival, timer, voice submission, phrase validation, turn outcome, and consequence.
     Network ritual start no longer launches `RitualController.RitualLoop` on Host or Client;
     `RitualController` remains the unchanged local orchestrator only for offline play.
+50. A minimum server-driven network turn and phrase lifecycle: one-word initialization, physical
+    roster traversal, Book arrival and timer gating, active-owner voice submission, authoritative
+    validation, success advancement, and exactly one phrase word added per completed rotation.
 
 ## Ritual Creation
 
@@ -333,9 +336,10 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - A local lobby player state component still duplicates part of the lobby state during migration. The existing Living Book lobby page observes this local state and refreshes its actions and status text through the existing Book text-transition system. It must be converted to consume authoritative `NetworkPlayer` state.
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
-- Network authoritative progression is deliberately incomplete after the first Book command.
-  REALIGN-002 must add authoritative phrase initialization/growth, turn activation and local
-  voice-capture gating, next-turn/rotation advancement, elimination, and game-over progression.
+- Network authoritative success progression now repeats across turns and grows the phrase only
+  after a complete physical roster rotation. Timeout deliberately stops at its authoritative
+  consequence. REALIGN-003 must add alive-state mutation, elimination, post-death traversal,
+  winner selection, and game-over progression.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
 - Timeout and retry behavior exist in prototype form.
 - Failed players can be eliminated after the Book Prison transition, and the ritual can continue with remaining alive seats.

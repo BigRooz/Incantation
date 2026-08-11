@@ -174,9 +174,21 @@ The current boundary has one synchronized writer for each migrated decision:
   offline implementations and network presentation/compatibility responsibilities only.
 
 `NetworkRitualAuthority.TryStartAuthoritativeRitual()` uses existing decisions to lock the
-roster, select the first participant, and issue the first Book command. REALIGN-002 is still
-required for authoritative phrase initialization/growth, turn activation and voice gating,
-subsequent turn/rotation advancement, elimination, and game-over progression.
+roster, initialize the one-word phrase from `GrowingIncantationManager`, select the first
+participant, and issue the first Book command. Accepted Book arrival starts the authoritative
+timer and changes the phase to `AwaitingRecitation`. A successful phrase outcome advances inside
+the authority, resets turn-scoped arrival/timer/voice/validation state, selects the next entry in
+physical roster order, and issues exactly one new Book command. Index wrap completes a rotation
+and appends exactly one configured phrase word.
+
+`RitualController` applies synchronized phrase snapshots and enables its local recognizer only
+when `NetworkPlayer.LocalPlayer` is the owner whose `PlayerId` equals `ActivePlayerId` during
+`AwaitingRecitation`. `NetworkPlayer` repeats the same identity/phase gate before creating a
+submission. `IncantationManager.incantationLength` remains offline-only legacy random generation
+length and never controls network phrase length.
+
+REALIGN-003 remains responsible for authoritative elimination, alive-state mutation,
+post-timeout advancement, winner selection, and game-over progression.
 
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.

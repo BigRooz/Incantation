@@ -68,6 +68,7 @@ namespace Incantation.Networking
         private readonly SyncVar<int> validationAcceptedWordCount = new(0);
         private readonly SyncVar<int> validationWordIndex = new(-1);
         private readonly SyncVar<int> validationRejectedWordIndex = new(-1);
+        private readonly SyncVar<int> validationExpectedWordIndex = new(0);
         private readonly SyncVar<string> validationExpectedWord = new(string.Empty);
         private readonly SyncVar<string> validationRejectedWord = new(string.Empty);
         private readonly SyncVar<string> validationReceivedText = new(string.Empty);
@@ -116,6 +117,9 @@ namespace Incantation.Networking
 
         [Header("Ritual Roster Source")]
         [SerializeField] private SeatManager seatManager;
+
+        [Header("Authoritative Phrase Source")]
+        [SerializeField] private GrowingIncantationManager growingIncantationManager;
 
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
@@ -390,6 +394,7 @@ namespace Incantation.Networking
             validationAcceptedWordCount.Value = 0;
             validationWordIndex.Value = -1;
             validationRejectedWordIndex.Value = -1;
+            validationExpectedWordIndex.Value = 0;
             validationExpectedWord.Value = string.Empty;
             validationRejectedWord.Value = string.Empty;
             validationReceivedText.Value = string.Empty;
@@ -425,6 +430,13 @@ namespace Incantation.Networking
         /// </summary>
         public bool TryCommitNextActiveParticipant()
         {
+            return TryCommitNextActiveParticipant(out _);
+        }
+
+        private bool TryCommitNextActiveParticipant(
+            out bool completedPhysicalRotation)
+        {
+            completedPhysicalRotation = false;
             if (!IsServerInitialized)
             {
                 Debug.LogWarning(
@@ -484,6 +496,7 @@ namespace Incantation.Networking
 
             RitualRosterEntrySnapshot nextParticipant = entries[nextIndex];
             uint nextTurnSequence = turnSequence.Value + 1;
+            completedPhysicalRotation = currentIndex >= 0 && nextIndex <= currentIndex;
 
             activePlayerId.Value = nextParticipant.PlayerId;
             activeSeatId.Value = nextParticipant.SeatId;
@@ -547,6 +560,15 @@ namespace Incantation.Networking
             if (requestedBookMovementSequence.Value == uint.MaxValue)
                 return RejectBookMovement("The Book movement sequence is exhausted.");
 
+            if (ritualPhase.Value != RitualPhase.BookMoving &&
+                !RitualPhaseTransitions.IsLegal(
+                    ritualPhase.Value,
+                    RitualPhase.BookMoving))
+            {
+                return RejectBookMovement(
+                    $"Phase {ritualPhase.Value} cannot enter BookMoving.");
+            }
+
             NetworkBookAuthority resolvedBookAuthority = ResolveBookAuthority();
             if (resolvedBookAuthority == null)
                 return RejectBookMovement("NetworkBookAuthority is unavailable.");
@@ -564,6 +586,9 @@ namespace Incantation.Networking
                 return RejectBookMovement(
                     $"NetworkBookAuthority rejected movement request {nextMovementSequence}.");
             }
+
+            if (!TryTransitionPhase(RitualPhase.BookMoving))
+                return RejectBookMovement("The ritual phase could not enter BookMoving.");
 
             requestedBookMovementSequence.Value = nextMovementSequence;
             requestedBookMovementTurnSequence.Value = turnSequence.Value;
@@ -584,8 +609,7 @@ namespace Incantation.Networking
 
         /// <summary>
         /// Begins the authoritative network ritual using the existing roster, traversal, and
-        /// Book-command decisions. This intentionally starts only the first turn. Authoritative
-        /// phrase initialization and subsequent turn progression remain for REALIGN-002.
+        /// Book-command decisions.
         /// </summary>
         public bool TryStartAuthoritativeRitual()
         {
@@ -598,6 +622,9 @@ namespace Incantation.Networking
             }
 
             if (ritualRoster.Count == 0 && !TryBuildRosterFromCurrentSeating())
+                return false;
+
+            if (!TryInitializeAuthoritativePhrase())
                 return false;
 
             if (CurrentActiveSeatId == NoSeatId && !TryCommitNextActiveParticipant())
@@ -757,6 +784,9 @@ namespace Incantation.Networking
             acceptedBookArrivalNetworkTime.Value = report.CompletionNetworkTime;
             bookArrivalRevision.Value++;
             snapshotRevision.Value++;
+
+            if (!TryTransitionPhase(RitualPhase.AwaitingRecitation))
+                return RejectBookArrival("The ritual phase could not enter AwaitingRecitation.");
 
             Debug.Log(
                 "[RitualAuthority]\n" +
@@ -1089,15 +1119,18 @@ namespace Incantation.Networking
             RitualController controller = ResolveRitualController();
             IncantationManager manager =
                 controller != null ? controller.CurrentIncantationManager : null;
-            if (manager == null || manager.CurrentIncantation.Count == 0)
+            if (manager == null || phraseWords.Count == 0)
             {
                 return RejectValidation(
                     "The server ritual phrase is unavailable.",
                     submission);
             }
 
-            RitualValidationMode mode = controller.CurrentNetworkValidationMode;
-            int validatedWordIndex = manager.CurrentWordIndex;
+            RitualValidationMode mode = validationMode.Value;
+            manager.ApplyAuthoritativePhraseState(
+                CopyAuthoritativePhraseWords(),
+                expectedWordIndex.Value);
+            int validatedWordIndex = expectedWordIndex.Value;
             PhraseValidationResult deterministicResult =
                 mode == RitualValidationMode.FullPhrase
                     ? manager.EvaluateCurrentPhrase(
@@ -1113,8 +1146,6 @@ namespace Incantation.Networking
                     "The validation sequence is exhausted.",
                     submission);
             }
-
-            CaptureAuthoritativePhrase(manager, mode);
 
             int rejectedWordIndex = deterministicResult.FirstFailedWordIndex;
             string expectedWord = string.Empty;
@@ -1160,12 +1191,21 @@ namespace Incantation.Networking
                 deterministicResult.MatchedWordCount;
             validationWordIndex.Value = validatedWordIndex;
             validationRejectedWordIndex.Value = rejectedWordIndex;
+            validationExpectedWordIndex.Value = expectedWordIndex.Value;
             validationExpectedWord.Value = expectedWord;
             validationRejectedWord.Value = rejectedWord;
             validationReceivedText.Value = submission.RecognizedText;
             validationFailureReason.Value = mappedFailureReason;
             validationServerTimestamp.Value = serverTimestamp;
             validationRevision.Value++;
+
+            if (result == RitualValidationResult.Accepted)
+            {
+                expectedWordIndex.Value = mode == RitualValidationMode.FullPhrase
+                    ? phraseWords.Count
+                    : Mathf.Min(phraseWords.Count, expectedWordIndex.Value + 1);
+            }
+
             snapshotRevision.Value++;
 
             RitualValidationSnapshot validation = CreateValidationSnapshot();
@@ -1192,6 +1232,9 @@ namespace Incantation.Networking
 
             if (IsPhraseCompletionValidation(validation))
             {
+                if (!TryTransitionPhase(RitualPhase.ResolvingTurn))
+                    return false;
+
                 TryCommitTurnOutcome(
                     TurnOutcomeType.Success,
                     validation.ValidationSequence,
@@ -1385,7 +1428,13 @@ namespace Incantation.Networking
                 outcome.ValidationSequence,
                 outcome.TimerSequence,
                 outcome.ServerTimestamp);
-            return TryCommitConsequence(outcome);
+            if (!TryCommitConsequence(outcome))
+                return false;
+
+            if (requestedOutcome == TurnOutcomeType.Success)
+                return TryAdvanceAfterSuccessfulTurn(outcome);
+
+            return true;
         }
 
         private bool TryCommitConsequence(TurnOutcomeSnapshot outcome)
@@ -1872,7 +1921,7 @@ namespace Incantation.Networking
                 validationWordIndex.Value,
                 validationRejectedWordIndex.Value,
                 authoritativePhraseWords,
-                expectedWordIndex.Value,
+                validationExpectedWordIndex.Value,
                 validationExpectedWord.Value,
                 validationRejectedWord.Value,
                 validationReceivedText.Value,
@@ -1978,46 +2027,210 @@ namespace Incantation.Networking
             return ritualController;
         }
 
-        private void CaptureAuthoritativePhrase(
-            IncantationManager manager,
-            RitualValidationMode mode)
+        private bool TryInitializeAuthoritativePhrase()
         {
-            IReadOnlyList<IncantationWord> currentWords =
-                manager.CurrentIncantation;
-            bool phraseChanged = phraseWords.Count != currentWords.Count;
-            if (!phraseChanged)
+            GrowingIncantationManager phraseSource = ResolveGrowingIncantationManager();
+            if (phraseSource == null)
             {
-                for (int wordIndex = 0;
-                    wordIndex < currentWords.Count;
-                    wordIndex++)
-                {
-                    if (string.Equals(
-                            phraseWords[wordIndex],
-                            currentWords[wordIndex]?.Text,
-                            StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
+                Debug.LogWarning(
+                    "[RitualAuthority] Authoritative phrase initialization failed: GrowingIncantationManager is unavailable.",
+                    this);
+                return false;
+            }
 
-                    phraseChanged = true;
-                    break;
+            phraseSource.ResetPhrase();
+            IReadOnlyList<string> sourceWords = phraseSource.GetCurrentWords();
+            if (sourceWords.Count != 1 || string.IsNullOrWhiteSpace(sourceWords[0]))
+            {
+                Debug.LogWarning(
+                    $"[RitualAuthority] Authoritative phrase initialization requires exactly one valid word; received {sourceWords.Count}.",
+                    this);
+                return false;
+            }
+
+            phraseWords.Clear();
+            phraseWords.Add(sourceWords[0]);
+            phraseVersion.Value++;
+            unlockedWordCount.Value = 1;
+            expectedWordIndex.Value = 0;
+            completedRotationCount.Value = 0;
+
+            RitualController controller = ResolveRitualController();
+            if (controller != null)
+            {
+                validationMode.Value = controller.CurrentNetworkValidationMode;
+                controller.CurrentIncantationManager?.ApplyAuthoritativePhraseState(
+                    CopyAuthoritativePhraseWords(),
+                    0);
+            }
+
+            snapshotRevision.Value++;
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Phrase Initialized\n" +
+                $"PhraseSequence = {phraseVersion.Value}\n" +
+                $"PhraseVersion = {phraseVersion.Value}\n" +
+                $"Words = {string.Join(" ", CopyAuthoritativePhraseWords())}",
+                this);
+            return true;
+        }
+
+        private bool TryAdvanceAfterSuccessfulTurn(TurnOutcomeSnapshot outcome)
+        {
+            string previousPlayerId = outcome.PlayerId;
+            StopAuthoritativeTimerForAdvance();
+
+            if (!TryCommitNextActiveParticipant(out bool completedRotation))
+                return false;
+
+            if (completedRotation)
+            {
+                if (!TryTransitionPhase(RitualPhase.CompletingRotation) ||
+                    !TryGrowAuthoritativePhrase())
+                {
+                    return false;
                 }
             }
 
-            if (phraseChanged)
-            {
-                phraseWords.Clear();
-                foreach (IncantationWord word in currentWords)
-                {
-                    phraseWords.Add(word?.Text ?? string.Empty);
-                }
+            ResetAuthoritativeTurnState();
+            string nextPlayerId = activePlayerId.Value;
+            uint nextTurnSequence = turnSequence.Value;
+            if (!TryRequestBookMoveToCurrentParticipant())
+                return false;
 
-                phraseVersion.Value++;
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Turn Advanced\n" +
+                $"PreviousPlayerId = {previousPlayerId}\n" +
+                $"NextPlayerId = {nextPlayerId}\n" +
+                $"TurnSequence = {nextTurnSequence}\n" +
+                $"CompletedRotation = {completedRotation}\n" +
+                $"RotationCount = {completedRotationCount.Value}",
+                this);
+            return true;
+        }
+
+        private bool TryGrowAuthoritativePhrase()
+        {
+            GrowingIncantationManager phraseSource = ResolveGrowingIncantationManager();
+            if (phraseSource == null || !phraseSource.CanUnlockNextWord())
+                return false;
+
+            phraseSource.UnlockNextWord();
+            IReadOnlyList<string> sourceWords = phraseSource.GetCurrentWords();
+            if (sourceWords.Count != phraseWords.Count + 1)
+                return false;
+
+            phraseWords.Add(sourceWords[sourceWords.Count - 1]);
+            phraseVersion.Value++;
+            unlockedWordCount.Value = (uint)phraseWords.Count;
+            completedRotationCount.Value++;
+            expectedWordIndex.Value = 0;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Phrase Grown\n" +
+                $"PhraseVersion = {phraseVersion.Value}\n" +
+                $"WordCount = {phraseWords.Count}",
+                this);
+            return true;
+        }
+
+        private void StopAuthoritativeTimerForAdvance()
+        {
+            if (!isTimerRunning.Value)
+                return;
+
+            timerRemainingTime.Value = CalculateRemainingTime(GetCurrentNetworkTime());
+            isTimerRunning.Value = false;
+            isTimerExpired.Value = false;
+            timerRevision.Value++;
+        }
+
+        private void ResetAuthoritativeTurnState()
+        {
+            acceptedBookArrivalRitualSequence.Value = 0;
+            acceptedBookArrivalTurnSequence.Value = 0;
+            acceptedBookArrivalTargetSeatId.Value = NoSeatId;
+            acceptedBookArrivalPlayerId.Value = string.Empty;
+            acceptedBookArrivalNetworkTime.Value = 0d;
+            isTimerRunning.Value = false;
+            isTimerExpired.Value = false;
+            timerRitualSequence.Value = 0;
+            timerTurnSequence.Value = 0;
+            activeTimerDuration.Value = 0d;
+            timerRemainingTime.Value = 0d;
+            turnStartNetworkTime.Value = 0d;
+            timerDeadlineNetworkTime.Value = 0d;
+            timerRevision.Value++;
+            acceptedVoiceRitualSequence.Value = 0;
+            acceptedVoiceTurnSequence.Value = 0;
+            acceptedVoiceSubmissionSequence.Value = 0;
+            acceptedVoicePlayerId.Value = string.Empty;
+            acceptedVoiceRecognizedText.Value = string.Empty;
+            acceptedVoiceServerTimestamp.Value = 0d;
+            validationRitualSequence.Value = 0;
+            validationTurnSequence.Value = 0;
+            validationSubmissionSequence.Value = 0;
+            validationPlayerId.Value = string.Empty;
+            validationResult.Value = RitualValidationResult.None;
+            validationAcceptedWordCount.Value = 0;
+            validationWordIndex.Value = -1;
+            validationRejectedWordIndex.Value = -1;
+            validationExpectedWordIndex.Value = 0;
+            validationExpectedWord.Value = string.Empty;
+            validationRejectedWord.Value = string.Empty;
+            validationReceivedText.Value = string.Empty;
+            validationFailureReason.Value = RitualValidationFailureReason.None;
+            validationServerTimestamp.Value = 0d;
+            expectedWordIndex.Value = 0;
+            snapshotRevision.Value++;
+        }
+
+        private string[] CopyAuthoritativePhraseWords()
+        {
+            string[] words = new string[phraseWords.Count];
+            for (int index = 0; index < phraseWords.Count; index++)
+                words[index] = phraseWords[index] ?? string.Empty;
+
+            return words;
+        }
+
+        private GrowingIncantationManager ResolveGrowingIncantationManager()
+        {
+            if (growingIncantationManager == null)
+            {
+                growingIncantationManager = FindFirstObjectByType<GrowingIncantationManager>(
+                    FindObjectsInactive.Include);
             }
 
-            validationMode.Value = mode;
-            unlockedWordCount.Value = (uint)currentWords.Count;
-            expectedWordIndex.Value = manager.CurrentWordIndex;
+            return growingIncantationManager;
+        }
+
+        private bool TryTransitionPhase(RitualPhase requestedPhase)
+        {
+            if (ritualPhase.Value == requestedPhase)
+                return true;
+
+            if (!RitualPhaseTransitions.IsLegal(ritualPhase.Value, requestedPhase))
+            {
+                Debug.LogWarning(
+                    $"[RitualAuthority] Illegal ritual phase transition {ritualPhase.Value} -> {requestedPhase}.",
+                    this);
+                return false;
+            }
+
+            RitualPhase previousPhase = ritualPhase.Value;
+            ritualPhase.Value = requestedPhase;
+            snapshotRevision.Value++;
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Phase Transition\n" +
+                $"Previous = {previousPhase}\n" +
+                $"Current = {requestedPhase}",
+                this);
+            return true;
         }
 
         private static RitualValidationFailureReason MapValidationFailureReason(
@@ -2228,6 +2441,9 @@ namespace Incantation.Networking
                 $"TurnSequence = {timerTurnSequence.Value}\n" +
                 $"Deadline = {timerDeadlineNetworkTime.Value}",
                 this);
+            if (!TryTransitionPhase(RitualPhase.ResolvingTurn))
+                return false;
+
             return TryCommitTurnOutcome(
                 TurnOutcomeType.TimerExpired,
                 0,

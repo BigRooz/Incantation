@@ -98,7 +98,10 @@ public class RitualController : MonoBehaviour
     private string lastProcessedWhisperPhrase = string.Empty;
     private NetworkRitualAuthority ritualAuthority;
     private NetworkRitualAuthority subscribedRitualAuthority;
+    private uint handledValidationSequence;
     private uint handledConsequenceSequence;
+    private uint activeNetworkVoiceTurnSequence;
+    private bool? lastLoggedNetworkVoiceSubmissionEnabled;
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
@@ -167,6 +170,7 @@ public class RitualController : MonoBehaviour
         ritualFailed = false;
         isFailureSequencePending = false;
         currentFailedSeat = null;
+        handledValidationSequence = 0;
         handledConsequenceSequence = 0;
         CurrentFailedPlayer = null;
         CurrentFailedPlayerId = string.Empty;
@@ -184,6 +188,7 @@ public class RitualController : MonoBehaviour
                 "Mode = PresentationOnly\n" +
                 "LocalRitualLoopStarted = False",
                 this);
+            HandleAuthoritativeSnapshot(authority.Snapshot);
             return;
         }
 
@@ -230,6 +235,8 @@ public class RitualController : MonoBehaviour
             activeRitualController = null;
 
         isNetworkPresentationActive = false;
+        activeNetworkVoiceTurnSequence = 0;
+        lastLoggedNetworkVoiceSubmissionEnabled = null;
 
         hourglassFinished = false;
         isWaitingForOccupiedSeat = false;
@@ -1090,6 +1097,8 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeConsequence;
         subscribedRitualAuthority.ConsequenceSnapshotChanged +=
             HandleAuthoritativeConsequence;
+        subscribedRitualAuthority.SnapshotChanged +=
+            HandleAuthoritativeSnapshot;
     }
 
     private void UnsubscribeFromRitualAuthority()
@@ -1105,7 +1114,63 @@ public class RitualController : MonoBehaviour
             HandleAuthoritativeConsequence;
         subscribedRitualAuthority.ConsequenceSnapshotChanged -=
             HandleAuthoritativeConsequence;
+        subscribedRitualAuthority.SnapshotChanged -=
+            HandleAuthoritativeSnapshot;
         subscribedRitualAuthority = null;
+    }
+
+    private void HandleAuthoritativeSnapshot(RitualSnapshot snapshot)
+    {
+        if (!isNetworkPresentationActive)
+            return;
+
+        if (incantationManager != null && snapshot.Phrase.WordCount > 0)
+        {
+            incantationManager.ApplyAuthoritativePhraseState(
+                snapshot.Phrase.Words,
+                snapshot.Phrase.ExpectedWordIndex);
+        }
+
+        CurrentActiveSeat = seatManager != null
+            ? seatManager.GetSeatById(snapshot.Turn.ActiveSeatId)
+            : null;
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        bool submissionEnabled = localPlayer != null &&
+            localPlayer.IsOwner &&
+            snapshot.Phase == RitualPhase.AwaitingRecitation &&
+            string.Equals(
+                localPlayer.PlayerId,
+                snapshot.ActivePlayerId,
+                StringComparison.Ordinal);
+
+        if (lastLoggedNetworkVoiceSubmissionEnabled != submissionEnabled)
+        {
+            Debug.Log(
+                "[RitualVoice]\n" +
+                "Local Submission State\n" +
+                $"LocalPlayerId = {(localPlayer != null ? localPlayer.PlayerId : string.Empty)}\n" +
+                $"ActivePlayerId = {snapshot.ActivePlayerId}\n" +
+                $"Enabled = {submissionEnabled}",
+                this);
+            lastLoggedNetworkVoiceSubmissionEnabled = submissionEnabled;
+        }
+
+        if (!submissionEnabled)
+        {
+            StopListening();
+            isTurnActive = false;
+            playerTurnComplete = false;
+            activeNetworkVoiceTurnSequence = 0;
+            return;
+        }
+
+        if (activeNetworkVoiceTurnSequence == snapshot.Turn.SequenceId.Value)
+            return;
+
+        activeNetworkVoiceTurnSequence = snapshot.Turn.SequenceId.Value;
+        BeginPlayerTurn();
+        StartListening();
     }
 
     private NetworkRitualAuthority ResolveRitualAuthority()
@@ -1128,13 +1193,14 @@ public class RitualController : MonoBehaviour
         NetworkRitualAuthority authority = ResolveRitualAuthority();
         if (authority == null ||
             incantationManager == null ||
+            validation.ValidationSequence <= handledValidationSequence ||
             validation.RitualSequenceId.Value !=
-                authority.Snapshot.SequenceId.Value ||
-            validation.TurnSequenceId.Value !=
-                authority.Snapshot.Turn.SequenceId.Value)
+                authority.Snapshot.SequenceId.Value)
         {
             return;
         }
+
+        handledValidationSequence = validation.ValidationSequence;
 
         PhraseValidationFailureReason legacyFailureReason =
             MapLegacyValidationFailureReason(validation.FailureReason);
@@ -1209,9 +1275,7 @@ public class RitualController : MonoBehaviour
             consequence.ConsequenceSequenceId.Value <=
                 handledConsequenceSequence ||
             consequence.RitualSequenceId.Value !=
-                authority.Snapshot.SequenceId.Value ||
-            consequence.TurnSequenceId.Value !=
-                authority.Snapshot.Turn.SequenceId.Value)
+                authority.Snapshot.SequenceId.Value)
         {
             return;
         }
@@ -1223,11 +1287,12 @@ public class RitualController : MonoBehaviour
             case RitualConsequenceType.TurnSucceeded:
                 UnsubscribeFromVoiceRecognizer();
                 StopListening();
+                isTurnActive = false;
+                playerTurnComplete = true;
 
-                if (hourglassController != null)
-                    hourglassController.StopHourglass();
-
-                CompleteSuccessfulPlayerTurn();
+                BookController resolvedBookController = ResolveBookController();
+                if (resolvedBookController != null)
+                    resolvedBookController.NotifyRitualAccepted();
                 break;
 
             case RitualConsequenceType.TimerExpired:
@@ -1556,6 +1621,18 @@ public class RitualController : MonoBehaviour
         if (!isFailureSequencePending)
         {
             LogDebug("Ignored failed-player elimination completion because no failure sequence is pending.");
+            return;
+        }
+
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority != null && authority.IsNetworkSessionActive)
+        {
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Network Elimination Deferred\n" +
+                "Reason = REALIGN-003 owns authoritative alive-state mutation and post-timeout progression.",
+                this);
+            ClearFailureSequenceState();
             return;
         }
 
