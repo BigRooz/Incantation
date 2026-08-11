@@ -19,7 +19,6 @@ namespace Incantation.Networking
     [RequireComponent(typeof(NetworkBookAuthority))]
     public sealed class NetworkRitualAuthority : NetworkBehaviour
     {
-        public const int NoPlayerId = -1;
         public const int NoSeatId = -1;
         public const string NoActivePlayerId = "";
 
@@ -99,7 +98,7 @@ namespace Incantation.Networking
         private readonly SyncVar<RitualFailureReason> failureReason =
             new(RitualFailureReason.None);
         private readonly SyncVar<bool> isGameOver = new(false);
-        private readonly SyncVar<int> winnerPlayerId = new(NoPlayerId);
+        private readonly SyncVar<string> winnerPlayerId = new(string.Empty);
         private readonly SyncVar<uint> completedRotationCount = new(0);
         private readonly SyncList<NetworkRitualRosterEntry> ritualRoster = new();
         private readonly SyncVar<uint> rosterRevision = new(0);
@@ -418,7 +417,7 @@ namespace Incantation.Networking
             latestRitualOutcome.Value = RitualOutcome.None;
             failureReason.Value = RitualFailureReason.None;
             isGameOver.Value = false;
-            winnerPlayerId.Value = NoPlayerId;
+            winnerPlayerId.Value = string.Empty;
             completedRotationCount.Value = 0;
             snapshotRevision.Value++;
             return true;
@@ -1522,6 +1521,93 @@ namespace Incantation.Networking
             return true;
         }
 
+        /// <summary>
+        /// Completes the pending timeout elimination after the existing death presentation
+        /// barrier. Sequence values identify the presentation being completed; the eliminated
+        /// player is always derived from current server-owned ritual state.
+        /// </summary>
+        public bool TryCompleteAuthoritativeElimination(
+            uint expectedRitualSequence,
+            uint expectedTurnSequence,
+            uint expectedConsequenceSequence)
+        {
+            if (!IsServerInitialized)
+                return RejectElimination("Only the server may complete an elimination.");
+
+            if (isGameOver.Value || ritualPhase.Value == RitualPhase.Completed)
+                return RejectElimination("The ritual is already complete.");
+
+            if (ritualPhase.Value != RitualPhase.ResolvingTurn)
+            {
+                return RejectElimination(
+                    $"Phase {ritualPhase.Value} is not awaiting timeout elimination completion.");
+            }
+
+            RitualConsequenceSnapshot consequence = CreateCurrentConsequenceSnapshot();
+            TurnOutcomeSnapshot outcome = CreateCurrentTurnOutcomeSnapshot();
+            if (!consequence.HasConsequence ||
+                consequence.ConsequenceType != RitualConsequenceType.TimerExpired ||
+                consequence.RitualSequenceId.Value != expectedRitualSequence ||
+                consequence.TurnSequenceId.Value != expectedTurnSequence ||
+                consequence.ConsequenceSequenceId.Value != expectedConsequenceSequence ||
+                consequence.RitualSequenceId.Value != ritualSequence.Value ||
+                consequence.TurnSequenceId.Value != turnSequence.Value)
+            {
+                return RejectElimination(
+                    "The presentation callback is stale or does not match the current timeout consequence.");
+            }
+
+            if (!outcome.HasOutcome ||
+                outcome.OutcomeType != TurnOutcomeType.TimerExpired ||
+                outcome.RitualSequenceId.Value != consequence.RitualSequenceId.Value ||
+                outcome.TurnSequenceId.Value != consequence.TurnSequenceId.Value ||
+                outcome.OutcomeSequenceId.Value != consequence.OutcomeSequenceId.Value ||
+                !string.Equals(outcome.PlayerId, consequence.PlayerId, StringComparison.Ordinal))
+            {
+                return RejectElimination(
+                    "The current timeout outcome does not match the pending consequence.");
+            }
+
+            if (!TryGetCurrentActiveParticipant(out RitualRosterEntrySnapshot participant) ||
+                !participant.IsActive ||
+                !participant.IsAlive ||
+                !string.Equals(participant.PlayerId, consequence.PlayerId, StringComparison.Ordinal))
+            {
+                return RejectElimination(
+                    "The pending eliminated participant is unavailable, inactive, or already dead.");
+            }
+
+            int eliminatedIndex = FindRosterEntryIndex(
+                participant.PlayerId,
+                participant.SeatId);
+            if (eliminatedIndex < 0)
+                return RejectElimination("The pending participant is absent from the authoritative roster.");
+
+            NetworkRitualRosterEntry eliminatedEntry = ritualRoster[eliminatedIndex];
+            eliminatedEntry.IsActive = false;
+            eliminatedEntry.IsAlive = false;
+            ritualRoster[eliminatedIndex] = eliminatedEntry;
+            rosterRevision.Value++;
+            snapshotRevision.Value++;
+
+            int survivorCount = CountEligibleParticipants(out string soleSurvivorPlayerId);
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Authoritative Player Eliminated\n" +
+                $"PlayerId = {eliminatedEntry.PlayerId}\n" +
+                $"SeatId = {eliminatedEntry.SeatId}\n" +
+                $"ConsequenceSequence = {expectedConsequenceSequence}\n" +
+                $"Survivors = {survivorCount}",
+                this);
+
+            if (survivorCount <= 1)
+                return TryCommitAuthoritativeGameOver(soleSurvivorPlayerId);
+
+            return TryAdvanceAfterResolvedParticipant(
+                eliminatedEntry.PlayerId,
+                "EliminationCompleted");
+        }
+
         [ObserversRpc(ExcludeServer = true)]
         private void PublishTurnOutcomeObserversRpc(
             uint outcomeRitualSequence,
@@ -2077,7 +2163,15 @@ namespace Incantation.Networking
 
         private bool TryAdvanceAfterSuccessfulTurn(TurnOutcomeSnapshot outcome)
         {
-            string previousPlayerId = outcome.PlayerId;
+            return TryAdvanceAfterResolvedParticipant(
+                outcome.PlayerId,
+                "TurnSucceeded");
+        }
+
+        private bool TryAdvanceAfterResolvedParticipant(
+            string previousPlayerId,
+            string advancementReason)
+        {
             StopAuthoritativeTimerForAdvance();
 
             if (!TryCommitNextActiveParticipant(out bool completedRotation))
@@ -2105,7 +2199,35 @@ namespace Incantation.Networking
                 $"NextPlayerId = {nextPlayerId}\n" +
                 $"TurnSequence = {nextTurnSequence}\n" +
                 $"CompletedRotation = {completedRotation}\n" +
-                $"RotationCount = {completedRotationCount.Value}",
+                $"RotationCount = {completedRotationCount.Value}\n" +
+                $"Reason = {advancementReason}",
+                this);
+            return true;
+        }
+
+        private bool TryCommitAuthoritativeGameOver(string soleSurvivorPlayerId)
+        {
+            ResetAuthoritativeTurnState();
+            activePlayerId.Value = NoActivePlayerId;
+            activeSeatId.Value = NoSeatId;
+            isGameOver.Value = true;
+            winnerPlayerId.Value = soleSurvivorPlayerId ?? string.Empty;
+            latestRitualOutcome.Value = string.IsNullOrEmpty(soleSurvivorPlayerId)
+                ? RitualOutcome.RitualFailed
+                : RitualOutcome.RitualSucceeded;
+            failureReason.Value = string.IsNullOrEmpty(soleSurvivorPlayerId)
+                ? RitualFailureReason.NoActivePlayers
+                : RitualFailureReason.None;
+            snapshotRevision.Value++;
+
+            if (!TryTransitionPhase(RitualPhase.Completed))
+                return false;
+
+            Debug.Log(
+                "[RitualAuthority]\n" +
+                "Authoritative Game Over\n" +
+                $"WinnerPlayerId = {winnerPlayerId.Value}\n" +
+                $"SurvivorCount = {(string.IsNullOrEmpty(soleSurvivorPlayerId) ? 0 : 1)}",
                 this);
             return true;
         }
@@ -2545,6 +2667,19 @@ namespace Incantation.Networking
             return false;
         }
 
+        private bool RejectElimination(string reason)
+        {
+            Debug.LogWarning(
+                "[RitualAuthority]\n" +
+                "Elimination Rejected\n" +
+                $"Reason = {reason}\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"TurnSequence = {turnSequence.Value}\n" +
+                $"ConsequenceSequence = {consequenceSequence.Value}",
+                this);
+            return false;
+        }
+
         private bool TryCollectApprovedPlayers(
             out List<NetworkPlayer> approvedPlayers,
             out HashSet<NetworkPlayer> approvedPlayerSet)
@@ -2887,6 +3022,40 @@ namespace Incantation.Networking
             }
 
             return -1;
+        }
+
+        private int FindRosterEntryIndex(string playerId, int seatId)
+        {
+            for (int index = 0; index < ritualRoster.Count; index++)
+            {
+                NetworkRitualRosterEntry entry = ritualRoster[index];
+                if (entry.SeatId == seatId &&
+                    string.Equals(entry.PlayerId, playerId, StringComparison.Ordinal))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private int CountEligibleParticipants(out string soleSurvivorPlayerId)
+        {
+            int count = 0;
+            soleSurvivorPlayerId = string.Empty;
+            for (int index = 0; index < ritualRoster.Count; index++)
+            {
+                NetworkRitualRosterEntry entry = ritualRoster[index];
+                if (!entry.IsActive || !entry.IsAlive)
+                    continue;
+
+                count++;
+                soleSurvivorPlayerId = count == 1
+                    ? entry.PlayerId
+                    : string.Empty;
+            }
+
+            return count;
         }
 
         private static string FormatRoster(RitualRosterSnapshot roster)

@@ -336,14 +336,17 @@ the server into the same `MainGame` scene. No gameplay scene transition uses Uni
 - A local lobby player state component still duplicates part of the lobby state during migration. The existing Living Book lobby page observes this local state and refreshes its actions and status text through the existing Book text-transition system. It must be converted to consume authoritative `NetworkPlayer` state.
 - `CoreRitualLoop` is the cleaner logic direction, but migration from `RitualController` is incomplete.
 - `CoreRitualLoopBridge` mirrors core phrase state into legacy display paths during migration.
-- Network authoritative success progression now repeats across turns and grows the phrase only
-  after a complete physical roster rotation. Timeout deliberately stops at its authoritative
-  consequence. REALIGN-003 must add alive-state mutation, elimination, post-death traversal,
-  winner selection, and game-over progression.
+- Network authoritative progression now covers successful turns and timeout elimination.
+  After the existing absorption, aftermath, and Book Prison presentation barrier, the server
+  marks the failed fixed-roster entry inactive/dead and either advances to the next physical
+  survivor or completes the ritual with a stable string winner Player ID. Physical wrap through
+  eligible survivors remains the only source of phrase growth.
 - Whisper remains available for full-phrase or experimental recognition paths, but it is not the default realtime path.
 - Timeout and retry behavior exist in prototype form.
 - Failed players can be eliminated after the Book Prison transition, and the ritual can continue with remaining alive seats.
-- The last-player-remaining end-of-game presentation is not implemented yet; the ritual stops with one warning TODO log when only one alive seat remains.
+- Network game-over state and winner identity are authoritative; winner presentation, final
+  absorption, rematch, and lobby-return UX are not implemented. The offline last-player flow
+  still retains its warning-only prototype behavior.
 - Debug occupants are useful local testing support, not the final player model.
 
 ## Known Missing Product Systems

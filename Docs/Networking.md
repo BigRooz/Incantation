@@ -1086,8 +1086,12 @@ Host or Client. The server authority initializes the one-word phrase, starts the
 roster/participant/Book-command sequence, starts time only after accepted Book arrival, accepts
 speech only from the active stable player identity, and advances successful turns itself. A wrap
 through the locked physical roster increments the rotation count and appends exactly one word.
-Timeout stops at the existing consequence boundary; elimination, alive mutation, winner, and
-game-over progression remain REALIGN-003 work. The method-level ownership audit and retained-
+Timeout waits at the existing consequence boundary until absorption, aftermath, and Book Prison
+presentation finish. The Host then completes elimination through `NetworkRitualAuthority`, which
+validates the current sequence metadata, marks the fixed roster entry inactive/dead, and either
+continues to the next physical survivor or commits synchronized game-over state with the sole
+survivor's stable string Player ID. Eliminated entries remain in physical roster order and are
+skipped by the existing active/alive traversal. The method-level ownership audit and retained-
 bridge rationale are maintained in `Docs/TechnicalArchitecture.md`.
 
 ## Synchronized Priest Names And LAN Seal Editing

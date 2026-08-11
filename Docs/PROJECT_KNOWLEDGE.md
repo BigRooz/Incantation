@@ -187,8 +187,12 @@ when `NetworkPlayer.LocalPlayer` is the owner whose `PlayerId` equals `ActivePla
 submission. `IncantationManager.incantationLength` remains offline-only legacy random generation
 length and never controls network phrase length.
 
-REALIGN-003 remains responsible for authoritative elimination, alive-state mutation,
-post-timeout advancement, winner selection, and game-over progression.
+After timeout presentation completes, `RitualController` forwards only the committed ritual,
+turn, and consequence sequence values on the Host. `NetworkRitualAuthority` validates those
+values against its current timeout outcome, derives the failed player from server state, and
+mutates that fixed roster entry to inactive/dead. More than one survivor reuses the normal
+physical next-participant and wrap path; one survivor commits `Completed`, game over, and the
+winner's stable string Player ID. Remote callbacks clear presentation state only.
 
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.

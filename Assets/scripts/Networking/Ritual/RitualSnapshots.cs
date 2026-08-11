@@ -105,7 +105,7 @@ namespace Incantation.Networking.Ritual
             RitualPhraseSnapshot phrase,
             RitualOutcomeSnapshot outcome,
             bool isGameOver,
-            int winnerPlayerId)
+            string winnerPlayerId)
         {
             RitualSessionId = ritualSessionId ?? string.Empty;
             SequenceId = sequenceId;
@@ -125,7 +125,7 @@ namespace Incantation.Networking.Ritual
             Phrase = phrase;
             Outcome = outcome;
             IsGameOver = isGameOver;
-            WinnerPlayerId = winnerPlayerId;
+            WinnerPlayerId = winnerPlayerId ?? string.Empty;
         }
 
         public string RitualSessionId { get; }
@@ -146,6 +146,6 @@ namespace Incantation.Networking.Ritual
         public RitualPhraseSnapshot Phrase { get; }
         public RitualOutcomeSnapshot Outcome { get; }
         public bool IsGameOver { get; }
-        public int WinnerPlayerId { get; }
+        public string WinnerPlayerId { get; }
     }
 }

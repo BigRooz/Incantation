@@ -224,11 +224,16 @@ roster; the authority then transitions through `CompletingRotation`, increments
 `CompletedRotationCount`, and appends exactly one word before entering `BookMoving` for the next
 turn. No `RitualController` coroutine participates in this progression.
 
-Timeout transitions to `ResolvingTurn` and publishes the existing failure consequence, then
-stops. Existing failure visuals may finish, but their compatibility callback is prevented from
-mutating local Seat elimination state during a network session. Authoritative alive-state
-mutation, elimination, post-death traversal, and winner/game-over progression remain REALIGN-003
-work.
+Timeout transitions to `ResolvingTurn` and publishes the existing failure consequence. The
+absorption, aftermath, and Book Prison sequence remains a presentation barrier. When it finishes,
+the Host-side `RitualController` adapter submits only the committed ritual, turn, and consequence
+sequences to `NetworkRitualAuthority`; remote adapters clear local failure-presentation state.
+The authority validates the current timeout, derives the failed identity from server state, and
+updates the existing fixed roster entry in place with `IsActive=false` and `IsAlive=false`.
+With multiple survivors it reuses the normal next-eligible physical traversal and wrap result,
+so phrase growth remains exactly once per surviving-table wrap. With one survivor it clears the
+active participant, stops turn state, stores the stable string winner Player ID, sets game over,
+and transitions to `Completed`. Local `SeatManager` elimination remains offline-only.
 
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge

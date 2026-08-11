@@ -100,6 +100,9 @@ public class RitualController : MonoBehaviour
     private NetworkRitualAuthority subscribedRitualAuthority;
     private uint handledValidationSequence;
     private uint handledConsequenceSequence;
+    private uint failedRitualSequence;
+    private uint failedTurnSequence;
+    private uint failedConsequenceSequence;
     private uint activeNetworkVoiceTurnSequence;
     private bool? lastLoggedNetworkVoiceSubmissionEnabled;
 
@@ -172,6 +175,9 @@ public class RitualController : MonoBehaviour
         currentFailedSeat = null;
         handledValidationSequence = 0;
         handledConsequenceSequence = 0;
+        failedRitualSequence = 0;
+        failedTurnSequence = 0;
+        failedConsequenceSequence = 0;
         CurrentFailedPlayer = null;
         CurrentFailedPlayerId = string.Empty;
         hasLoggedMissingFailedPlayerTransform = false;
@@ -246,6 +252,9 @@ public class RitualController : MonoBehaviour
         isFailureSequencePending = false;
         CurrentFailedPlayer = null;
         CurrentFailedPlayerId = string.Empty;
+        failedRitualSequence = 0;
+        failedTurnSequence = 0;
+        failedConsequenceSequence = 0;
         hasLoggedMissingHourglass = false;
         hasLoggedMissingIncantationManager = false;
         hasLoggedMissingVoicePhraseNormalizer = false;
@@ -1300,7 +1309,13 @@ public class RitualController : MonoBehaviour
                 FailRitual(
                     "Timeout: authoritative ritual timer expired.",
                     stopHourglass: false,
-                    failedPlayerId: consequence.PlayerId);
+                    failedPlayerId: consequence.PlayerId,
+                    authoritativeRitualSequence:
+                        consequence.RitualSequenceId.Value,
+                    authoritativeTurnSequence:
+                        consequence.TurnSequenceId.Value,
+                    authoritativeConsequenceSequence:
+                        consequence.ConsequenceSequenceId.Value);
                 break;
         }
     }
@@ -1591,7 +1606,10 @@ public class RitualController : MonoBehaviour
     private void FailRitual(
         string reason,
         bool stopHourglass = true,
-        string failedPlayerId = null)
+        string failedPlayerId = null,
+        uint authoritativeRitualSequence = 0,
+        uint authoritativeTurnSequence = 0,
+        uint authoritativeConsequenceSequence = 0)
     {
         if (ritualFailed)
             return;
@@ -1599,6 +1617,9 @@ public class RitualController : MonoBehaviour
         currentFailedSeat = CurrentActiveSeat;
         CurrentFailedPlayer = GetCurrentActivePlayerTransform();
         CurrentFailedPlayerId = failedPlayerId ?? string.Empty;
+        failedRitualSequence = authoritativeRitualSequence;
+        failedTurnSequence = authoritativeTurnSequence;
+        failedConsequenceSequence = authoritativeConsequenceSequence;
         ritualFailed = true;
         isFailureSequencePending = true;
         Debug.Log($"Ritual failed. {reason}");
@@ -1627,11 +1648,14 @@ public class RitualController : MonoBehaviour
         NetworkRitualAuthority authority = ResolveRitualAuthority();
         if (authority != null && authority.IsNetworkSessionActive)
         {
-            Debug.Log(
-                "[RitualAuthority]\n" +
-                "Network Elimination Deferred\n" +
-                "Reason = REALIGN-003 owns authoritative alive-state mutation and post-timeout progression.",
-                this);
+            if (authority.IsServerInitialized)
+            {
+                authority.TryCompleteAuthoritativeElimination(
+                    failedRitualSequence,
+                    failedTurnSequence,
+                    failedConsequenceSequence);
+            }
+
             ClearFailureSequenceState();
             return;
         }
@@ -1696,6 +1720,9 @@ public class RitualController : MonoBehaviour
         CurrentFailedPlayerId = string.Empty;
         currentFailedSeat = null;
         CurrentActiveSeat = null;
+        failedRitualSequence = 0;
+        failedTurnSequence = 0;
+        failedConsequenceSequence = 0;
     }
 
     private void LogLastPlayerRemainingTodo(List<Seat> aliveSeats)
