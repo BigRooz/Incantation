@@ -235,6 +235,15 @@ so phrase growth remains exactly once per surviving-table wrap. With one survivo
 active participant, stops turn state, stores the stable string winner Player ID, sets game over,
 and transitions to `Completed`. Local `SeatManager` elimination remains offline-only.
 
+`NetworkGameOverPresentationController` is a read-only presentation consumer of that completed
+snapshot. It resolves the synchronized winner against `NetworkPlayer.ActivePlayers` by ordinal
+stable `PlayerId`. Only its server instance may request `NetworkBookAuthority`'s explicit winner
+presentation movement. That movement reuses `BookMover` and the existing server-owned transform
+proxy, but uses separate session, ritual, winner, and presentation-sequence state and a separate
+completion coroutine. It never constructs `RitualBookArrivalReport` or calls
+`TryCommitBookArrival`. Result UI is local presentation derived from the same snapshot; it does
+not count survivors or choose a winner.
+
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge
 is unavailable. It is not read as network phrase length. Network phrase presentation uses

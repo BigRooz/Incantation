@@ -453,6 +453,14 @@ The phrase does not grow after every player.
 
 Read `Docs/NEXT_TASK.md`.
 
+REALIGN-004 now provides the first authoritative game-over presentation implementation. A
+`NetworkGameOverPresentationController` consumes only synchronized `Completed` snapshots,
+resolves the winner by stable `PlayerId`, displays a local result overlay, and asks
+`NetworkBookAuthority` for a server-only presentation movement to the winner's physical Seat.
+That movement has its own session/ritual/presentation identity and completes without creating a
+`RitualBookArrivalReport`, timer, voice turn, phrase change, rotation, or active participant.
+Host/client runtime validation of the final-elimination presentation remains required.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
@@ -460,4 +468,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-07-28 after adding simultaneous LAN Ritual discovery and correcting Host Ready layout.
+2026-08-11 after implementing REALIGN-004 authoritative game-over presentation pending runtime validation.

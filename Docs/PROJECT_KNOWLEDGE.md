@@ -170,6 +170,9 @@ The current boundary has one synchronized writer for each migrated decision:
   by `NetworkRitualAuthority`.
 - `NetworkPlayer` transports owner speech with FishNet-authenticated sender identity.
 - `NetworkBookAuthority` executes accepted movement and reports arrival.
+- `NetworkGameOverPresentationController` consumes only authoritative completed/game-over
+  snapshots. It resolves the stable winner identity, shows local result UI, and lets only the
+  server request the Book's distinct winner-presentation movement.
 - `BookMover`, `HourglassController`, `Timer`, `IncantationManager`, and `RitualController` retain
   offline implementations and network presentation/compatibility responsibilities only.
 
@@ -193,6 +196,12 @@ values against its current timeout outcome, derives the failed player from serve
 mutates that fixed roster entry to inactive/dead. More than one survivor reuses the normal
 physical next-participant and wrap path; one survivor commits `Completed`, game over, and the
 winner's stable string Player ID. Remote callbacks clear presentation state only.
+
+After that commit, REALIGN-004 presentation does not create another ritual turn. The Book
+authority's winner movement has its own synchronized sequence and completion path, so it cannot
+report gameplay arrival or start timer/voice/phrase/rotation behavior. The result Canvas is
+created locally beneath the existing shared Book authority and is visible over both normal and
+Death Cameras.
 
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.

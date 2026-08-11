@@ -4,6 +4,7 @@ using FishNet.Component.Transforming;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
+using Incantation.UI;
 using UnityEngine;
 
 namespace Incantation.Networking
@@ -23,6 +24,11 @@ namespace Incantation.Networking
         private readonly SyncVar<int> targetSeatId = new(NoTargetSeatId);
         private readonly SyncVar<uint> movementSequence = new(0);
         private readonly SyncVar<bool> isMoving = new(false);
+        private readonly SyncVar<uint> presentationMovementSequence = new(0);
+        private readonly SyncVar<string> presentedRitualSessionId = new(string.Empty);
+        private readonly SyncVar<uint> presentedRitualSequence = new(0);
+        private readonly SyncVar<string> presentedWinnerPlayerId = new(string.Empty);
+        private readonly SyncVar<bool> isPresentationMoving = new(false);
         private readonly SyncVar<BookPresentationState> presentationState =
             new(BookPresentationState.Closed);
 
@@ -43,6 +49,11 @@ namespace Incantation.Networking
         public int TargetSeatId => targetSeatId.Value;
         public uint MovementSequence => movementSequence.Value;
         public bool IsMoving => isMoving.Value;
+        public uint PresentationMovementSequence => presentationMovementSequence.Value;
+        public string PresentedRitualSessionId => presentedRitualSessionId.Value;
+        public uint PresentedRitualSequence => presentedRitualSequence.Value;
+        public string PresentedWinnerPlayerId => presentedWinnerPlayerId.Value;
+        public bool IsPresentationMoving => isPresentationMoving.Value;
         public BookPresentationState PresentationState => presentationState.Value;
         public bool IsOpen => presentationState.Value == BookPresentationState.Open;
 
@@ -54,9 +65,19 @@ namespace Incantation.Networking
         private void Awake()
         {
             Instance = this;
+            EnsureGameOverPresentationComponents();
             AlignProxyToVisibleBook("Awake before FishNet scene-object initialization");
             CaptureVisibleBookActiveState();
             LogVisibleBookResolved("Awake");
+        }
+
+        private void EnsureGameOverPresentationComponents()
+        {
+            if (GetComponent<RitualGameOverPresenter>() == null)
+                gameObject.AddComponent<RitualGameOverPresenter>();
+
+            if (GetComponent<NetworkGameOverPresentationController>() == null)
+                gameObject.AddComponent<NetworkGameOverPresentationController>();
         }
 
         private void LateUpdate()
@@ -248,6 +269,89 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Moves the persistent Book for an authoritative game-over presentation. This path is
+        /// deliberately separate from ritual turn movement and never creates a Book arrival report.
+        /// </summary>
+        public bool TryExecuteWinnerPresentationMovement(
+            string ritualSessionId,
+            uint ritualSequence,
+            string winnerPlayerId,
+            int winnerSeatId)
+        {
+            if (!IsServerInitialized || bookMover == null ||
+                string.IsNullOrEmpty(ritualSessionId) || ritualSequence == 0 ||
+                string.IsNullOrEmpty(winnerPlayerId))
+            {
+                return false;
+            }
+
+            NetworkRitualAuthority resolvedRitualAuthority = ResolveRitualAuthority();
+            if (resolvedRitualAuthority == null)
+                return false;
+
+            RitualSnapshot snapshot = resolvedRitualAuthority.Snapshot;
+            if (!snapshot.IsGameOver ||
+                snapshot.Phase != RitualPhase.Completed ||
+                !string.Equals(snapshot.RitualSessionId, ritualSessionId, StringComparison.Ordinal) ||
+                snapshot.SequenceId.Value != ritualSequence ||
+                !string.Equals(snapshot.WinnerPlayerId, winnerPlayerId, StringComparison.Ordinal))
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkBookAuthority)} rejected winner presentation movement because it does not match the authoritative completed ritual snapshot.",
+                    this);
+                return false;
+            }
+
+            if (string.Equals(
+                    presentedRitualSessionId.Value,
+                    ritualSessionId,
+                    StringComparison.Ordinal) &&
+                presentedRitualSequence.Value == ritualSequence &&
+                string.Equals(
+                    presentedWinnerPlayerId.Value,
+                    winnerPlayerId,
+                    StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            SeatManager resolvedSeatManager = ResolveSeatManager();
+            Seat targetSeat = resolvedSeatManager != null
+                ? resolvedSeatManager.GetSeatById(winnerSeatId)
+                : null;
+            if (targetSeat == null || presentationMovementSequence.Value == uint.MaxValue)
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkBookAuthority)} rejected winner presentation movement because Seat ID {winnerSeatId} is unavailable or its sequence is exhausted.",
+                    this);
+                return false;
+            }
+
+            uint nextPresentationSequence = presentationMovementSequence.Value + 1;
+            presentedRitualSessionId.Value = ritualSessionId;
+            presentedRitualSequence.Value = ritualSequence;
+            presentedWinnerPlayerId.Value = winnerPlayerId;
+            presentationMovementSequence.Value = nextPresentationSequence;
+            targetSeatId.Value = winnerSeatId;
+            isPresentationMoving.Value = true;
+            isMoving.Value = true;
+            resolvedSeatManager.SetCurrentBookSeat(targetSeat);
+            bookMover.MoveToSeatAuthoritatively(targetSeat);
+            StartCoroutine(CompletePresentationMovementAfterDuration(nextPresentationSequence));
+
+            Debug.Log(
+                "[GameOverPresentation]\n" +
+                "Winner Book Movement Started\n" +
+                $"RitualSessionId = {ritualSessionId}\n" +
+                $"RitualSequence = {ritualSequence}\n" +
+                $"PresentationSequence = {nextPresentationSequence}\n" +
+                $"WinnerPlayerId = {winnerPlayerId}\n" +
+                $"WinnerSeatId = {winnerSeatId}",
+                this);
+            return true;
+        }
+
+        /// <summary>
         /// Changes the synchronized Book presentation state on the server.
         /// Future page, mood, reaction, hand, and VFX presenters should consume this authority
         /// instead of creating local state.
@@ -356,6 +460,31 @@ namespace Incantation.Networking
                     $"{nameof(NetworkBookAuthority)} completed movement {expectedSequence}, but NetworkRitualAuthority rejected or could not receive its arrival report.",
                     this);
             }
+        }
+
+        private IEnumerator CompletePresentationMovementAfterDuration(uint expectedSequence)
+        {
+            float duration = Mathf.Max(0f, bookMover.moveDuration);
+            if (duration > 0f)
+                yield return new WaitForSeconds(duration);
+
+            if (!IsServerInitialized ||
+                presentationMovementSequence.Value != expectedSequence ||
+                !isPresentationMoving.Value)
+            {
+                yield break;
+            }
+
+            isPresentationMoving.Value = false;
+            isMoving.Value = false;
+
+            Debug.Log(
+                "[GameOverPresentation]\n" +
+                "Winner Book Movement Completed\n" +
+                $"PresentationSequence = {expectedSequence}\n" +
+                $"WinnerPlayerId = {presentedWinnerPlayerId.Value}\n" +
+                "RitualBookArrivalReport = not generated",
+                this);
         }
     }
 

@@ -276,6 +276,10 @@ Required `SharedBookNetworkAuthority` scene-object setup:
 - One `NetworkRitualAuthority` on the same proxy GameObject.
 - `seatManager`: assign the existing `SeatManager` on the `SeatSystem` scene object. This is a
   local source registry only; no `Seat` or scene reference is synchronized.
+- REALIGN-004 presentation components are installed at runtime by `NetworkBookAuthority` on this
+  same proxy object. `NetworkGameOverPresentationController` consumes its sibling authorities;
+  `RitualGameOverPresenter` creates the local screen-space `GameOverCanvas/GameOverPanel/ResultText`
+  hierarchy. No additional authored scene references are required.
 - `NetworkRitualAuthority` owns semantic Book movement requests and authoritative arrival
   acceptance, but does not interpolate the Book or start existing ritual gameplay.
 
@@ -293,6 +297,8 @@ Runtime ownership:
 - `TargetSeatId` is replicated from `SeatManager`'s stable configured physical-order ID.
 - `MovementSequence` identifies every authoritative move, including consecutive redirects, and
   `IsMoving` synchronizes the server-owned start/arrival lifecycle.
+- Winner presentation uses a separate `PresentationMovementSequence` plus presented ritual
+  session/sequence and winner identity. Its completion never reports gameplay Book arrival.
 - Clients do not call a movement coroutine, choose a Seat, or write the transform.
 - `BookPresentationState` synchronizes `Closed`/`Open`; presentation consumers subscribe to
   `PresentationStateChanged`.

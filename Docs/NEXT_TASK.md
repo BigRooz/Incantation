@@ -25,8 +25,9 @@ Synchronize the remaining lobby presentation and character selection through `Ne
 The FishNet foundation, permanent `NetworkPlayer` architecture, and Book-driven LAN Ritual Seal entry flow are implemented. The remaining lobby presentation and character choice still contain local or duplicated state that must be migrated onto this networking identity.
 
 The network ritual now also owns timeout elimination, survivor traversal, and synchronized
-winner/game-over state. Winner presentation and rematch remain future work and do not change the
-immediate lobby objective below.
+winner/game-over state. REALIGN-004 adds a presentation-only winner Book movement and result
+overlay; its Host/client runtime checklist remains pending. Rematch remains future work and does
+not change the immediate lobby objective below.
 
 Create Ritual is genuine animated navigation from `PlayMenu`; no pre-creation confirmation
 page remains in the live flow. The existing Host request starts only at the transition's
