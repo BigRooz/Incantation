@@ -469,7 +469,15 @@ state and the dead roster, while connected `NetworkPlayer` identity, Circle memb
 name, and appearance persist. Ready resets to NotReady. Peers restore prison/absorption and exact
 Camera/AudioListener/movement component states, return to lobby presentation, hide results, and
 the server restores the one Book to its captured authored lobby pose without gameplay arrival.
-Host/client two-match runtime validation remains required.
+Host/client two-match runtime validation is complete. REALIGN-005.1 also enforces exactly one
+local `AudioListener` through lobby, ritual, local death, return, and the second ritual.
+
+REALIGN-006 adds compact cosmetic look-pose replication. The owning player's existing
+`PlayerMovement` retains immediate mouse response; `NetworkCharacterLookPose` sends bounded
+pitch/yaw at a modest rate and remote presentations reuse the same procedural bone formula
+without enabling remote input. The state follows the persistent `NetworkPlayer` across death,
+lobby return, and later matches and is independent from ritual authority. Host/client runtime
+validation remains required.
 
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
@@ -478,4 +486,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-11 after implementing REALIGN-005 authoritative return-to-lobby lifecycle pending runtime validation.
+2026-08-12 after implementing REALIGN-006 cosmetic network character look pose pending runtime validation.

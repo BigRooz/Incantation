@@ -722,7 +722,7 @@ This matrix covers every current runtime script family. “Host authoritative”
 | Book aftermath: `BookAftermathController`, `BookPrisonSpectatorController`, `DeathVisionVignetteController`, `DemonHandController`, `PlayerAbsorptionController`, `RitualFailureAbsorptionBridge` | Networked outcome trigger; host authoritative outcome; local observer presentation | Host decides failure/elimination/winner. Each client plays appropriate local presentation from reason-coded events. |
 | Player identity/character selection: `CharacterSelectionGroup`, `CharacterSkinPalette` | Networked selection; owner request; host authoritative acceptance; observer presentation | Store approved character/skin on `NetworkPlayer`; instantiate/apply locally for all observers. |
 | Seated body/head: `BodyMotion`, `HeadEffect`, `HeadIdleMotion` | Local or owner-authoritative bounded presentation; remote observer only | Prefer deterministic/local idle. Replicate only deliberate pose inputs at a modest rate if required. |
-| `PlayerMovement` | Local prototype only; disabled in network ritual | Do not network walking. Owner camera/input setup must enforce seated play. |
+| `PlayerMovement`, `NetworkCharacterLookPose` | Owner-local input; compact owner-authored pitch/yaw relayed through the server for remote presentation | Do not network walking. Remote `PlayerMovement` stays disabled; observers call only its input-free procedural pose method. |
 | Face/lip/audio activity: `EyelidBlinkController`, `VoiceLipController`, `VoiceAmplitudeProvider`, `WindowsAudioOutputDeviceProvider` | Local owner presentation; remote observer only | Blink may run locally. Lip activity derives from local/received audio or a small bounded signal; audio devices remain local. |
 | Camera: `CameraTransitionManager`, `RitualCameraEffects` | Local only; observer presentation | Never replicate cameras or transitions. Trigger local effects from authoritative events when needed. |
 | Lighting/fog: `FireLightFlicker`, `RitualLightingController`, `RoomVeilPreset`, `TableFogPreset`, `WallFogPanelPreset` | Local; observer only | Ambient effects run locally. Discrete ritual lighting cues may observe authoritative events. |
@@ -1031,6 +1031,11 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   servers never receive that client callback and therefore do not create visual characters.
 - Remote character instances disable their cameras, audio listeners, and local look controls.
   The existing scene character, character preview, offline flow, and debug flow remain intact.
+- `NetworkCharacterLookPose` follows each persistent `NetworkPlayer`. It samples only the owning
+  presentation's `PlayerMovement`, submits bounded pitch/yaw at 15 Hz when changed (plus a
+  settled-pose heartbeat), and relays the latest buffered pose to non-owner observers. Remote
+  visual instances reuse the same procedural bone formula without enabling mouse input. This
+  cosmetic state is independent from ritual phase and alive/dead state.
 - Player appearance is synchronized as server-owned `(AppearanceSlot, ValueId)` data through a
   FishNet SyncList. Local character presentation applies the initial snapshot and per-slot
   runtime deltas through the existing customization components.

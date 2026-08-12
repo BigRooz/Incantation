@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Incantation.Character;
@@ -22,6 +23,7 @@ namespace Incantation.Networking
         private CharacterAppearancePresentation appearancePresentation;
 
         public GameObject CharacterInstance => characterInstance;
+        public event Action<GameObject> CharacterInstanceChanged;
 
         private void Awake()
         {
@@ -62,6 +64,7 @@ namespace Incantation.Networking
                 Destroy(characterInstance);
 
             characterInstance = null;
+            CharacterInstanceChanged?.Invoke(null);
             DetachAppearancePresentation();
             seatManager = null;
         }
@@ -92,6 +95,7 @@ namespace Incantation.Networking
                 Destroy(characterInstance);
 
             characterInstance = null;
+            CharacterInstanceChanged?.Invoke(null);
         }
 
         private void TryBindPresentation()
@@ -146,6 +150,7 @@ namespace Incantation.Networking
             }
 
             characterInstance.transform.SetParent(null, true);
+            CharacterInstanceChanged?.Invoke(characterInstance);
         }
 
         private void BindAppearancePresentation()

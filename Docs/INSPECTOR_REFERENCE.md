@@ -824,6 +824,10 @@ Player appearance is data-driven and requires no NetworkPlayer prefab cosmetic r
 - The current scene-authored local character is the source for observed character clones so the
   existing customization components and their configured catalogs are preserved. Non-owner
   camera, audio listener, and movement controls remain disabled.
+- `NetworkCharacterLookPose` is attached to the `NetworkPlayer` prefab with `sendRate` `15`,
+  `changeThreshold` `0.25`, `heartbeatInterval` `0.75`, `maxPitch` `60`, and `maxYaw` `45`.
+  It resolves the existing `PlayerMovement` through `NetworkCharacterPresentation`; do not
+  duplicate character bone references on the network prefab or enable remote `PlayerMovement`.
 - New GameObject-based cosmetic slots should normally reuse `CharacterSelectionGroup`, set its
   `appearanceSlot`, and keep its entry ordering stable. New material/palette data should extend
   `CharacterAppearancePresentation` while continuing to synchronize only compact IDs.

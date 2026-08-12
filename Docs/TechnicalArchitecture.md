@@ -266,6 +266,15 @@ the listener attached to its configured local gameplay camera, and
 character listeners remain disabled. Saved spectator state may restore components temporarily,
 but the final lobby, ritual, or death presentation always reconciles listener ownership.
 
+`PlayerMovement` remains the owner-local mouse-input source and applies its procedural look pose
+immediately. `NetworkCharacterLookPose`, attached to the persistent per-connection
+`NetworkPlayer`, relays only bounded pitch/yaw through an ownership-required unreliable
+ServerRpc and a buffered observer RPC. `NetworkCharacterPresentation` publishes visual-instance
+binding changes so remote clients can apply the same input-free bone formula while their remote
+`PlayerMovement` remains disabled. Look pose is cosmetic connection-scoped state: it is not
+owned by ritual authority and does not stop for elimination, game over, lobby return, or a new
+match.
+
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge
 is unavailable. It is not read as network phrase length. Network phrase presentation uses

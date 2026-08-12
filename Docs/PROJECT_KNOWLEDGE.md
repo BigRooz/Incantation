@@ -217,6 +217,16 @@ Death restoration must call both `BookPrisonSpectatorController.ResetSpectatorVi
 captured for Cameras, AudioListeners, and PlayerMovement. Book lobby restoration is a separate
 pose reset and never enters the gameplay movement/arrival pipeline.
 
+### Network Character Look Pose
+
+`PlayerMovement` remains enabled only for the locally owned presentation and remains the sole
+reader of mouse input. Its pitch/yaw values and input-free procedural bone application are reused
+by `NetworkCharacterLookPose` on the `NetworkPlayer` prefab. The owner sends two floats through
+FishNet; the server validates/clamps and buffers the latest observer pose. Remote
+`PlayerMovement` components stay disabled, but their shared pose method may be called directly
+after `NetworkCharacterPresentation` binds or recreates the visual instance. Look state is
+connection-scoped cosmetic presentation, not ritual or alive/dead state.
+
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.
 

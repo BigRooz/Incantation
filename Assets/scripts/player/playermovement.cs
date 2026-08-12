@@ -29,16 +29,17 @@ public class PlayerMovement : MonoBehaviour
     private Quaternion neckStart;
     private Quaternion spine02Start;
     private Quaternion spine01Start;
+    private bool lookPoseInitialized;
+
+    public float CurrentLookPitch => targetX;
+    public float CurrentLookYaw => targetY;
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (head != null) headStart = head.localRotation;
-        if (neck != null) neckStart = neck.localRotation;
-        if (spine02 != null) spine02Start = spine02.localRotation;
-        if (spine01 != null) spine01Start = spine01.localRotation;
+        EnsureLookPoseInitialized();
     }
 
     void Update()
@@ -55,13 +56,42 @@ public class PlayerMovement : MonoBehaviour
 
     void LateUpdate()
     {
-        ApplyBone(head, headStart, targetX * headWeight, targetY * headWeight);
-        ApplyBone(neck, neckStart, targetX * neckWeight, targetY * neckWeight);
-        ApplyBone(spine02, spine02Start, targetX * spine02Weight, targetY * spine02Weight);
-        ApplyBone(spine01, spine01Start, targetX * spine01Weight, targetY * spine01Weight);
+        ApplyLookPose(targetX, targetY, Time.deltaTime);
     }
 
-    void ApplyBone(Transform bone, Quaternion startRotation, float x, float y)
+    public void EnsureLookPoseInitialized()
+    {
+        if (lookPoseInitialized)
+            return;
+
+        if (head != null) headStart = head.localRotation;
+        if (neck != null) neckStart = neck.localRotation;
+        if (spine02 != null) spine02Start = spine02.localRotation;
+        if (spine01 != null) spine01Start = spine01.localRotation;
+        lookPoseInitialized = true;
+    }
+
+    public void ApplyLookPose(float pitch, float yaw, float deltaTime)
+    {
+        if (!IsFinite(pitch) || !IsFinite(yaw) || !IsFinite(deltaTime))
+            return;
+
+        EnsureLookPoseInitialized();
+        float safePitch = Mathf.Clamp(pitch, -maxLookUpDown, maxLookUpDown);
+        float safeYaw = Mathf.Clamp(yaw, -maxLookLeftRight, maxLookLeftRight);
+
+        ApplyBone(head, headStart, safePitch * headWeight, safeYaw * headWeight, deltaTime);
+        ApplyBone(neck, neckStart, safePitch * neckWeight, safeYaw * neckWeight, deltaTime);
+        ApplyBone(spine02, spine02Start, safePitch * spine02Weight, safeYaw * spine02Weight, deltaTime);
+        ApplyBone(spine01, spine01Start, safePitch * spine01Weight, safeYaw * spine01Weight, deltaTime);
+    }
+
+    private void ApplyBone(
+        Transform bone,
+        Quaternion startRotation,
+        float x,
+        float y,
+        float deltaTime)
     {
         if (bone == null) return;
 
@@ -70,7 +100,12 @@ public class PlayerMovement : MonoBehaviour
         bone.localRotation = Quaternion.Slerp(
             bone.localRotation,
             targetRotation,
-            smoothSpeed * Time.deltaTime
+            smoothSpeed * deltaTime
         );
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }
