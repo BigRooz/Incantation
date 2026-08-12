@@ -291,9 +291,11 @@ Runtime ownership:
 - Offline: FishNet may deactivate only the invisible proxy. `BookModel` remains visible,
   interactive, and locally usable.
 - The Host/server is the only Book simulation and destination authority.
-- Host: `NetworkBookAuthority` copies `BookModel` position/rotation into the network proxy.
-- Client: `NetworkBookAuthority` applies the authoritative proxy position/rotation to its
-  existing `BookModel`; it never creates another presentation.
+- In local lobby presentation, neither Host nor Client copies Book pose through the proxy. Each
+  process uses its existing `BookModel` independently for menu and customization presentation.
+- In shared ritual/game-over presentation, Host `NetworkBookAuthority` copies `BookModel`
+  position/rotation into the network proxy, while Clients apply that authoritative proxy pose to
+  their existing `BookModel`; no additional presentation is created.
 - The proxy aligns to `BookModel` in `Awake`, before FishNet captures initial scene-object
   transform state. Keep the serialized references assigned; do not rely on the proxy's origin
   transform as the initial Book pose.
@@ -995,7 +997,10 @@ Character Book page controller:
 - `bookMenuController`: assign the existing `BookMenuController`. `CharacterBookPageController.ShowCharacter()` delegates the camera request to `BookMenuController.ShowCharacter()` and does not move a camera directly.
 - Configure `colorOptions` as the active placeholder text array. Its first four entries fill right lines 1 through 4 when `Color` is selected. The dormant horn, hat, and tattoo arrays and methods remain available for future use but do not appear on the current Character page. These strings do not apply cosmetics, check inventory, save data, or network selections.
 - Assign the player character's Hair `CharacterSelectionGroup` to `hairSelectionGroup`. Its ordered entry display names populate all five right-page lines when Hair is selected, and each line immediately calls `Select(index)` on that group.
-- Entering `CharacterMenu` leaves the camera on the Book. The left page displays `Color`, `Hair`, `Beard`, and `Back` on lines 1 through 4. Hair is functional; Beard remains a placeholder with no action.
+- Entering `CharacterMenu` also rotates the local lobby Book to its back pose and moves the
+  existing menu camera to the local character target. The left page displays `Color`, `Hair`,
+  `Beard`, and `Back` on lines 1 through 4. Hair is functional; Beard remains a placeholder with
+  no action.
 - The default Character right page displays `CHARACTER`, `Select Color`, and the existing `Show Character` action. Selecting `Color` changes only the independent Character right page to the configured color placeholder texts; right line 5 remains `Show Character`.
 - `Show Character` calls `BookMenuController.ShowCharacter()`, which validates `cameraTransitionManager` and `characterCameraTarget`, then moves the existing active menu camera to the authored Character viewpoint. It does not change Book state or modify player customization.
 - `Color`, `Back`, and every right-side entry keep their own manually placed `BookMenuItem` and `BoxCollider`. Do not duplicate, share, resize, or reposition Colliders through scripts.
@@ -1078,7 +1083,11 @@ Book menu controller:
 - Wire visible `Quit Ritual` actions to `BookMenuController.QuitRitual()`. It dispatches Hosts
   to the existing hosted shutdown and joined clients to client-only leave. Client leave never
   releases the remote Host Seal or stops a server.
-- `OpenCharacter()` only displays `CharacterMenu`, keeping the camera on the Book. `ShowCharacter()` is the explicit Character-camera transition. `OpenOptions()` displays `OptionsMenu`, `OpenVoiceOptions()` displays `VoiceMenu`, and `ReturnToOptions()` returns from Voice to Options without moving a camera.
+- `OpenCharacter()` and the retained `ShowCharacter()` callback both use one canonical transition:
+  capture the originating state once, enter `CharacterMenu`, rotate the local Book, and move the
+  existing menu camera. `ShowCharacter()` remains only as a serialized/UI compatibility alias.
+  `OpenOptions()` displays `OptionsMenu`, `OpenVoiceOptions()` displays `VoiceMenu`, and
+  `ReturnToOptions()` returns from Voice to Options without moving a camera.
 - `OpenLeaderboard()` is a placeholder that logs `Leaderboard is not implemented yet.`. `OpenDiscord()` opens only the URL authored in `discordUrl`.
 - `ReturnToBookMenu()` calls `BookTextModeController.ShowMenuTexts()` and requests movement to `bookMenuCameraTarget`; the physical Book return interaction may keep its existing transition wiring for now.
 

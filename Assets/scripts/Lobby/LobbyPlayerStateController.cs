@@ -7,7 +7,9 @@ public class LobbyPlayerStateController : MonoBehaviour
 
     public LobbyPlayerState CurrentState => currentState;
     public bool CanEditPriestName => currentState == LobbyPlayerState.NotSeated;
-    public bool CanSelectCharacter => currentState == LobbyPlayerState.NotSeated;
+    public bool CanSelectCharacter => currentState == LobbyPlayerState.NotSeated ||
+                                      currentState == LobbyPlayerState.Seated ||
+                                      currentState == LobbyPlayerState.Ready;
     public bool CanTakeSeat => currentState == LobbyPlayerState.NotSeated;
     public bool CanLeaveRitual => currentState == LobbyPlayerState.NotSeated;
     public bool CanToggleReady => currentState == LobbyPlayerState.Seated || currentState == LobbyPlayerState.Ready;

@@ -24,15 +24,13 @@ public class BookMenuController : MonoBehaviour
 
     private BookState characterReturnState = BookState.MainMenu;
     private string enteredSeal = string.Empty;
-    private bool sealHasSupportedCharacterOverflow;
     private string editorValue = string.Empty;
     private string editorStatus = string.Empty;
     private bool editingPriestName;
     private bool editingHostedSeal;
 
     public string EnteredSeal => enteredSeal;
-    public bool HasValidSeal => !sealHasSupportedCharacterOverflow &&
-                                RitualSealService.NormalizeSeal(enteredSeal).Length == 4;
+    public bool HasValidSeal => RitualSealService.NormalizeSeal(enteredSeal).Length == 4;
     public bool CanSubmitSeal => HasValidSeal &&
                                  RitualSealService.Instance != null &&
                                  !RitualSealService.Instance.IsJoining &&
@@ -100,7 +98,6 @@ public class BookMenuController : MonoBehaviour
     {
         RitualSealService.Instance?.CancelJoin();
         enteredSeal = string.Empty;
-        sealHasSupportedCharacterOverflow = false;
         RitualSealService.Instance?.BeginJoinEntry();
         AcquireTextEntryContext();
         bookStateController.ChangePage(BookState.JoinSealEntry);
@@ -127,7 +124,6 @@ public class BookMenuController : MonoBehaviour
     public void CancelJoinRitual()
     {
         enteredSeal = string.Empty;
-        sealHasSupportedCharacterOverflow = false;
         ReleaseTextEntryContext();
         bookStateController.ChangePage(BookState.PlayMenu);
         RitualSealService.Instance?.CancelJoin();
@@ -170,12 +166,7 @@ public class BookMenuController : MonoBehaviour
             char character = input[i];
             if (character == '\b')
             {
-                if (sealHasSupportedCharacterOverflow)
-                {
-                    sealHasSupportedCharacterOverflow = false;
-                    changed = true;
-                }
-                else if (enteredSeal.Length > 0)
+                if (enteredSeal.Length > 0)
                 {
                     enteredSeal = enteredSeal.Substring(0, enteredSeal.Length - 1);
                     changed = true;
@@ -198,11 +189,6 @@ public class BookMenuController : MonoBehaviour
                     if (enteredSeal.Length < 4)
                     {
                         enteredSeal += normalized;
-                        changed = true;
-                    }
-                    else if (!sealHasSupportedCharacterOverflow)
-                    {
-                        sealHasSupportedCharacterOverflow = true;
                         changed = true;
                     }
                 }
@@ -263,7 +249,9 @@ public class BookMenuController : MonoBehaviour
             return;
         }
 
-        localPlayer.RequestRitualStart();
+        lobbyController.PrepareSharedBookPresentation();
+        if (!localPlayer.RequestRitualStart())
+            lobbyController.RestoreLocalBookPresentation();
     }
 
     private void HandleAuthorizedRitualStart()
@@ -599,12 +587,25 @@ public class BookMenuController : MonoBehaviour
 
     public void OpenCharacter()
     {
-        characterReturnState = bookStateController.CurrentState;
-        bookStateController.ChangePage(BookState.CharacterMenu);
+        EnterCharacterView();
     }
 
     public void ShowCharacter()
     {
+        EnterCharacterView();
+    }
+
+    public void EnterCharacterView()
+    {
+        if (bookStateController == null)
+            return;
+
+        if (bookStateController.CurrentState != BookState.CharacterMenu)
+        {
+            characterReturnState = bookStateController.CurrentState;
+            bookStateController.ChangePage(BookState.CharacterMenu);
+        }
+
         if (cameraTransitionManager == null || characterCameraTarget == null)
         {
             Debug.LogWarning($"{nameof(BookMenuController)} cannot show the Character because {nameof(cameraTransitionManager)} or {nameof(characterCameraTarget)} is not assigned.", this);

@@ -227,6 +227,21 @@ FishNet; the server validates/clamps and buffers the latest observer pose. Remot
 after `NetworkCharacterPresentation` binds or recreates the visual instance. Look state is
 connection-scoped cosmetic presentation, not ritual or alive/dead state.
 
+### Local Lobby Versus Shared Ritual Book
+
+There is still one visible scene `BookModel` per process. `NetworkBookAuthority` explicitly leaves
+that presentation under local ownership during menu, Circle, seated lobby, Character view, and
+Return to Lobby. In local mode its `LateUpdate` copies neither the Host presentation into the
+proxy nor the proxy into a Client presentation. Before ritual authorization the Host reconciles
+the visible Book and proxy to the authored lobby pose; every authorized peer then enters the same
+shared mode before local ritual presentation begins. Existing Book commands, NetworkTransform
+replication, arrival reports, winner presentation, and server lobby-pose reset remain unchanged.
+
+The Character action is one canonical local transition: it captures the originating Book state
+once, enters `CharacterMenu`, rotates the local Book, and moves the existing menu camera. The old
+Show Character callback aliases that transition for serialized compatibility. Seated Circle UI
+also exposes Character without changing the authoritative Seat.
+
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.
 

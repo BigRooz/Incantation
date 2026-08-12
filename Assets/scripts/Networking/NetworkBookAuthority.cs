@@ -46,6 +46,7 @@ namespace Incantation.Networking
         private Vector3 lobbyPosition;
         private Quaternion lobbyRotation;
         private bool hasLobbyPose;
+        private bool usesLocalLobbyPresentation = true;
 
         public static NetworkBookAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
@@ -101,7 +102,8 @@ namespace Incantation.Networking
         {
             LogVisibleBookActiveStateChange();
 
-            if (!IsNetworkSessionActive || presentationTransform == null)
+            if (usesLocalLobbyPresentation || !IsNetworkSessionActive ||
+                presentationTransform == null)
                 return;
 
             if (IsServerInitialized)
@@ -152,7 +154,54 @@ namespace Incantation.Networking
             movementSequence.OnChange -= HandleMovementSequenceChanged;
             isMoving.OnChange -= HandleMovementStateChanged;
             presentationState.OnChange -= HandlePresentationStateChanged;
+            EnterLocalLobbyPresentation();
             base.OnStopNetwork();
+        }
+
+        /// <summary>
+        /// Gives this process ownership of its existing visible Book for lobby and customization
+        /// presentation. No network state or ritual movement is produced by this transition.
+        /// </summary>
+        public void EnterLocalLobbyPresentation()
+        {
+            usesLocalLobbyPresentation = true;
+            RestoreLocalLobbyPose();
+        }
+
+        /// <summary>
+        /// Reconciles the visible Book and proxy to the authored lobby pose before the existing
+        /// server-authoritative ritual movement pipeline resumes.
+        /// </summary>
+        public void EnterSharedBookPresentation()
+        {
+            if (!hasLobbyPose || presentationTransform == null)
+                return;
+
+            ResetBookRotationToFront();
+            presentationTransform.SetPositionAndRotation(lobbyPosition, lobbyRotation);
+
+            if (IsServerInitialized)
+                transform.SetPositionAndRotation(lobbyPosition, lobbyRotation);
+
+            usesLocalLobbyPresentation = false;
+        }
+
+        private void RestoreLocalLobbyPose()
+        {
+            if (!hasLobbyPose || presentationTransform == null)
+                return;
+
+            ResetBookRotationToFront();
+            presentationTransform.SetPositionAndRotation(lobbyPosition, lobbyRotation);
+        }
+
+        private void ResetBookRotationToFront()
+        {
+            BookRotationController rotationController =
+                presentationTransform != null
+                    ? presentationTransform.GetComponentInParent<BookRotationController>()
+                    : null;
+            rotationController?.ResetToFrontImmediate();
         }
 
         private void OnDestroy()

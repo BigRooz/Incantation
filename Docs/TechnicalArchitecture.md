@@ -188,6 +188,12 @@ FishNet connection and clients cannot call a commit path.
   it never selects the participant or destination. Its invisible proxy is aligned to the visible
   Book during `Awake`, before FishNet initializes or captures scene-object transform state. A
   joining client therefore cannot apply the proxy's serialized origin pose to `BookModel`.
+- Book presentation authority is lifecycle-scoped. Menu, Circle, seated customization, and
+  Character view use the existing visible Book as local-only presentation on each process;
+  `NetworkBookAuthority.LateUpdate` does not synchronize pose in that mode. Before ritual start,
+  the Host reconciles the visible Book and proxy to the authored lobby pose and all authorized
+  peers enter shared mode. Ritual movement, arrival, game-over presentation, and the post-game
+  server reset continue through the existing authoritative command paths.
   Proxy active state is never copied to the visible Book.
 - `HourglassController` and `Timer` remain necessary because the existing scene, UI, audio, and
   UnityEvents consume them. Their local countdown is enabled only offline. Network sessions apply

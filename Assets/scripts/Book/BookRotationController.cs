@@ -16,8 +16,7 @@ public sealed class BookRotationController : MonoBehaviour
 
     private void Awake()
     {
-        targetRotation = frontRotation;
-        SetLocalYRotation(frontRotation);
+        ResetToFrontImmediate();
     }
 
     private void Update()
@@ -39,6 +38,12 @@ public sealed class BookRotationController : MonoBehaviour
     public void RotateToBack()
     {
         targetRotation = backRotation;
+    }
+
+    public void ResetToFrontImmediate()
+    {
+        targetRotation = frontRotation;
+        SetLocalYRotation(frontRotation);
     }
 
     private void SetLocalYRotation(float yRotation)

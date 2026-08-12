@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Incantation.Networking;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -100,6 +101,7 @@ public class LobbyController : MonoBehaviour
             return;
         }
 
+        PrepareSharedBookPresentation();
         CurrentState = LocalGameState.Ritual;
 
         Seat selectedLobbySeat = GetSelectedLobbySeat();
@@ -127,8 +129,19 @@ public class LobbyController : MonoBehaviour
     public void ReturnToLobbyPresentation()
     {
         ritualController?.StopRitual();
+        RestoreLocalBookPresentation();
         ShowLobby();
         ApplyLobbyCameraState();
+    }
+
+    public void PrepareSharedBookPresentation()
+    {
+        NetworkBookAuthority.Instance?.EnterSharedBookPresentation();
+    }
+
+    public void RestoreLocalBookPresentation()
+    {
+        NetworkBookAuthority.Instance?.EnterLocalLobbyPresentation();
     }
 
     public bool HasSelectedLobbySeat()

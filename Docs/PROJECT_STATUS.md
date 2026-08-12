@@ -477,7 +477,14 @@ REALIGN-006 adds compact cosmetic look-pose replication. The owning player's exi
 pitch/yaw at a modest rate and remote presentations reuse the same procedural bone formula
 without enabling remote input. The state follows the persistent `NetworkPlayer` across death,
 lobby return, and later matches and is independent from ritual authority. Host/client runtime
-validation remains required.
+validation is complete.
+
+REALIGN-007 separates the existing visible Book's presentation ownership by lifecycle. Lobby,
+Circle, seated customization, and Character view are local to each process; ritual and game-over
+presentation continue through the existing server-authoritative SharedBook proxy. Character now
+enters its logical page, local Book pose, and local menu-camera view in one action, remains
+available while seated, and join-Seal input stores at most four normalized characters without a
+hidden overflow state. Host/client runtime validation remains required.
 
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
@@ -486,4 +493,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after implementing REALIGN-006 cosmetic network character look pose pending runtime validation.
+2026-08-12 after implementing REALIGN-007 local lobby Book and Character UX cleanup pending runtime validation.

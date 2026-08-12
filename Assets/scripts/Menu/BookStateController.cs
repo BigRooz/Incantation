@@ -314,7 +314,7 @@ public sealed class BookStateController : MonoBehaviour
                     isLocalPlayerReady ? "Unready" : "Ready",
                     NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null,
                     "Leave Seat", lobbyPlayerStateController != null ? LeaveLobbySeat : null,
-                    string.Empty, null,
+                    "Character", bookMenuController != null ? bookMenuController.OpenCharacter : null,
                     exitLabel, exitAction);
                 GetSeatedLobbyPresentation(
                     isLocalPlayerReady,
@@ -733,7 +733,8 @@ public sealed class BookStateController : MonoBehaviour
                 NetworkPlayer.LocalPlayer != null ? ToggleLocalReady : null);
             RefreshLeftEntry(line2, menuItem2, "Leave Seat",
                 lobbyPlayerStateController != null ? LeaveLobbySeat : null);
-            RefreshLeftEntry(line3, menuItem3, string.Empty, null);
+            RefreshLeftEntry(line3, menuItem3, "Character",
+                bookMenuController != null ? bookMenuController.OpenCharacter : null);
             RefreshLeftEntry(line4, menuItem4, exitLabel, exitAction);
 
             GetSeatedLobbyPresentation(
