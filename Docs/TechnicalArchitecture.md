@@ -255,9 +255,12 @@ reset. The server accepts it only from the listen Host while the ritual is compl
 `NetworkRitualAuthority.TryResetCompletedRitualToLobby` performs the sole match-state mutation:
 it transitions to `Inactive`, clears the fixed ritual roster and all match-scoped outcome,
 phrase, timer, voice, validation, consequence, and target associations, and preserves monotonic
-gameplay Book movement identity. Current Circle players retain connection identity and Seat but
-return to NotReady. `NetworkPostGameLifecycleController` reacts to the resulting synchronized
-Inactive snapshot once per completed ritual and coordinates local presentation reset only.
+gameplay Book movement identity. Current Circle players retain connection identity, membership,
+name, and appearance, but return to `NotReady`, `LobbyPlayerState.NotSeated`, and an unassigned
+Seat. Existing synchronized Seat observers free network presentation occupancy; the local owner
+is moved to the configured lobby waiting transform and remote unseated clones remain hidden.
+`NetworkPostGameLifecycleController` reacts to the resulting synchronized Inactive snapshot once
+per completed ritual and coordinates local presentation reset only.
 
 The server's Book reset uses the visible Book pose captured before ritual movement. It cancels
 interpolation and restores the existing Book/NetworkTransform proxy without a

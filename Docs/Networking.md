@@ -1040,6 +1040,11 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   FishNet SyncList. Local character presentation applies the initial snapshot and per-slot
   runtime deltas through the existing customization components.
 - `LobbyPlayerStateController` temporarily preserves the existing local lobby and will become an adapter/consumer rather than a competing permanent state owner.
+- Completed-match return starts a fresh authoritative seating phase. The server resets each Circle
+  member to `NotReady`, `LobbyPlayerState.NotSeated`, and `SeatId = -1` while preserving identity,
+  membership, name, and appearance. Existing `SeatId` observers release presentation occupancy;
+  only the local owner moves to the configured waiting transform. Ready and Host start eligibility
+  both require an assigned Seat.
 - The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
 - Bootstrap remains the launcher and persistent network-composition owner. It now opens
   `MainGame` before connection so the Book can create or join a ritual. The first successful

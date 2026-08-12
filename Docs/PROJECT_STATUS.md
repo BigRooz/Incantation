@@ -486,6 +486,13 @@ enters its logical page, local Book pose, and local menu-camera view in one acti
 available while seated, and join-Seal input stores at most four normalized characters without a
 hidden overflow state. Host/client runtime validation remains required.
 
+REALIGN-007.1 makes completed-match return begin a fresh seating phase. The Host-authoritative
+reset now clears every Circle member's Seat, Ready state, and replicated lobby state while
+preserving connection, identity, name, appearance, and Circle membership. Existing Seat observers
+release presentation occupancy; each local owner returns to the configured lobby waiting
+position while remote unseated clones remain hidden. Ready and ritual start both require a valid
+Seat assignment. Host/client runtime validation remains required.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
@@ -493,4 +500,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after implementing REALIGN-007 local lobby Book and Character UX cleanup pending runtime validation.
+2026-08-12 after implementing REALIGN-007.1 completed-match Seat reset pending runtime validation.

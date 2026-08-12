@@ -316,8 +316,15 @@ public class SeatManager : MonoBehaviour
         if (!LeaveLobbySeat(player))
             return false;
 
-        MovePlayerToPosition(player, waitingPosition);
+        RestoreUnseatedLobbyPlayerPresentation(player, waitingPosition);
         return true;
+    }
+
+    public void RestoreUnseatedLobbyPlayerPresentation(
+        GameObject player,
+        Transform waitingPosition)
+    {
+        MovePlayerToPosition(player, waitingPosition);
     }
 
     public bool IsLobbySeatAvailable(Seat seat)

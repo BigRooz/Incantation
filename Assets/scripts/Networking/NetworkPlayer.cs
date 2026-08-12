@@ -402,7 +402,7 @@ namespace Incantation.Networking
         /// </summary>
         public bool RequestToggleReady()
         {
-            if (!IsOwner || !IsCircleMember || isReadyRequestPending)
+            if (!IsOwner || !IsCircleMember || !HasAssignedSeat || isReadyRequestPending)
             {
                 return false;
             }
@@ -431,7 +431,7 @@ namespace Incantation.Networking
 
         private bool TryToggleReady()
         {
-            if (!CanMutateReplicatedState() || !isCircleMember.Value)
+            if (!CanMutateReplicatedState() || !isCircleMember.Value || !HasAssignedSeat)
             {
                 return false;
             }
@@ -512,9 +512,8 @@ namespace Incantation.Networking
                     continue;
 
                 player.TrySetReadyState(ReadyState.NotReady);
-                if (player.HasAssignedSeat)
-                    player.TrySetLobbyPlayerState(LobbyPlayerState.Seated);
-
+                player.TrySetSeatId(UnassignedSeatId);
+                player.TrySetLobbyPlayerState(LobbyPlayerState.NotSeated);
                 player.ritualStartAuthorized = false;
             }
 
@@ -550,6 +549,14 @@ namespace Incantation.Networking
                 }
 
                 participatingPriestCount++;
+                if (!player.HasAssignedSeat)
+                {
+                    Debug.LogWarning(
+                        $"Ritual start rejected by the server: connected Priest {player.Owner.ClientId} has not selected a Seat.",
+                        this);
+                    return false;
+                }
+
                 if (!player.IsReady)
                 {
                     Debug.LogWarning(

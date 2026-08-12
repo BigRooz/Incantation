@@ -415,6 +415,9 @@ public class LobbyController : MonoBehaviour
 
     private void HandleLocalNetworkSeatChanged(Seat currentSeat)
     {
+        if (currentSeat == null)
+            RestoreUnseatedLobbyPresentation();
+
         if (lobbyPlayerStateController == null)
             return;
 
@@ -427,6 +430,16 @@ public class LobbyController : MonoBehaviour
         }
 
         lobbyPlayerStateController.TryLeaveSeat();
+    }
+
+    private void RestoreUnseatedLobbyPresentation()
+    {
+        if (seatManager == null || localLobbyPlayer == null || lobbyWaitingPosition == null)
+            return;
+
+        seatManager.RestoreUnseatedLobbyPlayerPresentation(
+            localLobbyPlayer,
+            lobbyWaitingPosition);
     }
 
     private void ApplyRitualCursorState()

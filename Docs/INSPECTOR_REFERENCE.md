@@ -62,6 +62,10 @@ Runtime behavior:
 - `Options` is a placeholder button for this foundation task only.
 - If `localPlayerCamera` is not assigned, `Start Ritual` logs `LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.` and still starts the ritual.
 - `HasSelectedLobbySeat()` is the read-only seat requirement query used by the Living Book and the lobby start flow. It reuses `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` and does not duplicate seat ownership.
+- `lobbyWaitingPosition` is also the current pre-seat owner-character presentation contract.
+  Completed-match return authoritatively unassigns every Seat, then the local owner is restored to
+  this transform while remote unassigned presentations remain hidden. The current scene reference
+  may alias an authored `PlayerSpawn`; REALIGN-007.1 requires no new scene object.
 
 ## SeatManager
 

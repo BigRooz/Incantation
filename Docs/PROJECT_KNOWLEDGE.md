@@ -210,7 +210,15 @@ REALIGN-005 keeps the FishNet session and player identities alive between matche
 writer; `NetworkPostGameLifecycleController` is the peer-local presentation coordinator. A reset
 clears the old dead roster rather than reviving its entries. The next Host start therefore locks
 a fresh all-alive roster and advances the existing ritual sequence. Ready returns to NotReady,
-while PlayerId, Circle membership, SeatId, PriestName, and appearance persist.
+while PlayerId, Circle membership, PriestName, and appearance persist. REALIGN-007.1 deliberately
+supersedes Seat persistence: every Circle member returns to `SeatId = -1`, `NotReady`, and
+`LobbyPlayerState.NotSeated`, then chooses a Seat again for the next match.
+
+The synchronized unassigned Seat reuses existing observers. `NetworkCharacterPresentation`
+releases its occupied Seat and hides non-owner clones. `LobbyController` moves only the local
+owner to its serialized `lobbyWaitingPosition` through `SeatManager`'s focused presentation
+helper, keeping that owner active for pre-seat Character/customization view. No broad Seat clear
+is performed, so offline/debug occupancy remains separate.
 
 Death restoration must call both `BookPrisonSpectatorController.ResetSpectatorView` and
 `PlayerAbsorptionController.ResetAbsorption`. The former also restores the exact enabled states
