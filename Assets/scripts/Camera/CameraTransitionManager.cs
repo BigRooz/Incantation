@@ -59,14 +59,24 @@ public class CameraTransitionManager : MonoBehaviour
 
     public void EnableRendering()
     {
-        if (ActiveCamera != null)
-            ActiveCamera.enabled = true;
+        SetPresentationEnabled(true);
     }
 
     public void DisableRendering()
     {
-        if (ActiveCamera != null)
-            ActiveCamera.enabled = false;
+        SetPresentationEnabled(false);
+    }
+
+    private void SetPresentationEnabled(bool enabled)
+    {
+        if (ActiveCamera == null)
+            return;
+
+        ActiveCamera.enabled = enabled;
+
+        AudioListener presentationListener = ActiveCamera.GetComponent<AudioListener>();
+        if (presentationListener != null)
+            presentationListener.enabled = enabled;
     }
 
     private IEnumerator RunTransition(Transform target)

@@ -259,6 +259,13 @@ interpolation and restores the existing Book/NetworkTransform proxy without a
 `ResetSpectatorView` with `ResetAbsorption`; captured Camera, AudioListener, and PlayerMovement
 enabled states prevent local/remote presentation roles from being inverted.
 
+Local audio follows presentation ownership, with exactly one enabled `AudioListener` per Unity
+client: `CameraTransitionManager` owns the menu-camera listener, `LobbyController` selects only
+the listener attached to its configured local gameplay camera, and
+`BookPrisonSpectatorController` selects only the locally active Prison Camera listener. Remote
+character listeners remain disabled. Saved spectator state may restore components temporarily,
+but the final lobby, ritual, or death presentation always reconciles listener ownership.
+
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge
 is unavailable. It is not read as network phrase length. Network phrase presentation uses

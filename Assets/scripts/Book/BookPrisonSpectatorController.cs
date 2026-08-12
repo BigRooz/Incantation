@@ -111,6 +111,12 @@ public class BookPrisonSpectatorController : MonoBehaviour
 
     private void PrepareLocalDeathPresentation(Transform player)
     {
+        foreach (Camera characterCamera in player.GetComponentsInChildren<Camera>(true))
+            characterCamera.enabled = false;
+
+        foreach (AudioListener audioListener in player.GetComponentsInChildren<AudioListener>(true))
+            audioListener.enabled = false;
+
         PlayerAbsorptionController absorptionController =
             GetComponent<PlayerAbsorptionController>();
         if (absorptionController == null ||
@@ -123,12 +129,6 @@ public class BookPrisonSpectatorController : MonoBehaviour
                 this);
             return;
         }
-
-        foreach (Camera characterCamera in player.GetComponentsInChildren<Camera>(true))
-            characterCamera.enabled = false;
-
-        foreach (AudioListener audioListener in player.GetComponentsInChildren<AudioListener>(true))
-            audioListener.enabled = false;
 
         foreach (PlayerMovement playerMovement in player.GetComponentsInChildren<PlayerMovement>(true))
             playerMovement.enabled = true;
@@ -191,8 +191,16 @@ public class BookPrisonSpectatorController : MonoBehaviour
             return;
         }
 
+        FindFirstObjectByType<CameraTransitionManager>(
+            FindObjectsInactive.Include)?.DisableRendering();
+
         activeSlot.spectatorCamera.gameObject.SetActive(true);
         activeSlot.spectatorCamera.enabled = true;
+
+        AudioListener spectatorListener =
+            activeSlot.spectatorCamera.GetComponent<AudioListener>();
+        if (spectatorListener != null)
+            spectatorListener.enabled = true;
     }
 
     private bool TryResolveLocalDeathCameraTarget(
@@ -262,9 +270,19 @@ public class BookPrisonSpectatorController : MonoBehaviour
             if (slot == null || slot.spectatorCamera == null)
                 continue;
 
+            AudioListener spectatorListener =
+                slot.spectatorCamera.GetComponent<AudioListener>();
+            if (spectatorListener != null)
+                spectatorListener.enabled = false;
+
             slot.spectatorCamera.enabled = false;
             slot.spectatorCamera.gameObject.SetActive(false);
         }
+    }
+
+    public void DisableSpectatorCameraPresentation()
+    {
+        DeactivateAllSlotCameras();
     }
 
     private void MovePlayerToPrisonPreservingRemoteCamera(

@@ -254,6 +254,9 @@ public class LobbyController : MonoBehaviour
 
     private void ApplyLobbyCameraState()
     {
+        DisableLocalPlayerAudioListeners();
+        DisableDeathCameraPresentation();
+
         if (cameraTransitionManager != null && lobbyCameraTarget != null)
         {
             cameraTransitionManager.EnableRendering();
@@ -266,22 +269,19 @@ public class LobbyController : MonoBehaviour
         }
 
         if (localPlayerCamera != null)
-        {
             localPlayerCamera.enabled = false;
-            SetLocalPlayerAudioListenersEnabled(false);
-        }
     }
 
     private void EnableMenuCameraRendering()
     {
+        DisableLocalPlayerAudioListeners();
+        DisableDeathCameraPresentation();
+
         if (cameraTransitionManager != null)
             cameraTransitionManager.EnableRendering();
 
         if (localPlayerCamera != null)
-        {
             localPlayerCamera.enabled = false;
-            SetLocalPlayerAudioListenersEnabled(false);
-        }
     }
 
     private void ApplyRitualCameraState()
@@ -289,11 +289,18 @@ public class LobbyController : MonoBehaviour
         if (cameraTransitionManager != null)
             cameraTransitionManager.DisableRendering();
 
+        DisableDeathCameraPresentation();
+        DisableLocalPlayerAudioListeners();
+
         if (localPlayerCamera != null)
         {
             localPlayerCamera.gameObject.SetActive(true);
             localPlayerCamera.enabled = true;
-            SetLocalPlayerAudioListenersEnabled(true);
+
+            AudioListener gameplayListener = localPlayerCamera.GetComponent<AudioListener>();
+            if (gameplayListener != null)
+                gameplayListener.enabled = true;
+
             return;
         }
 
@@ -304,13 +311,20 @@ public class LobbyController : MonoBehaviour
         }
     }
 
-    private void SetLocalPlayerAudioListenersEnabled(bool enabled)
+    private void DisableLocalPlayerAudioListeners()
     {
         if (localLobbyPlayer == null)
             return;
 
         foreach (AudioListener listener in localLobbyPlayer.GetComponentsInChildren<AudioListener>(true))
-            listener.enabled = enabled;
+            listener.enabled = false;
+    }
+
+    private static void DisableDeathCameraPresentation()
+    {
+        BookPrisonSpectatorController spectatorController =
+            FindFirstObjectByType<BookPrisonSpectatorController>(FindObjectsInactive.Include);
+        spectatorController?.DisableSpectatorCameraPresentation();
     }
 
     private Seat GetSelectedLobbySeat()
