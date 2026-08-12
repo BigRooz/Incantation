@@ -26,8 +26,10 @@ The FishNet foundation, permanent `NetworkPlayer` architecture, and Book-driven 
 
 The network ritual now also owns timeout elimination, survivor traversal, and synchronized
 winner/game-over state. REALIGN-004 adds a presentation-only winner Book movement and result
-overlay; its Host/client runtime checklist remains pending. Rematch remains future work and does
-not change the immediate lobby objective below.
+overlay. REALIGN-005 adds Host-authoritative return to the connected lobby, Ready reset, full
+death-presentation restoration, Book lobby-pose restoration, and second-match preparation. Its
+two-match Host/client runtime checklist remains pending. Automatic rematch remains future work
+and does not change the immediate lobby objective below.
 
 Create Ritual is genuine animated navigation from `PlayMenu`; no pre-creation confirmation
 page remains in the live flow. The existing Host request starts only at the transition's

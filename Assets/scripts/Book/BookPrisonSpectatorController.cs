@@ -348,6 +348,12 @@ public class BookPrisonSpectatorController : MonoBehaviour
         private readonly Quaternion originalRotation;
         private readonly Vector3 originalScale;
         private readonly bool originalActiveSelf;
+        private readonly Camera[] cameras;
+        private readonly bool[] cameraEnabledStates;
+        private readonly AudioListener[] audioListeners;
+        private readonly bool[] audioListenerEnabledStates;
+        private readonly PlayerMovement[] playerMovements;
+        private readonly bool[] playerMovementEnabledStates;
 
         public PlayerSpectatorState(Transform player)
         {
@@ -356,6 +362,12 @@ public class BookPrisonSpectatorController : MonoBehaviour
             originalRotation = player.rotation;
             originalScale = player.localScale;
             originalActiveSelf = player.gameObject.activeSelf;
+            cameras = player.GetComponentsInChildren<Camera>(true);
+            cameraEnabledStates = CaptureEnabledStates(cameras);
+            audioListeners = player.GetComponentsInChildren<AudioListener>(true);
+            audioListenerEnabledStates = CaptureEnabledStates(audioListeners);
+            playerMovements = player.GetComponentsInChildren<PlayerMovement>(true);
+            playerMovementEnabledStates = CaptureEnabledStates(playerMovements);
         }
 
         public void Restore()
@@ -366,6 +378,28 @@ public class BookPrisonSpectatorController : MonoBehaviour
             Player.gameObject.SetActive(originalActiveSelf);
             Player.SetPositionAndRotation(originalPosition, originalRotation);
             Player.localScale = originalScale;
+            RestoreEnabledStates(cameras, cameraEnabledStates);
+            RestoreEnabledStates(audioListeners, audioListenerEnabledStates);
+            RestoreEnabledStates(playerMovements, playerMovementEnabledStates);
+        }
+
+        private static bool[] CaptureEnabledStates<T>(T[] behaviours) where T : Behaviour
+        {
+            bool[] states = new bool[behaviours.Length];
+            for (int i = 0; i < behaviours.Length; i++)
+                states[i] = behaviours[i] != null && behaviours[i].enabled;
+
+            return states;
+        }
+
+        private static void RestoreEnabledStates<T>(T[] behaviours, bool[] states)
+            where T : Behaviour
+        {
+            for (int i = 0; i < behaviours.Length && i < states.Length; i++)
+            {
+                if (behaviours[i] != null)
+                    behaviours[i].enabled = states[i];
+            }
         }
     }
 }

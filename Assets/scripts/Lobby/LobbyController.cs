@@ -124,6 +124,13 @@ public class LobbyController : MonoBehaviour
         ritualController.StartRitual();
     }
 
+    public void ReturnToLobbyPresentation()
+    {
+        ritualController?.StopRitual();
+        ShowLobby();
+        ApplyLobbyCameraState();
+    }
+
     public bool HasSelectedLobbySeat()
     {
         ResolveLocalLobbyPlayer();
@@ -259,7 +266,10 @@ public class LobbyController : MonoBehaviour
         }
 
         if (localPlayerCamera != null)
+        {
             localPlayerCamera.enabled = false;
+            SetLocalPlayerAudioListenersEnabled(false);
+        }
     }
 
     private void EnableMenuCameraRendering()
@@ -268,7 +278,10 @@ public class LobbyController : MonoBehaviour
             cameraTransitionManager.EnableRendering();
 
         if (localPlayerCamera != null)
+        {
             localPlayerCamera.enabled = false;
+            SetLocalPlayerAudioListenersEnabled(false);
+        }
     }
 
     private void ApplyRitualCameraState()
@@ -280,6 +293,7 @@ public class LobbyController : MonoBehaviour
         {
             localPlayerCamera.gameObject.SetActive(true);
             localPlayerCamera.enabled = true;
+            SetLocalPlayerAudioListenersEnabled(true);
             return;
         }
 
@@ -288,6 +302,15 @@ public class LobbyController : MonoBehaviour
             Debug.LogWarning("LobbyController localPlayerCamera is not assigned. Ritual will continue but camera switching will be skipped.", this);
             hasLoggedMissingPlayerCamera = true;
         }
+    }
+
+    private void SetLocalPlayerAudioListenersEnabled(bool enabled)
+    {
+        if (localLobbyPlayer == null)
+            return;
+
+        foreach (AudioListener listener in localLobbyPlayer.GetComponentsInChildren<AudioListener>(true))
+            listener.enabled = enabled;
     }
 
     private Seat GetSelectedLobbySeat()

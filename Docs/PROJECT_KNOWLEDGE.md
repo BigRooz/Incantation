@@ -203,6 +203,20 @@ report gameplay arrival or start timer/voice/phrase/rotation behavior. The resul
 created locally beneath the existing shared Book authority and is visible over both normal and
 Death Cameras.
 
+### Post-Game Return To Lobby
+
+REALIGN-005 keeps the FishNet session and player identities alive between matches. The Host-owned
+`NetworkPlayer` is the request transport; `NetworkRitualAuthority` is the only ritual reset
+writer; `NetworkPostGameLifecycleController` is the peer-local presentation coordinator. A reset
+clears the old dead roster rather than reviving its entries. The next Host start therefore locks
+a fresh all-alive roster and advances the existing ritual sequence. Ready returns to NotReady,
+while PlayerId, Circle membership, SeatId, PriestName, and appearance persist.
+
+Death restoration must call both `BookPrisonSpectatorController.ResetSpectatorView` and
+`PlayerAbsorptionController.ResetAbsorption`. The former also restores the exact enabled states
+captured for Cameras, AudioListeners, and PlayerMovement. Book lobby restoration is a separate
+pose reset and never enters the gameplay movement/arrival pipeline.
+
 The detailed method-level ownership table and the rationale for every retained bridge live in
 `Docs/TechnicalArchitecture.md`.
 

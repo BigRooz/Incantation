@@ -244,6 +244,21 @@ completion coroutine. It never constructs `RitualBookArrivalReport` or calls
 `TryCommitBookArrival`. Result UI is local presentation derived from the same snapshot; it does
 not count survivors or choose a winner.
 
+`NetworkPlayer.RequestReturnToLobby` is the authenticated Host request boundary for post-game
+reset. The server accepts it only from the listen Host while the ritual is completed/game-over.
+`NetworkRitualAuthority.TryResetCompletedRitualToLobby` performs the sole match-state mutation:
+it transitions to `Inactive`, clears the fixed ritual roster and all match-scoped outcome,
+phrase, timer, voice, validation, consequence, and target associations, and preserves monotonic
+gameplay Book movement identity. Current Circle players retain connection identity and Seat but
+return to NotReady. `NetworkPostGameLifecycleController` reacts to the resulting synchronized
+Inactive snapshot once per completed ritual and coordinates local presentation reset only.
+
+The server's Book reset uses the visible Book pose captured before ritual movement. It cancels
+interpolation and restores the existing Book/NetworkTransform proxy without a
+`RitualBookMovementCommand` or `RitualBookArrivalReport`. Prison restoration combines
+`ResetSpectatorView` with `ResetAbsorption`; captured Camera, AudioListener, and PlayerMovement
+enabled states prevent local/remote presentation roles from being inverted.
+
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge
 is unavailable. It is not read as network phrase length. Network phrase presentation uses

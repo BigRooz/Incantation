@@ -280,6 +280,9 @@ Required `SharedBookNetworkAuthority` scene-object setup:
   same proxy object. `NetworkGameOverPresentationController` consumes its sibling authorities;
   `RitualGameOverPresenter` creates the local screen-space `GameOverCanvas/GameOverPanel/ResultText`
   hierarchy. No additional authored scene references are required.
+- `NetworkPostGameLifecycleController` is also installed at runtime on this proxy. It consumes
+  sibling authority state and resolves existing local lobby/death presentation components only
+  when a completed ritual synchronizes back to `Inactive`; no new scene references are required.
 - `NetworkRitualAuthority` owns semantic Book movement requests and authoritative arrival
   acceptance, but does not interpolate the Book or start existing ritual gameplay.
 
@@ -299,6 +302,9 @@ Runtime ownership:
   `IsMoving` synchronizes the server-owned start/arrival lifecycle.
 - Winner presentation uses a separate `PresentationMovementSequence` plus presented ritual
   session/sequence and winner identity. Its completion never reports gameplay Book arrival.
+- The visible Book's authored initial position/rotation is captured in `NetworkBookAuthority.Awake`
+  as the lobby pose. Host return cancels movement and restores that pose through the existing
+  server-owned proxy; do not add a fake lobby Seat or gameplay command.
 - Clients do not call a movement coroutine, choose a Seat, or write the transform.
 - `BookPresentationState` synchronizes `Closed`/`Open`; presentation consumers subscribe to
   `PresentationStateChanged`.

@@ -470,6 +470,57 @@ namespace Incantation.Networking
             return true;
         }
 
+        public bool RequestReturnToLobby()
+        {
+            RitualSealService service = RitualSealService.Instance;
+            FishNetFoundationController foundation = FishNetFoundationController.Instance;
+            if (!IsOwner || service == null || !service.IsHostingRitual ||
+                foundation == null || !foundation.IsHostRunning)
+            {
+                return false;
+            }
+
+            if (IsServerInitialized)
+                return TryAuthorizeReturnToLobby();
+
+            RequestReturnToLobbyServerRpc();
+            return true;
+        }
+
+        [ServerRpc]
+        private void RequestReturnToLobbyServerRpc()
+        {
+            TryAuthorizeReturnToLobby();
+        }
+
+        private bool TryAuthorizeReturnToLobby()
+        {
+            FishNetFoundationController foundation = FishNetFoundationController.Instance;
+            if (!CanMutateReplicatedState() || Owner == null || !Owner.IsLocalClient ||
+                foundation == null || !foundation.IsHostRunning)
+            {
+                return false;
+            }
+
+            NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+            if (authority == null || !authority.TryResetCompletedRitualToLobby())
+                return false;
+
+            foreach (NetworkPlayer player in activePlayers)
+            {
+                if (player == null || !player.IsCircleMember)
+                    continue;
+
+                player.TrySetReadyState(ReadyState.NotReady);
+                if (player.HasAssignedSeat)
+                    player.TrySetLobbyPlayerState(LobbyPlayerState.Seated);
+
+                player.ritualStartAuthorized = false;
+            }
+
+            return true;
+        }
+
         [ServerRpc]
         private void RequestRitualStartServerRpc()
         {

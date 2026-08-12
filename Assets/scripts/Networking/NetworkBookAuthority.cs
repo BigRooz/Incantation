@@ -43,6 +43,9 @@ namespace Incantation.Networking
         private bool visibleBookStateCaptured;
         private bool lastVisibleBookActiveSelf;
         private bool lastVisibleBookActiveInHierarchy;
+        private Vector3 lobbyPosition;
+        private Quaternion lobbyRotation;
+        private bool hasLobbyPose;
 
         public static NetworkBookAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
@@ -66,6 +69,7 @@ namespace Incantation.Networking
         {
             Instance = this;
             EnsureGameOverPresentationComponents();
+            CaptureLobbyPose();
             AlignProxyToVisibleBook("Awake before FishNet scene-object initialization");
             CaptureVisibleBookActiveState();
             LogVisibleBookResolved("Awake");
@@ -78,6 +82,19 @@ namespace Incantation.Networking
 
             if (GetComponent<NetworkGameOverPresentationController>() == null)
                 gameObject.AddComponent<NetworkGameOverPresentationController>();
+
+            if (GetComponent<NetworkPostGameLifecycleController>() == null)
+                gameObject.AddComponent<NetworkPostGameLifecycleController>();
+        }
+
+        private void CaptureLobbyPose()
+        {
+            if (presentationTransform == null)
+                return;
+
+            lobbyPosition = presentationTransform.position;
+            lobbyRotation = presentationTransform.rotation;
+            hasLobbyPose = true;
         }
 
         private void LateUpdate()
@@ -348,6 +365,41 @@ namespace Incantation.Networking
                 $"WinnerPlayerId = {winnerPlayerId}\n" +
                 $"WinnerSeatId = {winnerSeatId}",
                 this);
+            return true;
+        }
+
+        /// <summary>
+        /// Restores the one persistent Book to its authored lobby pose without creating ritual
+        /// movement or arrival state.
+        /// </summary>
+        public bool TryResetToLobbyPose()
+        {
+            if (!IsServerInitialized || !hasLobbyPose || bookMover == null ||
+                presentationTransform == null)
+            {
+                return false;
+            }
+
+            NetworkRitualAuthority resolvedRitualAuthority = ResolveRitualAuthority();
+            if (resolvedRitualAuthority == null ||
+                resolvedRitualAuthority.Snapshot.Phase != RitualPhase.Inactive)
+            {
+                return false;
+            }
+
+            StopAllCoroutines();
+            bookMover.StopAuthoritativeMovement();
+            hasActiveMovementCommand = false;
+            activeMovementCommand = default;
+            isMoving.Value = false;
+            isPresentationMoving.Value = false;
+            targetSeatId.Value = NoTargetSeatId;
+            presentedRitualSessionId.Value = string.Empty;
+            presentedRitualSequence.Value = 0;
+            presentedWinnerPlayerId.Value = string.Empty;
+            presentationTransform.SetPositionAndRotation(lobbyPosition, lobbyRotation);
+            transform.SetPositionAndRotation(lobbyPosition, lobbyRotation);
+            ResolveSeatManager()?.SetCurrentBookSeat(null);
             return true;
         }
 

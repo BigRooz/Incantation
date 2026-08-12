@@ -518,6 +518,18 @@ public class BookMenuController : MonoBehaviour
         }
     }
 
+    public void PresentConnectedLobbyAfterMatch()
+    {
+        if (bookTextModeController != null)
+            bookTextModeController.ShowMenuTexts();
+
+        ReturnToBookMenu();
+        if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
+            bookStateController.ChangePage(BookState.HostMenu);
+        else
+            bookStateController.ChangePage(BookState.Lobby);
+    }
+
     public void QuitHostedRitual()
     {
         RitualSealService service = RitualSealService.Instance;

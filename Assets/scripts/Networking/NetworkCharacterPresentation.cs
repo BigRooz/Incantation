@@ -241,6 +241,11 @@ namespace Incantation.Networking
             occupiedSeat = targetSeat;
         }
 
+        public void ReapplyCurrentSeatPresentation()
+        {
+            ApplySeatId(networkPlayer != null ? networkPlayer.SeatId : NetworkPlayer.UnassignedSeatId);
+        }
+
         private void ReleaseOccupiedSeat()
         {
             if (occupiedSeat != null && occupiedSeat.currentPlayer == characterInstance)

@@ -459,7 +459,17 @@ resolves the winner by stable `PlayerId`, displays a local result overlay, and a
 `NetworkBookAuthority` for a server-only presentation movement to the winner's physical Seat.
 That movement has its own session/ritual/presentation identity and completes without creating a
 `RitualBookArrivalReport`, timer, voice turn, phrase change, rotation, or active participant.
-Host/client runtime validation of the final-elimination presentation remains required.
+Host/client result presentation is functionally validated. Winner Book presentation movement is
+still not visibly returning the Book to the winner; that non-blocking REALIGN-004 limitation is
+intentionally outside REALIGN-005.
+
+REALIGN-005 adds the reusable post-game lifecycle. Only the authenticated Host can request the
+shared return. `NetworkRitualAuthority` transitions `Completed -> Inactive`, clears match-scoped
+state and the dead roster, while connected `NetworkPlayer` identity, Circle membership, Seat,
+name, and appearance persist. Ready resets to NotReady. Peers restore prison/absorption and exact
+Camera/AudioListener/movement component states, return to lobby presentation, hide results, and
+the server restores the one Book to its captured authored lobby pose without gameplay arrival.
+Host/client two-match runtime validation remains required.
 
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
@@ -468,4 +478,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-11 after implementing REALIGN-004 authoritative game-over presentation pending runtime validation.
+2026-08-11 after implementing REALIGN-005 authoritative return-to-lobby lifecycle pending runtime validation.

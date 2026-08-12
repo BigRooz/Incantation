@@ -82,7 +82,15 @@ namespace Incantation.Networking
                         NetworkPlayer.LocalPlayer.PlayerId,
                         pendingSnapshot.WinnerPlayerId,
                         StringComparison.Ordinal);
-                resultPresenter?.ShowResult(winner.PriestName, isLocalWinner);
+                bool canReturnToLobby = NetworkPlayer.LocalPlayer != null &&
+                    NetworkPlayer.LocalPlayer.IsOwner &&
+                    RitualSealService.Instance != null &&
+                    RitualSealService.Instance.IsHostingRitual;
+                resultPresenter?.ShowResult(
+                    winner.PriestName,
+                    isLocalWinner,
+                    canReturnToLobby,
+                    RequestReturnToLobby);
                 locallyPresentedResultKey = resultKey;
             }
 
@@ -107,6 +115,20 @@ namespace Incantation.Networking
             {
                 hasPendingSnapshot = false;
             }
+        }
+
+        public void ResetForLobby()
+        {
+            hasPendingSnapshot = false;
+            pendingSnapshot = default;
+            locallyPresentedResultKey = string.Empty;
+            serverRequestedMovementKey = string.Empty;
+            resultPresenter?.HideResult();
+        }
+
+        private static void RequestReturnToLobby()
+        {
+            NetworkPlayer.LocalPlayer?.RequestReturnToLobby();
         }
 
         private static bool TryResolveWinner(string winnerPlayerId, out NetworkPlayer winner)

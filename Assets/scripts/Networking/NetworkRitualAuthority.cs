@@ -633,6 +633,75 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Returns a completed match to the connected lobby. This clears only match-scoped ritual
+        /// state; connection identity, Circle membership, Seats, names, and appearance remain owned
+        /// by NetworkPlayer.
+        /// </summary>
+        public bool TryResetCompletedRitualToLobby()
+        {
+            if (!IsServerInitialized || ritualPhase.Value != RitualPhase.Completed ||
+                !isGameOver.Value)
+            {
+                return false;
+            }
+
+            if (!TryTransitionPhase(RitualPhase.Inactive))
+                return false;
+
+            activePlayerId.Value = NoActivePlayerId;
+            activeSeatId.Value = NoSeatId;
+            ritualRoster.Clear();
+            rosterRevision.Value++;
+            isGameOver.Value = false;
+            winnerPlayerId.Value = string.Empty;
+            latestRitualOutcome.Value = RitualOutcome.None;
+            failureReason.Value = RitualFailureReason.None;
+            completedRotationCount.Value = 0;
+            phraseWords.Clear();
+            unlockedWordCount.Value = 0;
+            expectedWordIndex.Value = 0;
+
+            ResetAuthoritativeTurnState();
+            requestedBookMovementTurnSequence.Value = 0;
+            requestedBookTargetSeatId.Value = NoSeatId;
+            acceptedBookArrivalMovementSequence.Value = 0;
+            bookArrivalRevision.Value++;
+            timerSequence.Value = 0;
+            acceptedVoiceSubmissionSequence.Value = 0;
+            voiceSubmissionRevision.Value++;
+            validationSequence.Value = 0;
+            validatedMode.Value = validationMode.Value;
+            validationRevision.Value++;
+            turnOutcomeSequence.Value = 0;
+            turnOutcomeRitualSequence.Value = 0;
+            turnOutcomeTurnSequence.Value = 0;
+            turnOutcomePlayerId.Value = string.Empty;
+            turnOutcomeType.Value = TurnOutcomeType.None;
+            turnOutcomeValidationSequence.Value = 0;
+            turnOutcomeTimerSequence.Value = 0;
+            turnOutcomeServerTimestamp.Value = 0d;
+            turnOutcomeRevision.Value++;
+            consequenceSequence.Value = 0;
+            consequenceRitualSequence.Value = 0;
+            consequenceTurnSequence.Value = 0;
+            consequenceOutcomeSequence.Value = 0;
+            consequencePlayerId.Value = string.Empty;
+            consequenceType.Value = RitualConsequenceType.None;
+            consequenceServerTimestamp.Value = 0d;
+            consequenceRevision.Value++;
+            snapshotRevision.Value++;
+
+            Debug.Log(
+                "[PostGameLifecycle]\n" +
+                "Authoritative Return To Lobby Committed\n" +
+                $"RitualSequence = {ritualSequence.Value}\n" +
+                $"GameplayBookMovementSequence = {requestedBookMovementSequence.Value}\n" +
+                "Phase = Inactive",
+                this);
+            return true;
+        }
+
+        /// <summary>
         /// Temporary stable-ID bridge for the legacy ritual flow. The requested Seat is treated
         /// only as an expectation; authoritative traversal selects participants until it reaches
         /// that Seat, then the normal command path decides whether movement may be issued.

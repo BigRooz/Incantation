@@ -83,6 +83,15 @@ public class BookMover : MonoBehaviour
         moveRoutine = StartCoroutine(MoveTo(destination));
     }
 
+    public void StopAuthoritativeMovement()
+    {
+        if (moveRoutine == null)
+            return;
+
+        StopCoroutine(moveRoutine);
+        moveRoutine = null;
+    }
+
     private IEnumerator MoveTo(Transform target)
     {
         Vector3 startPosition = transform.position;
