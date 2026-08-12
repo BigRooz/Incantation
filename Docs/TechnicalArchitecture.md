@@ -260,7 +260,10 @@ name, and appearance, but return to `NotReady`, `LobbyPlayerState.NotSeated`, an
 Seat. Existing synchronized Seat observers free network presentation occupancy; the local owner
 is moved to the configured lobby waiting transform and remote unseated clones remain hidden.
 `NetworkPostGameLifecycleController` reacts to the resulting synchronized Inactive snapshot once
-per completed ritual and coordinates local presentation reset only.
+per completed ritual and coordinates local presentation reset only. Its menu handoff calls
+`BookMenuController.PresentConnectedLobbyAfterMatch`, which restores Book menu presentation and
+always selects the canonical `BookState.Lobby` fresh-seating page for both Host and Client. Host
+management remains a separate Circle Back transition through `ReturnToActiveHostLobby`.
 
 The server's Book reset uses the visible Book pose captured before ritual movement. It cancels
 interpolation and restores the existing Book/NetworkTransform proxy without a

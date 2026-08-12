@@ -512,10 +512,7 @@ public class BookMenuController : MonoBehaviour
             bookTextModeController.ShowMenuTexts();
 
         ReturnToBookMenu();
-        if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
-            bookStateController.ChangePage(BookState.HostMenu);
-        else
-            bookStateController.ChangePage(BookState.Lobby);
+        bookStateController.ChangePage(BookState.Lobby);
     }
 
     public void QuitHostedRitual()

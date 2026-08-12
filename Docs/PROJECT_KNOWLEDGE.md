@@ -213,6 +213,10 @@ a fresh all-alive roster and advances the existing ritual sequence. Ready return
 while PlayerId, Circle membership, PriestName, and appearance persist. REALIGN-007.1 deliberately
 supersedes Seat persistence: every Circle member returns to `SeatId = -1`, `NotReady`, and
 `LobbyPlayerState.NotSeated`, then chooses a Seat again for the next match.
+`BookMenuController.PresentConnectedLobbyAfterMatch` sends every connected Circle member,
+including the Host, to the canonical `BookState.Lobby` page. The Host's existing Circle Back
+action still calls `ReturnToActiveHostLobby` to reach `BookState.HostMenu`; post-game return does
+not bypass the fresh pre-seat Character and Take My Seat flow.
 
 The synchronized unassigned Seat reuses existing observers. `NetworkCharacterPresentation`
 releases its occupied Seat and hides non-owner clones. `LobbyController` moves only the local

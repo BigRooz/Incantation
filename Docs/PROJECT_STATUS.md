@@ -491,7 +491,9 @@ reset now clears every Circle member's Seat, Ready state, and replicated lobby s
 preserving connection, identity, name, appearance, and Circle membership. Existing Seat observers
 release presentation occupancy; each local owner returns to the configured lobby waiting
 position while remote unseated clones remain hidden. Ready and ritual start both require a valid
-Seat assignment. Host/client runtime validation remains required.
+Seat assignment. After that reset, both Host and Client land on the canonical `BookState.Lobby`
+Circle page; the Host reaches `HostMenu` only through the existing Circle Back action. Host/client
+runtime validation remains required.
 
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
@@ -500,4 +502,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after implementing REALIGN-007.1 completed-match Seat reset pending runtime validation.
+2026-08-12 after aligning Host and Client completed-match landing on the fresh Circle lobby page.
