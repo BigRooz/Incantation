@@ -265,6 +265,13 @@ per completed ritual and coordinates local presentation reset only. Its menu han
 always selects the canonical `BookState.Lobby` fresh-seating page for both Host and Client. Host
 management remains a separate Circle Back transition through `ReturnToActiveHostLobby`.
 
+Post-game death teardown restores cached prison and absorption presentation state before lobby
+presentation takes final transform ownership. Since ritual and player SyncVars belong to
+different network objects, their observer callbacks are not used as a transform-order guarantee.
+`LobbyController.ReturnToLobbyPresentation` always finishes by routing the configured local scene
+character through the existing unseated helper to `lobbyWaitingPosition`; remote unseated clones
+remain hidden through `NetworkCharacterPresentation`.
+
 The server's Book reset uses the visible Book pose captured before ritual movement. It cancels
 interpolation and restores the existing Book/NetworkTransform proxy without a
 `RitualBookMovementCommand` or `RitualBookArrivalReport`. Prison restoration combines

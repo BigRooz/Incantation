@@ -505,6 +505,12 @@ SeatManager and BookOrbit Space shortcuts remain available offline but are suppr
 initialized network session; ritual authority also rejects legacy Book requests and participant
 commits before they can repopulate active-player state after `Completed`.
 
+REALIGN-007.5 makes fresh-lobby placement the final local character-root write after completed
+match teardown. Prison and absorption systems still restore their cached presentation state,
+then `LobbyController.ReturnToLobbyPresentation` reuses the canonical local-only unseated helper
+to place the scene character at `lobbyWaitingPosition`. This removes synchronization-order
+dependence for eliminated owners while remote unseated clones remain hidden.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
@@ -512,4 +518,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after restoring game-over mouse UI, tightening death timing, and protecting completed ritual state from legacy Book input.
+2026-08-13 after making canonical fresh-lobby placement final for eliminated local owners.

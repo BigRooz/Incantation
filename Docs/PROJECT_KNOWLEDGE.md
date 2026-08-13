@@ -229,6 +229,13 @@ Death restoration must call both `BookPrisonSpectatorController.ResetSpectatorVi
 captured for Cameras, AudioListeners, and PlayerMovement. Book lobby restoration is a separate
 pose reset and never enters the gameplay movement/arrival pipeline.
 
+Those death resets may restore cached gameplay or pre-prison root transforms during teardown.
+Because ritual and per-player synchronized updates can be observed in either order, fresh lobby
+presentation must make the final local root write. `LobbyController.ReturnToLobbyPresentation`
+therefore finishes through `RestoreUnseatedLobbyPresentation`, which reuses `SeatManager` and the
+configured `lobbyWaitingPosition`. It acts only on `localLobbyPlayer`; remote unseated character
+presentations remain inactive.
+
 ### Network Character Look Pose
 
 `PlayerMovement` remains enabled only for the locally owned presentation and remains the sole

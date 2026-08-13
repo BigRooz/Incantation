@@ -132,6 +132,7 @@ public class LobbyController : MonoBehaviour
         RestoreLocalBookPresentation();
         ShowLobby();
         ApplyLobbyCameraState();
+        RestoreUnseatedLobbyPresentation();
     }
 
     public void PrepareSharedBookPresentation()
