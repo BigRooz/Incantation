@@ -217,7 +217,11 @@ public class PlayerAbsorptionController : MonoBehaviour
             if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
                 continue;
 
-            preservedCameraPoses.Add(new PreservedCameraPose(camera.transform));
+            Transform cameraTransform = camera.transform;
+            if (cameraTransform != activeTarget && !cameraTransform.IsChildOf(activeTarget))
+                continue;
+
+            preservedCameraPoses.Add(new PreservedCameraPose(cameraTransform));
             Debug.Log(
                 "[DeathCamera] Camera Mutation Request\n" +
                 $"Camera = {camera.name}\n" +

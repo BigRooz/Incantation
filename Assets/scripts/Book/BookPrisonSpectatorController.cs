@@ -290,26 +290,32 @@ public class BookPrisonSpectatorController : MonoBehaviour
         Transform destination,
         bool isLocalDeathCameraTarget)
     {
-        Camera[] protectedCameras = !isLocalDeathCameraTarget
+        Camera[] cameraCandidates = !isLocalDeathCameraTarget
             ? FindObjectsByType<Camera>(
                 FindObjectsInactive.Include,
                 FindObjectsSortMode.None)
             : System.Array.Empty<Camera>();
-        Vector3[] positions = new Vector3[protectedCameras.Length];
-        Quaternion[] rotations = new Quaternion[protectedCameras.Length];
-        for (int i = 0; i < protectedCameras.Length; i++)
+        List<Camera> protectedCameras = new List<Camera>();
+        List<Vector3> positions = new List<Vector3>();
+        List<Quaternion> rotations = new List<Quaternion>();
+        for (int i = 0; i < cameraCandidates.Length; i++)
         {
-            Camera camera = protectedCameras[i];
+            Camera camera = cameraCandidates[i];
             if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
                 continue;
 
-            positions[i] = camera.transform.position;
-            rotations[i] = camera.transform.rotation;
+            Transform cameraTransform = camera.transform;
+            if (cameraTransform != player && !cameraTransform.IsChildOf(player))
+                continue;
+
+            protectedCameras.Add(camera);
+            positions.Add(cameraTransform.position);
+            rotations.Add(cameraTransform.rotation);
         }
 
         player.SetPositionAndRotation(destination.position, destination.rotation);
 
-        for (int i = 0; i < protectedCameras.Length; i++)
+        for (int i = 0; i < protectedCameras.Count; i++)
         {
             Camera camera = protectedCameras[i];
             if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)

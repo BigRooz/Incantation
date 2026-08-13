@@ -511,6 +511,11 @@ then `LobbyController.ReturnToLobbyPresentation` reuses the canonical local-only
 to place the scene character at `lobbyWaitingPosition`. This removes synchronization-order
 dependence for eliminated owners while remote unseated clones remain hidden.
 
+REALIGN-007.6 scopes death-presentation camera world-pose preservation to cameras whose Transform
+is the moved eliminated-character root or one of its descendants. Remote absorption and Book
+Prison placement no longer rewrite an unrelated survivor gameplay camera, preventing a stale
+camera-local offset from carrying through Return to Lobby into a later match.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
@@ -518,4 +523,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-13 after making canonical fresh-lobby placement final for eliminated local owners.
+2026-08-13 after scoping death camera pose preservation to the affected character hierarchy.

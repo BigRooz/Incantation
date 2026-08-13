@@ -173,11 +173,12 @@ FishNet connection and clients cannot call a commit path.
   prison camera only when that object reports `IsOwner`. Seat transforms, character-presentation
   hierarchy, host role, and current active Seat are not camera-ownership evidence. Remote peers
   still run the shared prison and aftermath visuals; they only ignore the local camera switch.
-  The gameplay camera is part of the scene character prefab, so its world pose must also be
+  A camera whose Transform is the moved character root or a descendant of it has its world pose
   protected from indirect ancestor movement. During a remote elimination, the absorption and
-  Book Prison root-movement boundaries preserve every active local camera's world position and
-  rotation. The eliminated character still moves, shrinks, disappears, and enters its prison
-  slot on every peer; only locally owned elimination may carry the local viewpoint with it.
+  Book Prison root-movement boundaries preserve only those structurally affected cameras. They
+  never rewrite an unrelated survivor, menu, scene, or Death Camera. The eliminated character
+  still moves, shrinks, disappears, and enters its prison slot on every peer; only locally owned
+  elimination may carry the local viewpoint with it.
 - `BookMover.MoveToSeat` remains the shared offline/network call surface. Offline it executes the
   original interpolation. In a network session it converts the requested `Seat` to a stable ID
   and forwards it to ritual authority as an expectation; it cannot issue a network movement

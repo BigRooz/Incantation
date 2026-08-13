@@ -491,11 +491,11 @@ that presentation chain. Book Prison camera ownership is resolved by exact
 diagnostic only. This keeps shared remote death presentation intact while only the eliminated
 player's client enters its prison camera. Offline rituals retain the original local camera behavior.
 
-Camera ownership applies to indirect transform movement as well as `Camera.enabled`. The active
-gameplay camera comes from the local character prefab. Because absorption and the Book Prison
-handoff move the failed character root, remote elimination presentation snapshots and restores
-active camera world poses at both movement boundaries. This prevents an ancestor transform from
-dragging a survivor's viewpoint while preserving the remote character's physical presentation.
+Camera ownership applies to indirect transform movement as well as `Camera.enabled`. Absorption
+and the Book Prison handoff scope world-pose preservation to cameras on or below the failed
+character root being moved. Unrelated survivor, menu, scene, and Death Cameras are never written.
+This preserves cameras that can actually be dragged by an ancestor without baking a stale local
+offset into another character's active gameplay camera.
 
 After `RitualController.CompleteCurrentFailedPlayerElimination()` runs, `SeatManager` frees the failed Seat and the ritual loop selects the next alive occupied Seat in physical table order.
 
