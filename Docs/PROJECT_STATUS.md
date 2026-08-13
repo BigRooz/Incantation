@@ -495,6 +495,12 @@ Seat assignment. After that reset, both Host and Client land on the canonical `B
 Circle page; the Host reaches `HostMenu` only through the existing Circle Back action. Host/client
 runtime validation remains required.
 
+REALIGN-007.3 preserves relative mouse-look for the local living winner during the game-over
+overlay without restoring ritual participation. Actual Return to Lobby immediately restores the
+owner's cached authored head/neck/spine rotations, clears accumulated look input, and reliably
+buffers neutral network pitch/yaw before lobby disables `PlayerMovement`. Fresh Character preview
+and Match 2 remote presentation therefore cannot inherit Match 1's final procedural pose.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
@@ -502,4 +508,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after aligning Host and Client completed-match landing on the fresh Circle lobby page.
+2026-08-12 after preserving winner look and adding neutral local/network look reset on lobby return.

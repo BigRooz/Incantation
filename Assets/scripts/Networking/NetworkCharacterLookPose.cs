@@ -35,6 +35,7 @@ namespace Incantation.Networking
         private bool hasSubmittedPose;
         private bool hasServerPose;
         private bool hasObserverPose;
+        private bool applyObserverPoseImmediately;
 
         private void Awake()
         {
@@ -94,7 +95,7 @@ namespace Incantation.Networking
             hasSubmittedPose = true;
             nextSendTime = now + 1f / Mathf.Max(1f, sendRate);
             nextHeartbeatTime = now + Mathf.Max(0.1f, heartbeatInterval);
-            SubmitLookPoseServerRpc(localSequence, pitch, yaw, Channel.Unreliable);
+            SubmitLookPoseServerRpc(localSequence, pitch, yaw, false, Channel.Unreliable);
         }
 
         private void LateUpdate()
@@ -107,11 +108,34 @@ namespace Incantation.Networking
             boundPlayerMovement.ApplyLookPose(targetPitch, targetYaw, Time.deltaTime);
         }
 
+        public bool ResetPoseForLobby()
+        {
+            if (!IsOwner || !IsClientInitialized)
+                return false;
+
+            if (boundPlayerMovement == null && characterPresentation != null)
+                BindCharacter(characterPresentation.CharacterInstance);
+
+            if (boundPlayerMovement == null)
+                return false;
+
+            boundPlayerMovement.ResetLookPose(true);
+            localSequence++;
+            lastSubmittedPitch = 0f;
+            lastSubmittedYaw = 0f;
+            hasSubmittedPose = true;
+            nextSendTime = Time.unscaledTime + 1f / Mathf.Max(1f, sendRate);
+            nextHeartbeatTime = Time.unscaledTime + Mathf.Max(0.1f, heartbeatInterval);
+            SubmitLookPoseServerRpc(localSequence, 0f, 0f, true, Channel.Reliable);
+            return true;
+        }
+
         [ServerRpc(RequireOwnership = true)]
         private void SubmitLookPoseServerRpc(
             uint sequence,
             float pitch,
             float yaw,
+            bool immediate,
             Channel channel = Channel.Unreliable)
         {
             if (!IsFinite(pitch) || !IsFinite(yaw) ||
@@ -124,7 +148,7 @@ namespace Incantation.Networking
             hasServerPose = true;
             serverPitch = Mathf.Clamp(pitch, -maxPitch, maxPitch);
             serverYaw = Mathf.Clamp(yaw, -maxYaw, maxYaw);
-            PublishLookPoseObserversRpc(sequence, serverPitch, serverYaw, Channel.Unreliable);
+            PublishLookPoseObserversRpc(sequence, serverPitch, serverYaw, immediate, channel);
         }
 
         [ObserversRpc(ExcludeOwner = true, BufferLast = true)]
@@ -132,6 +156,7 @@ namespace Incantation.Networking
             uint sequence,
             float pitch,
             float yaw,
+            bool immediate,
             Channel channel = Channel.Unreliable)
         {
             if (IsOwner || !IsFinite(pitch) || !IsFinite(yaw) ||
@@ -144,6 +169,10 @@ namespace Incantation.Networking
             hasObserverPose = true;
             targetPitch = Mathf.Clamp(pitch, -maxPitch, maxPitch);
             targetYaw = Mathf.Clamp(yaw, -maxYaw, maxYaw);
+            applyObserverPoseImmediately = immediate;
+
+            if (applyObserverPoseImmediately && boundPlayerMovement != null)
+                boundPlayerMovement.ResetLookPose(true);
         }
 
         private void HandleCharacterInstanceChanged(GameObject characterInstance)
@@ -161,7 +190,11 @@ namespace Incantation.Networking
 
             boundPlayerMovement.EnsureLookPoseInitialized();
             if (!IsOwner)
+            {
                 boundPlayerMovement.enabled = false;
+                if (applyObserverPoseImmediately)
+                    boundPlayerMovement.ResetLookPose(true);
+            }
         }
 
         private static bool IsFinite(float value)

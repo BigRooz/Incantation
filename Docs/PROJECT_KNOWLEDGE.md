@@ -239,6 +239,14 @@ FishNet; the server validates/clamps and buffers the latest observer pose. Remot
 after `NetworkCharacterPresentation` binds or recreates the visual instance. Look state is
 connection-scoped cosmetic presentation, not ritual or alive/dead state.
 
+The local living winner keeps locked relative mouse-look while the game-over overlay is visible;
+the Host's existing Return button is selected for normal UI submit input. Return to Lobby, rather
+than `Completed`, is the neutral-pose boundary. `PlayerMovement.ResetLookPose` clears accumulated
+pitch/yaw and can restore cached authored bone rotations immediately even while disabled.
+`NetworkCharacterLookPose.ResetPoseForLobby` then sends a reliable zero through the existing
+buffered observer RPC before lobby input is disabled, preventing Match 1 pose state from returning
+when hidden remote presentations become visible in Match 2.
+
 ### Local Lobby Versus Shared Ritual Book
 
 There is still one visible scene `BookModel` per process. `NetworkBookAuthority` explicitly leaves

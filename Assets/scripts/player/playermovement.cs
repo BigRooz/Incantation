@@ -86,6 +86,24 @@ public class PlayerMovement : MonoBehaviour
         ApplyBone(spine01, spine01Start, safePitch * spine01Weight, safeYaw * spine01Weight, deltaTime);
     }
 
+    public void ResetLookPose(bool immediate)
+    {
+        EnsureLookPoseInitialized();
+        targetX = 0f;
+        targetY = 0f;
+
+        if (!immediate)
+        {
+            ApplyLookPose(0f, 0f, Time.deltaTime);
+            return;
+        }
+
+        RestoreBoneRotation(head, headStart);
+        RestoreBoneRotation(neck, neckStart);
+        RestoreBoneRotation(spine02, spine02Start);
+        RestoreBoneRotation(spine01, spine01Start);
+    }
+
     private void ApplyBone(
         Transform bone,
         Quaternion startRotation,
@@ -107,5 +125,11 @@ public class PlayerMovement : MonoBehaviour
     private static bool IsFinite(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private static void RestoreBoneRotation(Transform bone, Quaternion baseRotation)
+    {
+        if (bone != null)
+            bone.localRotation = baseRotation;
     }
 }

@@ -1,6 +1,7 @@
 using TMPro;
 using System;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Incantation.UI
@@ -34,11 +35,19 @@ namespace Incantation.UI
                 ? "VICTORY"
                 : $"{GetSafeDisplayName(winnerDisplayName)} WINS";
             resultRoot.SetActive(true);
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            Cursor.lockState = isLocalWinner
+                ? CursorLockMode.Locked
+                : CursorLockMode.None;
+            Cursor.visible = !isLocalWinner;
             returnAction = canReturnToLobby ? onReturnToLobby : null;
             returnButton.interactable = canReturnToLobby;
             returnText.text = canReturnToLobby ? "RETURN TO LOBBY" : "WAITING FOR HOST";
+
+            if (isLocalWinner && canReturnToLobby)
+            {
+                returnButton.Select();
+                EventSystem.current?.SetSelectedGameObject(returnButton.gameObject);
+            }
         }
 
         public void HideResult()

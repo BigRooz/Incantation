@@ -285,7 +285,12 @@ ServerRpc and a buffered observer RPC. `NetworkCharacterPresentation` publishes 
 binding changes so remote clients can apply the same input-free bone formula while their remote
 `PlayerMovement` remains disabled. Look pose is cosmetic connection-scoped state: it is not
 owned by ritual authority and does not stop for elimination, game over, lobby return, or a new
-match.
+match. The local living winner retains locked relative mouse-look during the result overlay while
+the Host's Return button remains selected for UI submit. On actual Return to Lobby,
+`NetworkPostGameLifecycleController` invokes the owner-only look reset after character restoration
+and before lobby input shutdown. That reset restores cached authored rotations immediately and
+uses reliable delivery through the existing buffered look RPC so later observers and Match 2
+presentations begin at neutral pitch/yaw. Normal gameplay look updates remain unreliable.
 
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge

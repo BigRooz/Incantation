@@ -88,6 +88,10 @@ namespace Incantation.Networking
                 presentation.ReapplyCurrentSeatPresentation();
             }
 
+            NetworkPlayer.LocalPlayer?
+                .GetComponent<NetworkCharacterLookPose>()?
+                .ResetPoseForLobby();
+
             FindFirstObjectByType<DeathVisionVignetteController>(
                 FindObjectsInactive.Include)?.ResetVignette();
             FindFirstObjectByType<DemonHandController>(
