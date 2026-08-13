@@ -86,6 +86,13 @@ namespace Incantation.Networking
                     NetworkPlayer.LocalPlayer.IsOwner &&
                     RitualSealService.Instance != null &&
                     RitualSealService.Instance.IsHostingRitual;
+
+                if (isLocalWinner)
+                {
+                    winner.GetComponent<NetworkCharacterLookPose>()?
+                        .NeutralizeLocalPoseForGameOver();
+                }
+
                 resultPresenter?.ShowResult(
                     winner.PriestName,
                     isLocalWinner,

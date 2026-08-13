@@ -1,4 +1,5 @@
 using System.Collections;
+using Incantation.Networking;
 using UnityEngine;
 
 public class BookOrbitAroundTable : MonoBehaviour
@@ -43,11 +44,18 @@ public class BookOrbitAroundTable : MonoBehaviour
     {
         // TEST TEMPORAIRE
         // Appuie sur Espace pour envoyer le livre au joueur suivant
-        if (LocalInputContextGate.AllowsGameplayInput &&
+        if (!IsNetworkRitualSessionActive() &&
+            LocalInputContextGate.AllowsGameplayInput &&
             Input.GetKeyDown(KeyCode.Space))
         {
             MoveToNextSeat();
         }
+    }
+
+    private static bool IsNetworkRitualSessionActive()
+    {
+        NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+        return authority != null && authority.IsNetworkSessionActive;
     }
 
     public void MoveToNextSeat()

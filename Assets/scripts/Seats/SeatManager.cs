@@ -73,7 +73,8 @@ public class SeatManager : MonoBehaviour
     private void Update()
     {
         // TEST : appuie sur ESPACE pour envoyer le livre au prochain joueur occupé
-        if (LocalInputContextGate.AllowsGameplayInput &&
+        if (!IsNetworkRitualSessionActive() &&
+            LocalInputContextGate.AllowsGameplayInput &&
             Input.GetKeyDown(KeyCode.Space))
         {
             MoveBookToNextOccupiedSeat();
@@ -97,6 +98,12 @@ public class SeatManager : MonoBehaviour
             if (seat != null)
                 seats.Add(seat);
         }
+    }
+
+    private static bool IsNetworkRitualSessionActive()
+    {
+        NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
+        return authority != null && authority.IsNetworkSessionActive;
     }
 
     public IReadOnlyList<Seat> GetClockwisePhysicalSeatOrder()

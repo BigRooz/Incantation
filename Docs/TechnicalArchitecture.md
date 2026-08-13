@@ -278,19 +278,25 @@ the listener attached to its configured local gameplay camera, and
 character listeners remain disabled. Saved spectator state may restore components temporarily,
 but the final lobby, ritual, or death presentation always reconciles listener ownership.
 
-`PlayerMovement` remains the owner-local mouse-input source and applies its procedural look pose
-immediately. `NetworkCharacterLookPose`, attached to the persistent per-connection
+`PlayerMovement` remains the owner-local mouse-input source while the cursor is locked and applies
+its procedural look pose immediately. `NetworkCharacterLookPose`, attached to the persistent per-connection
 `NetworkPlayer`, relays only bounded pitch/yaw through an ownership-required unreliable
 ServerRpc and a buffered observer RPC. `NetworkCharacterPresentation` publishes visual-instance
 binding changes so remote clients can apply the same input-free bone formula while their remote
 `PlayerMovement` remains disabled. Look pose is cosmetic connection-scoped state: it is not
-owned by ritual authority and does not stop for elimination, game over, lobby return, or a new
-match. The local living winner retains locked relative mouse-look during the result overlay while
-the Host's Return button remains selected for UI submit. On actual Return to Lobby,
+owned by ritual authority. At game over the local winner is visually neutralized without
+re-enabling input or publishing the lifecycle reset, and the result overlay unlocks the cursor
+while preserving Return-button UI selection. On actual Return to Lobby,
 `NetworkPostGameLifecycleController` invokes the owner-only look reset after character restoration
 and before lobby input shutdown. That reset restores cached authored rotations immediately and
 uses reliable delivery through the existing buffered look RPC so later observers and Match 2
 presentations begin at neutral pitch/yaw. Normal gameplay look updates remain unreliable.
+
+Temporary SeatManager and BookOrbit Space shortcuts are offline-only whenever an initialized
+network session exists. The legacy Book request bridge validates that its current phase may enter
+`BookMoving` before selecting a participant, and participant selection independently rejects
+`Completed`. A rejected legacy request therefore cannot repopulate active player/Seat or advance
+the turn sequence after authoritative game over.
 
 `IncantationManager.incantationLength` remains an offline legacy generation setting: its
 `GenerateIncantation()` method chooses that many unique random words when the offline core bridge

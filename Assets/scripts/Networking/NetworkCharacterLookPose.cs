@@ -130,6 +130,25 @@ namespace Incantation.Networking
             return true;
         }
 
+        /// <summary>
+        /// Settles the locally owned visual for result UI without publishing the reliable,
+        /// buffered lifecycle reset reserved for Return to Lobby.
+        /// </summary>
+        public bool NeutralizeLocalPoseForGameOver()
+        {
+            if (!IsOwner)
+                return false;
+
+            if (boundPlayerMovement == null && characterPresentation != null)
+                BindCharacter(characterPresentation.CharacterInstance);
+
+            if (boundPlayerMovement == null)
+                return false;
+
+            boundPlayerMovement.ResetLookPose(true);
+            return true;
+        }
+
         [ServerRpc(RequireOwnership = true)]
         private void SubmitLookPoseServerRpc(
             uint sequence,

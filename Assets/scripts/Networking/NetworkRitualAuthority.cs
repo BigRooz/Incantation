@@ -444,6 +444,14 @@ namespace Incantation.Networking
                 return false;
             }
 
+            if (ritualPhase.Value == RitualPhase.Completed)
+            {
+                Debug.LogWarning(
+                    "[RitualAuthority] Rejected active participant commit: a completed ritual cannot select another participant.",
+                    this);
+                return false;
+            }
+
             RitualRosterSnapshot roster = CreateRosterSnapshot();
             RitualRosterEntrySnapshot[] entries = roster.Entries;
             if (entries.Length == 0)
@@ -710,6 +718,15 @@ namespace Incantation.Networking
         {
             if (!IsServerInitialized)
                 return RejectBookMovement("A client attempted to forward legacy Book movement.");
+
+            if (ritualPhase.Value != RitualPhase.BookMoving &&
+                !RitualPhaseTransitions.IsLegal(
+                    ritualPhase.Value,
+                    RitualPhase.BookMoving))
+            {
+                return RejectBookMovement(
+                    $"Phase {ritualPhase.Value} cannot accept a legacy Book movement request.");
+            }
 
             if (seatManager == null || seatManager.GetSeatById(requestedSeatId) == null)
                 return RejectBookMovement($"Legacy target Seat ID {requestedSeatId} is invalid.");

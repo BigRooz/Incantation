@@ -444,7 +444,7 @@ Recommended setup:
 - `vignetteCanvasGroup`: assign the full-screen black overlay CanvasGroup.
 - `vignetteRoot`: assign the same full-screen overlay RectTransform.
 - `initialDelayAfterGrab`: `0.0` seconds by default. This lets the vignette begin immediately when the demon hand grab event fires.
-- `absorptionDelayAfterGrab`: `0.25` seconds by default. `Prototype tuning`.
+- `absorptionDelayAfterGrab`: `0.25` seconds in `MainGame` and by default. `Prototype tuning`.
 - `fullBlackDelayAfterGrab`: `0.85` seconds by default. `Prototype tuning`.
 - `totalDuration`: `1.0` second by default. `Prototype tuning`.
 - `opacityCurve`: controls how quickly the black overlay blocks vision.
@@ -484,7 +484,7 @@ Runtime behavior:
 - `RitualFailureAbsorptionBridge` reads the stored failed player from `RitualController.CurrentFailedPlayer` when the grab event fires.
 - If `deathVisionVignetteController` is assigned, the bridge calls `DeathVisionVignetteController.Play()` first. The vignette begins at GrabMoment, then its absorption moment starts `PlayerAbsorptionController.BeginAbsorption(CurrentFailedPlayer)` after `absorptionDelayAfterGrab`.
 - If `deathVisionVignetteController` is missing, the bridge falls back to the previous immediate behavior and calls `PlayerAbsorptionController.BeginAbsorption(CurrentFailedPlayer)` directly at GrabMoment.
-- Default timed sequence: failure starts the demon hand animation, GrabMoment occurs around `2.708` seconds in the demon hand clip, the vignette starts immediately at GrabMoment, absorption begins about `0.25` seconds after GrabMoment, full black occurs about `0.85` seconds after GrabMoment, and the vignette finishes at about `1.0` second after GrabMoment.
+- Current timed sequence: the Attack state's speed multiplier makes GrabMoment occur about `0.45` seconds after the trigger; the vignette starts immediately, absorption begins about `0.25` seconds later, full black occurs about `0.85` seconds after GrabMoment, and the vignette finishes at about `1.0` second after GrabMoment.
 - If no failed player can be resolved, the bridge logs one warning and the failure sequence continues.
 - If the active Seat has no real player Transform, `RitualController` logs: `Cannot absorb failed player because the active seat has no real player Transform assigned.`
 

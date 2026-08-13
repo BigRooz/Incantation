@@ -495,11 +495,15 @@ Seat assignment. After that reset, both Host and Client land on the canonical `B
 Circle page; the Host reaches `HostMenu` only through the existing Circle Back action. Host/client
 runtime validation remains required.
 
-REALIGN-007.3 preserves relative mouse-look for the local living winner during the game-over
-overlay without restoring ritual participation. Actual Return to Lobby immediately restores the
-owner's cached authored head/neck/spine rotations, clears accumulated look input, and reliably
-buffers neutral network pitch/yaw before lobby disables `PlayerMovement`. Fresh Character preview
-and Match 2 remote presentation therefore cannot inherit Match 1's final procedural pose.
+REALIGN-007.4 gives result UI priority at game over. The local winner's procedural look is
+immediately settled to its authored neutral pose, the unlocked visible cursor prevents further
+relative look input, and the Host can use the existing Return button by mouse or UI submit.
+Actual Return to Lobby still performs REALIGN-007.3's separate reliable buffered network-zero
+reset, so fresh Character preview and Match 2 cannot inherit Match 1's final pose. The MainGame
+death vignette now begins absorption `0.25` seconds after the hand's GrabMoment. Temporary
+SeatManager and BookOrbit Space shortcuts remain available offline but are suppressed during an
+initialized network session; ritual authority also rejects legacy Book requests and participant
+commits before they can repopulate active-player state after `Completed`.
 
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
@@ -508,4 +512,4 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-12 after preserving winner look and adding neutral local/network look reset on lobby return.
+2026-08-12 after restoring game-over mouse UI, tightening death timing, and protecting completed ritual state from legacy Book input.

@@ -35,10 +35,8 @@ namespace Incantation.UI
                 ? "VICTORY"
                 : $"{GetSafeDisplayName(winnerDisplayName)} WINS";
             resultRoot.SetActive(true);
-            Cursor.lockState = isLocalWinner
-                ? CursorLockMode.Locked
-                : CursorLockMode.None;
-            Cursor.visible = !isLocalWinner;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
             returnAction = canReturnToLobby ? onReturnToLobby : null;
             returnButton.interactable = canReturnToLobby;
             returnText.text = canReturnToLobby ? "RETURN TO LOBBY" : "WAITING FOR HOST";
