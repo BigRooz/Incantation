@@ -613,6 +613,10 @@ Recommended setup:
 - `sandCurve`: tune the visual fill/drain progression only.
 - `minimumSandHeightFraction`: keep a small non-zero value such as `0.01` to avoid zero-scale
   rendering artifacts. The component caches both sand objects' authored position and scale.
+- `topHorizontalShrinkStart`: recommended `0.20`. TopSand keeps its authored X/Y width at or above
+  this remaining fraction and narrows smoothly only below it.
+- `topMinimumHorizontalScale`: recommended `0.35`. This is the final X/Y fraction of the authored
+  TopSand size at effectively zero remaining sand; it does not affect BottomSand.
 - `resetVisualsOnEnable`: keep `true` when the hourglass should start with full top sand and empty bottom sand.
 
 Notes:
@@ -624,6 +628,8 @@ Notes:
   changes local Z scale, and compensates local position along each Transform's rotated Z axis.
 - The top pile anchors its positive local-Z edge at the neck; the bottom pile anchors its negative
   local-Z edge at the chamber base.
+- Late TopSand narrowing changes only X/Y scale. It does not alter local-Z height, mesh-bounds
+  caching, or vertical anchor compensation.
 - A stream object is visible only while the Timer is running with positive remaining time. It is
   hidden on stop, reset, expiration, disable, and inactive non-expired timer state.
 

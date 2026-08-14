@@ -19,6 +19,14 @@ public class HourglassVisualController : MonoBehaviour
     [SerializeField, Range(0.001f, 0.1f)] private float minimumSandHeightFraction = 0.01f;
     [SerializeField] private bool resetVisualsOnEnable = true;
 
+    [Header("Top Sand Late Narrowing")]
+    [SerializeField, Range(0.01f, 1f)]
+    [Tooltip("Remaining sand fraction where horizontal narrowing begins.")]
+    private float topHorizontalShrinkStart = 0.20f;
+    [SerializeField, Range(0.01f, 1f)]
+    [Tooltip("Final X/Y fraction of the authored TopSand size.")]
+    private float topMinimumHorizontalScale = 0.35f;
+
     private float activeDuration = 1f;
     private Vector3 topSandAuthoredPosition;
     private Vector3 topSandAuthoredScale;
@@ -105,6 +113,8 @@ public class HourglassVisualController : MonoBehaviour
             minimumSandHeightFraction,
             0.001f,
             0.1f);
+        topHorizontalShrinkStart = Mathf.Clamp(topHorizontalShrinkStart, 0.01f, 1f);
+        topMinimumHorizontalScale = Mathf.Clamp(topMinimumHorizontalScale, 0.01f, 1f);
     }
 
     private void SubscribeToTimer()
@@ -169,7 +179,9 @@ public class HourglassVisualController : MonoBehaviour
         if (!hasCachedAuthoredState)
             CacheAuthoredSandState();
 
-        float curvedProgress = Mathf.Clamp01(sandCurve.Evaluate(Mathf.Clamp01(progress)));
+        float clampedProgress = Mathf.Clamp01(progress);
+        float normalizedRemaining = 1f - clampedProgress;
+        float curvedProgress = Mathf.Clamp01(sandCurve.Evaluate(clampedProgress));
         float topAmount = 1f - curvedProgress;
         float bottomAmount = curvedProgress;
 
@@ -179,14 +191,26 @@ public class HourglassVisualController : MonoBehaviour
             topSandAuthoredScale,
             topSandAuthoredHeight,
             topAmount,
-            1f);
+            1f,
+            CalculateTopHorizontalFactor(normalizedRemaining));
         ApplySandHeight(
             bottomSand,
             bottomSandAuthoredPosition,
             bottomSandAuthoredScale,
             bottomSandAuthoredHeight,
             bottomAmount,
-            -1f);
+            -1f,
+            1f);
+    }
+
+    private float CalculateTopHorizontalFactor(float remainingAmount)
+    {
+        if (remainingAmount >= topHorizontalShrinkStart)
+            return 1f;
+
+        float latePhase = Mathf.Clamp01(
+            remainingAmount / Mathf.Max(topHorizontalShrinkStart, MinimumDuration));
+        return Mathf.Lerp(topMinimumHorizontalScale, 1f, latePhase);
     }
 
     private void ApplySandHeight(
@@ -195,7 +219,8 @@ public class HourglassVisualController : MonoBehaviour
         Vector3 authoredScale,
         float authoredHeight,
         float amount,
-        float anchoredEdgeDirection)
+        float anchoredEdgeDirection,
+        float horizontalScaleFactor)
     {
         if (sand == null)
             return;
@@ -205,6 +230,8 @@ public class HourglassVisualController : MonoBehaviour
             1f,
             Mathf.Clamp01(amount));
         Vector3 scale = authoredScale;
+        scale.x = authoredScale.x * horizontalScaleFactor;
+        scale.y = authoredScale.y * horizontalScaleFactor;
         scale.z = authoredScale.z * heightFraction;
         sand.localScale = scale;
 

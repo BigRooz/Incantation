@@ -121,6 +121,9 @@ The current prototype includes:
     preserves authored pile width, changes height along the model's local Z axis, compensates the
     imported pivots to keep the top neck and lower base anchored, and safely supports an optional
     falling-sand object. Non-expired stopped/reset state returns to the ready presentation.
+53. TopSand preserves its authored horizontal footprint through normal depletion, then uses two
+    Inspector controls to narrow X/Y smoothly during the final configurable remaining fraction.
+    BottomSand, local-Z height, vertical anchoring, and timer authority remain unchanged.
 
 ## Ritual Creation
 
@@ -531,5 +534,5 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-13 after improving the physical hourglass sand-level and reset presentation without
-changing timer authority.
+2026-08-13 after adding Inspector-tunable late-stage TopSand horizontal narrowing without changing
+local-Z height, anchoring, BottomSand, or timer authority.

@@ -208,6 +208,8 @@ FishNet connection and clients cannot call a commit path.
   sequence resets the visual duration from the authoritative duration. The hourglass presentation
   keeps each pile's authored horizontal footprint, changes height along the model's local Z axis,
   and compensates position to anchor the upper pile at the neck and the lower pile at its base.
+  TopSand may narrow its authored X/Y footprint only during its configurable late depletion phase;
+  this does not participate in height or anchor calculations and is not applied to BottomSand.
   An optional falling-sand Transform is active only while the Timer is running with time remaining.
   Stopped, reset, and inactive non-expired timer states show the authored ready presentation.
 - `IncantationManager` remains the offline phrase/validation implementation and the network phrase
