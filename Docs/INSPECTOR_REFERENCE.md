@@ -608,16 +608,24 @@ Recommended setup:
 - `hourglassRoot`: optionally assign the root of the hourglass visual object for organization/reference.
 - `topSand`: optionally assign a separate top sand visual Transform.
 - `bottomSand`: optionally assign a separate bottom sand visual Transform.
-- `topSandFullScale`: set to the authored full local scale of the top sand visual.
-- `bottomSandFullScale`: set to the authored full local scale of the bottom sand visual.
+- `fallingSandStream`: optionally assign a narrow stream mesh or other presentation-only child at
+  the hourglass neck. Leave unassigned until such an object is authored; the controller is null-safe.
 - `sandCurve`: tune the visual fill/drain progression only.
+- `minimumSandHeightFraction`: keep a small non-zero value such as `0.01` to avoid zero-scale
+  rendering artifacts. The component caches both sand objects' authored position and scale.
 - `resetVisualsOnEnable`: keep `true` when the hourglass should start with full top sand and empty bottom sand.
 
 Notes:
 
 - This component is visual-only.
 - It reads `Timer` state and timer lifecycle events, but it must not start, stop, reset, or otherwise modify timer gameplay.
-- The existing Sablier mesh does not need to be edited or replaced. Use separate Inspector-assigned sand visual objects when configuring this effect.
+- The current `HourglassPurple` model uses local Z as sand height. `TopSand` is the same mesh as
+  `BottomSand`, rotated 180 degrees around local X. The controller preserves local X/Y scale,
+  changes local Z scale, and compensates local position along each Transform's rotated Z axis.
+- The top pile anchors its positive local-Z edge at the neck; the bottom pile anchors its negative
+  local-Z edge at the chamber base.
+- A stream object is visible only while the Timer is running with positive remaining time. It is
+  hidden on stop, reset, expiration, disable, and inactive non-expired timer state.
 
 ## HourglassWarningAudio
 

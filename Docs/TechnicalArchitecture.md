@@ -205,7 +205,11 @@ FishNet connection and clients cannot call a commit path.
   `Timer` retains the authoritative timer sequence and expired state so a late or re-enabled
   `HourglassVisualController` immediately renders the current state instead of resetting to full.
   An expired snapshot always forces zero remaining time and terminal sand, while a new timer
-  sequence resets the visual duration from the authoritative duration.
+  sequence resets the visual duration from the authoritative duration. The hourglass presentation
+  keeps each pile's authored horizontal footprint, changes height along the model's local Z axis,
+  and compensates position to anchor the upper pile at the neck and the lower pile at its base.
+  An optional falling-sand Transform is active only while the Timer is running with time remaining.
+  Stopped, reset, and inactive non-expired timer states show the authored ready presentation.
 - `IncantationManager` remains the offline phrase/validation implementation and the network phrase
   presentation model. Its local evaluation methods are reached only by offline flow; network
   recognition returns after submitting to `NetworkRitualAuthority`, then applies the immutable

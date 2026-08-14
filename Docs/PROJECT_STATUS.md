@@ -117,6 +117,10 @@ The current prototype includes:
     FishNet's synchronized approximate server tick (`TickType.Tick`) on Host and Client. The
     server remains the sole timer-start and expiration authority; remaining time is still derived
     locally from the synchronized deadline rather than continuously replicated.
+52. Physical hourglass sand presentation derives directly from the existing Timer percentage,
+    preserves authored pile width, changes height along the model's local Z axis, compensates the
+    imported pivots to keep the top neck and lower base anchored, and safely supports an optional
+    falling-sand object. Non-expired stopped/reset state returns to the ready presentation.
 
 ## Ritual Creation
 
@@ -527,5 +531,5 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-13 after correcting authoritative ritual timer reconstruction to use FishNet's
-synchronized approximate server tick on every peer.
+2026-08-13 after improving the physical hourglass sand-level and reset presentation without
+changing timer authority.
