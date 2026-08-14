@@ -46,12 +46,16 @@ public class LobbyController : MonoBehaviour
     private readonly Dictionary<MonoBehaviour, bool> originalGameplayInputEnabledStates = new Dictionary<MonoBehaviour, bool>();
     private bool hasLoggedMissingPlayerCamera;
     private bool hasLoggedMissingMenuCameraTransition;
+    private Vector3 initialLocalCharacterPosition;
+    private Quaternion initialLocalCharacterRotation;
+    private bool initialLocalCharacterPoseCaptured;
 
     public LocalGameState CurrentState { get; private set; } = LocalGameState.Lobby;
 
     private void Awake()
     {
         ResolveReferences();
+        CaptureInitialLocalCharacterPose();
 
         if (createLobbyUiIfMissing)
             EnsureLobbyUi();
@@ -171,6 +175,42 @@ public class LobbyController : MonoBehaviour
             seatManager.SetLobbySeatSelectionEnabled(false);
     }
 
+    public bool TryLeaveCircleSeatingPresentation()
+    {
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null || !localPlayer.RequestLeaveCircleSeating())
+        {
+            Debug.LogWarning(
+                $"{nameof(LobbyController)} could not request the authoritative Circle seating reset.",
+                this);
+            return false;
+        }
+
+        RestoreInitialMenuPresentation();
+        return true;
+    }
+
+    public void RestoreInitialMenuPresentation()
+    {
+        EndSeatSelection();
+
+        if (lobbyPlayerStateController != null)
+            lobbyPlayerStateController.TryLeaveSeat();
+
+        RestoreInitialLocalCharacterPresentation();
+    }
+
+    public void RestoreInitialLocalCharacterPresentation()
+    {
+        if (!initialLocalCharacterPoseCaptured || localLobbyPlayer == null)
+            return;
+
+        localLobbyPlayer.SetActive(true);
+        localLobbyPlayer.transform.SetPositionAndRotation(
+            initialLocalCharacterPosition,
+            initialLocalCharacterRotation);
+    }
+
     public bool TrySelectLobbySeat(Seat seat)
     {
         if (CurrentState != LocalGameState.Lobby)
@@ -264,6 +304,16 @@ public class LobbyController : MonoBehaviour
     {
         if (seatManager != null)
             seatManager.SetLocalLobbyPlayer(localLobbyPlayer);
+    }
+
+    private void CaptureInitialLocalCharacterPose()
+    {
+        if (initialLocalCharacterPoseCaptured || localLobbyPlayer == null)
+            return;
+
+        initialLocalCharacterPosition = localLobbyPlayer.transform.position;
+        initialLocalCharacterRotation = localLobbyPlayer.transform.rotation;
+        initialLocalCharacterPoseCaptured = true;
     }
 
     private void ApplyLobbyCameraState()

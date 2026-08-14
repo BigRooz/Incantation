@@ -397,6 +397,46 @@ namespace Incantation.Networking
         }
 
         /// <summary>
+        /// Requests that the owning Circle member leave its current seating participation while
+        /// remaining connected to the hosted Ritual. The server atomically normalizes the lobby
+        /// lifecycle state, Ready state, and authoritative Seat assignment.
+        /// </summary>
+        public bool RequestLeaveCircleSeating()
+        {
+            if (!IsOwner || !IsCircleMember)
+            {
+                return false;
+            }
+
+            if (IsServerInitialized)
+            {
+                return TryLeaveCircleSeating();
+            }
+
+            RequestLeaveCircleSeatingServerRpc();
+            return true;
+        }
+
+        [ServerRpc]
+        private void RequestLeaveCircleSeatingServerRpc()
+        {
+            TryLeaveCircleSeating();
+        }
+
+        private bool TryLeaveCircleSeating()
+        {
+            if (!CanMutateReplicatedState() || !isCircleMember.Value)
+            {
+                return false;
+            }
+
+            readyState.Value = ReadyState.NotReady;
+            lobbyPlayerState.Value = LobbyPlayerState.NotSeated;
+            seatId.Value = UnassignedSeatId;
+            return true;
+        }
+
+        /// <summary>
         /// Requests that the server toggle the owning Circle member's authoritative Ready state.
         /// No local prediction or direct client mutation is performed.
         /// </summary>

@@ -502,6 +502,10 @@ public class BookMenuController : MonoBehaviour
     {
         if (RitualSealService.Instance != null && RitualSealService.Instance.IsHostingRitual)
         {
+            if (lobbyController == null || !lobbyController.TryLeaveCircleSeatingPresentation())
+                return;
+
+            ReturnToBookMenu();
             bookStateController.ChangePage(BookState.HostMenu);
         }
     }
@@ -518,13 +522,19 @@ public class BookMenuController : MonoBehaviour
     public void QuitHostedRitual()
     {
         RitualSealService service = RitualSealService.Instance;
-        if (service == null || !service.QuitHostedRitual())
+        if (service == null)
         {
             Debug.LogWarning("The hosted ritual could not be stopped.", this);
             return;
         }
 
-        lobbyController?.EndSeatSelection();
+        lobbyController?.RestoreInitialMenuPresentation();
+        if (!service.QuitHostedRitual())
+        {
+            Debug.LogWarning("The hosted ritual could not be stopped.", this);
+            return;
+        }
+
         ReturnToBookMenu();
     }
 
@@ -533,6 +543,7 @@ public class BookMenuController : MonoBehaviour
         RitualSealService service = RitualSealService.Instance;
         if (service == null)
         {
+            lobbyController?.RestoreInitialMenuPresentation();
             ReturnToBookMenu();
             bookStateController.ChangePage(BookState.PlayMenu);
             return;
@@ -546,6 +557,7 @@ public class BookMenuController : MonoBehaviour
 
         if (service.JoinStatus == RitualJoinStatus.Joined)
         {
+            lobbyController?.RestoreInitialMenuPresentation();
             if (!service.LeaveJoinedRitual())
             {
                 if (!service.IsLeavingJoinedRitual)
@@ -556,12 +568,12 @@ public class BookMenuController : MonoBehaviour
                 return;
             }
 
-            lobbyController?.EndSeatSelection();
             ReturnToBookMenu();
             bookStateController.ChangePage(BookState.PlayMenu);
             return;
         }
 
+        lobbyController?.RestoreInitialMenuPresentation();
         ReturnToBookMenu();
         bookStateController.ChangePage(BookState.PlayMenu);
     }

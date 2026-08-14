@@ -527,6 +527,13 @@ is the moved eliminated-character root or one of its descendants. Remote absorpt
 Prison placement no longer rewrite an unrelated survivor gameplay camera, preventing a stale
 camera-local offset from carrying through Return to Lobby into a later match.
 
+LOBBY-002 separates full Circle/Ritual exit presentation from completed-match lobby return.
+`LobbyController` captures the local scene character's authored startup position and rotation
+before any Seat placement. Host Circle Back now requests a server-authoritative NotReady,
+NotSeated, unassigned-Seat reset while preserving the hosted Ritual, and Host/Client full Quit
+restores the surviving local scene character before network teardown. Completed-match return
+continues to use the distinct `lobbyWaitingPosition`; remote unseated clones remain hidden.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
