@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using FishNet.Connection;
+using FishNet.Managing.Timing;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
@@ -2671,7 +2672,7 @@ namespace Incantation.Networking
             if (!IsNetworkSessionActive || TimeManager == null)
                 return 0d;
 
-            return TimeManager.TicksToTime();
+            return TimeManager.TicksToTime(TickType.Tick);
         }
 
         private NetworkBookAuthority ResolveBookAuthority()

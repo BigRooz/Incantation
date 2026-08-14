@@ -113,6 +113,10 @@ The current prototype includes:
 50. A minimum server-driven network turn and phrase lifecycle: one-word initialization, physical
     roster traversal, Book arrival and timer gating, active-owner voice submission, authoritative
     validation, success advancement, and exactly one phrase word added per completed rotation.
+51. Authoritative ritual timer deadlines and remaining-time reconstruction explicitly use
+    FishNet's synchronized approximate server tick (`TickType.Tick`) on Host and Client. The
+    server remains the sole timer-start and expiration authority; remaining time is still derived
+    locally from the synchronized deadline rather than continuously replicated.
 
 ## Ritual Creation
 
@@ -523,4 +527,5 @@ read `NetworkPlayer`.
 
 ## Last Reviewed
 
-2026-08-13 after scoping death camera pose preservation to the affected character hierarchy.
+2026-08-13 after correcting authoritative ritual timer reconstruction to use FishNet's
+synchronized approximate server tick on every peer.

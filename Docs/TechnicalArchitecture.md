@@ -199,7 +199,9 @@ FishNet connection and clients cannot call a commit path.
 - `HourglassController` and `Timer` remain necessary because the existing scene, UI, audio, and
   UnityEvents consume them. Their local countdown is enabled only offline. Network sessions apply
   authoritative snapshots and never compute gameplay expiration. FishNet's synchronized
-  `TimeManager.TicksToTime()` clock is used against the authoritative deadline on every peer.
+  approximate server clock, `TimeManager.TicksToTime(TickType.Tick)`, is used explicitly for
+  authoritative deadline creation, reconstruction, and expiration on every peer. The default
+  `LocalTick` domain must not be used because its origin is local to each process.
   `Timer` retains the authoritative timer sequence and expired state so a late or re-enabled
   `HourglassVisualController` immediately renders the current state instead of resetting to full.
   An expired snapshot always forces zero remaining time and terminal sand, while a new timer
