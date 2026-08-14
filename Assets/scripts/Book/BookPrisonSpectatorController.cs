@@ -37,6 +37,7 @@ public class BookPrisonSpectatorController : MonoBehaviour
     [SerializeField] private UnityEvent onSpectatorStarted;
 
     private readonly List<PlayerSpectatorState> playerStates = new List<PlayerSpectatorState>();
+    private GhostLifecycleController ghostLifecycleController;
 
     public void SendPlayerToBookPrison(Transform player)
     {
@@ -106,6 +107,14 @@ public class BookPrisonSpectatorController : MonoBehaviour
         if (deactivateTablePlayerModel)
             player.gameObject.SetActive(false);
 
+        if (isLocalDeathCameraTarget)
+        {
+            ResolveGhostLifecycleController()?.BeginGhostPresentation(
+                player.gameObject,
+                slot.spawnPoint,
+                slot.spectatorCamera);
+        }
+
         onSpectatorStarted?.Invoke();
     }
 
@@ -149,6 +158,8 @@ public class BookPrisonSpectatorController : MonoBehaviour
 
     public void ResetSpectatorView()
     {
+        ResolveGhostLifecycleController()?.ResetGhostPresentation();
+
         if (prisonSlots != null)
         {
             for (int i = 0; i < prisonSlots.Length; i++)
@@ -161,6 +172,17 @@ public class BookPrisonSpectatorController : MonoBehaviour
         DeactivateAllSlotCameras();
         RestorePlayerStates();
         playerStates.Clear();
+    }
+
+    private GhostLifecycleController ResolveGhostLifecycleController()
+    {
+        if (ghostLifecycleController == null)
+        {
+            ghostLifecycleController = FindFirstObjectByType<GhostLifecycleController>(
+                FindObjectsInactive.Include);
+        }
+
+        return ghostLifecycleController;
     }
 
     private BookPrisonSlot GetFirstOpenSlot()

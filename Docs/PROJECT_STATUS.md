@@ -534,6 +534,15 @@ NotSeated, unassigned-Seat reset while preserving the hosted Ritual, and Host/Cl
 restores the surviving local scene character before network teardown. Completed-match return
 continues to use the distinct `lobbyWaitingPosition`; remote unseated clones remain hidden.
 
+DEATH-001A adds the first local playable Ghost presentation without changing authoritative
+elimination. After the existing absorption, aftermath, and Book Prison transition, the locally
+eliminated priest is hidden and the saved `GhostModel` presentation activates at the selected
+prison slot. Focused horizontal floating movement, bounds clamping, body yaw, and an immediate
+first-person viewpoint through the selected Death Camera provide local exploration. Book Prison
+reset disables the Ghost and restores
+the normal character for the existing Return-to-Lobby and Match-2 lifecycle. Ghost networking and
+dead/alive voice routing remain explicitly deferred.
+
 Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
 multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
 sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
