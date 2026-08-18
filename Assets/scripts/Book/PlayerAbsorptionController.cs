@@ -34,14 +34,11 @@ public class PlayerAbsorptionController : MonoBehaviour
 
     private Coroutine absorptionRoutine;
     private Transform activeTarget;
-    private Vector3 originalPosition;
-    private Quaternion originalRotation;
-    private Vector3 originalScale;
-    private bool originalActiveState;
-    private bool hasStoredOriginalState;
+    private AbsorbedTargetState activeTargetState;
     private bool hasLoggedNullTargetWarning;
     private bool hasLoggedMissingAbsorptionTargetWarning;
     private bool isAbsorbing;
+    private readonly Dictionary<Transform, AbsorbedTargetState> savedTargetStates = new();
     private readonly List<PreservedCameraPose> preservedCameraPoses = new();
 
     public void BeginAbsorption(GameObject target)
@@ -88,15 +85,15 @@ public class PlayerAbsorptionController : MonoBehaviour
 
         isAbsorbing = false;
 
-        if (!hasStoredOriginalState || activeTarget == null)
-            return;
-
-        activeTarget.position = originalPosition;
-        activeTarget.rotation = originalRotation;
-        activeTarget.localScale = originalScale;
-        activeTarget.gameObject.SetActive(originalActiveState);
         RestorePreservedCameraPoses();
         preservedCameraPoses.Clear();
+
+        foreach (AbsorbedTargetState savedState in savedTargetStates.Values)
+            savedState.Restore();
+
+        savedTargetStates.Clear();
+        activeTarget = null;
+        activeTargetState = default;
     }
 
     /// <summary>
@@ -105,22 +102,21 @@ public class PlayerAbsorptionController : MonoBehaviour
     /// </summary>
     public bool TryRestoreAbsorbedTargetForPresentation(Transform target)
     {
-        if (!hasStoredOriginalState || activeTarget == null || target != activeTarget)
+        if (target == null || !savedTargetStates.TryGetValue(target, out AbsorbedTargetState savedState))
             return false;
 
-        activeTarget.gameObject.SetActive(originalActiveState);
-        activeTarget.localScale = originalScale;
-        return originalActiveState;
+        savedState.RestorePresentationState();
+        return savedState.OriginalActiveState;
     }
 
     private void StoreOriginalState(Transform target)
     {
         activeTarget = target;
-        originalPosition = target.position;
-        originalRotation = target.rotation;
-        originalScale = target.localScale;
-        originalActiveState = target.gameObject.activeSelf;
-        hasStoredOriginalState = true;
+        if (!savedTargetStates.TryGetValue(target, out activeTargetState))
+        {
+            activeTargetState = new AbsorbedTargetState(target);
+            savedTargetStates.Add(target, activeTargetState);
+        }
     }
 
     private IEnumerator RunAbsorption()
@@ -134,11 +130,11 @@ public class PlayerAbsorptionController : MonoBehaviour
         Debug.Log(
             $"{nameof(PlayerAbsorptionController)} absorption diagnostics start\n" +
             $"Target: {(activeTarget != null ? activeTarget.name : "null")}\n" +
-            $"Target start position: {originalPosition}\n" +
+            $"Target start position: {activeTargetState.OriginalPosition}\n" +
             $"Absorption target: {(absorptionTarget != null ? absorptionTarget.name : "null")}\n" +
             $"Absorption target position: {targetPosition}\n" +
-            $"Distance: {Vector3.Distance(originalPosition, targetPosition)}\n" +
-            $"Target start scale: {originalScale}\n" +
+            $"Distance: {Vector3.Distance(activeTargetState.OriginalPosition, targetPosition)}\n" +
+            $"Target start scale: {activeTargetState.OriginalScale}\n" +
             $"Target final intended scale: {Vector3.zero}\n" +
             $"Absorption duration: {safeDuration}",
             this);
@@ -168,7 +164,7 @@ public class PlayerAbsorptionController : MonoBehaviour
         if (activeTarget != null)
         {
             if (!shouldHidePlayer)
-                activeTarget.localScale = originalScale;
+                activeTarget.localScale = activeTargetState.OriginalScale;
 
             if (shouldDeactivatePlayer)
                 activeTarget.gameObject.SetActive(false);
@@ -196,9 +192,15 @@ public class PlayerAbsorptionController : MonoBehaviour
         float movementAmount = EvaluateCurve(movementCurve, normalizedTime);
         float scaleAmount = EvaluateCurve(scaleCurve, normalizedTime);
 
-        activeTarget.position = Vector3.LerpUnclamped(originalPosition, targetPosition, movementAmount);
-        activeTarget.rotation = Quaternion.SlerpUnclamped(originalRotation, targetRotation, movementAmount);
-        activeTarget.localScale = originalScale * scaleAmount;
+        activeTarget.position = Vector3.LerpUnclamped(
+            activeTargetState.OriginalPosition,
+            targetPosition,
+            movementAmount);
+        activeTarget.rotation = Quaternion.SlerpUnclamped(
+            activeTargetState.OriginalRotation,
+            targetRotation,
+            movementAmount);
+        activeTarget.localScale = activeTargetState.OriginalScale * scaleAmount;
         RestorePreservedCameraPoses();
     }
 
@@ -271,12 +273,50 @@ public class PlayerAbsorptionController : MonoBehaviour
         }
     }
 
+    private readonly struct AbsorbedTargetState
+    {
+        private readonly Transform target;
+
+        public AbsorbedTargetState(Transform target)
+        {
+            this.target = target;
+            OriginalPosition = target.position;
+            OriginalRotation = target.rotation;
+            OriginalScale = target.localScale;
+            OriginalActiveState = target.gameObject.activeSelf;
+        }
+
+        public Vector3 OriginalPosition { get; }
+        public Quaternion OriginalRotation { get; }
+        public Vector3 OriginalScale { get; }
+        public bool OriginalActiveState { get; }
+
+        public void Restore()
+        {
+            if (target == null)
+                return;
+
+            target.position = OriginalPosition;
+            target.rotation = OriginalRotation;
+            RestorePresentationState();
+        }
+
+        public void RestorePresentationState()
+        {
+            if (target == null)
+                return;
+
+            target.localScale = OriginalScale;
+            target.gameObject.SetActive(OriginalActiveState);
+        }
+    }
+
     private Quaternion GetAbsorptionRotation(Vector3 targetPosition)
     {
-        Vector3 directionToTarget = targetPosition - originalPosition;
+        Vector3 directionToTarget = targetPosition - activeTargetState.OriginalPosition;
 
         if (directionToTarget.sqrMagnitude <= 0.0001f)
-            return originalRotation;
+            return activeTargetState.OriginalRotation;
 
         return Quaternion.LookRotation(directionToTarget.normalized, Vector3.up);
     }
