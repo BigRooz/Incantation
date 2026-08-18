@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using FishNet.Component.Transforming;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
@@ -323,14 +324,37 @@ namespace Incantation.Networking
                 return false;
             }
 
+            IReadOnlyList<Seat> physicalSeatOrder = GetPhysicalSeatOrder(
+                resolvedSeatManager);
+            Seat previousSeat = resolvedSeatManager.currentBookSeat;
+            bool inferredInitialSeat = previousSeat == null &&
+                TryResolvePhysicalStartSeat(
+                    presentationTransform != null
+                        ? presentationTransform.position
+                        : transform.position,
+                    physicalSeatOrder,
+                    out previousSeat);
             targetSeatId.Value = command.TargetSeatId;
             movementSequence.Value = command.MovementSequence;
             isMoving.Value = true;
             activeMovementCommand = command;
             hasActiveMovementCommand = true;
             resolvedSeatManager.SetCurrentBookSeat(targetSeat);
-            bookMover.MoveToSeatAuthoritatively(targetSeat);
-            StartCoroutine(CompleteMovementAfterDuration(command.MovementSequence));
+            List<Seat> route = BuildPhysicalSeatRoute(
+                previousSeat,
+                targetSeat,
+                physicalSeatOrder);
+            if (inferredInitialSeat && route.Count > 0)
+                route.Insert(0, previousSeat);
+            Action completion = () => CompleteRitualMovement(command.MovementSequence);
+            if (route.Count == 0 ||
+                !bookMover.MoveAlongSeatRouteAuthoritatively(
+                    route,
+                    physicalSeatOrder,
+                    completion))
+            {
+                bookMover.MoveToSeatAuthoritatively(targetSeat, completion);
+            }
             return true;
         }
 
@@ -525,18 +549,129 @@ namespace Incantation.Networking
             return ritualAuthority;
         }
 
-        private IEnumerator CompleteMovementAfterDuration(uint expectedSequence)
+        private IReadOnlyList<Seat> GetPhysicalSeatOrder(SeatManager resolvedSeatManager)
         {
-            float duration = Mathf.Max(0f, bookMover.moveDuration);
-            if (duration > 0f)
-                yield return new WaitForSeconds(duration);
+            NetworkRitualAuthority resolvedRitualAuthority = ResolveRitualAuthority();
+            RitualTraversalDirection direction = resolvedRitualAuthority != null
+                ? resolvedRitualAuthority.Snapshot.TraversalDirection
+                : RitualTraversalDirection.Clockwise;
+            SeatTraversalDirection seatDirection =
+                direction == RitualTraversalDirection.Clockwise
+                    ? SeatTraversalDirection.Clockwise
+                    : SeatTraversalDirection.CounterClockwise;
+            return resolvedSeatManager.GetPhysicalSeats(seatDirection);
+        }
+
+        private static List<Seat> BuildPhysicalSeatRoute(
+            Seat previousSeat,
+            Seat targetSeat,
+            IReadOnlyList<Seat> orderedSeats)
+        {
+            List<Seat> route = new();
+            if (previousSeat == null || targetSeat == null ||
+                orderedSeats == null || orderedSeats.Count == 0)
+            {
+                return route;
+            }
+
+            int previousIndex = IndexOfSeat(orderedSeats, previousSeat);
+            int targetIndex = IndexOfSeat(orderedSeats, targetSeat);
+            if (previousIndex < 0 || targetIndex < 0 || previousIndex == targetIndex)
+                return route;
+
+            for (int offset = 1; offset <= orderedSeats.Count; offset++)
+            {
+                Seat waypoint = orderedSeats[(previousIndex + offset) % orderedSeats.Count];
+                route.Add(waypoint);
+                if (waypoint == targetSeat)
+                    return route;
+            }
+
+            route.Clear();
+            return route;
+        }
+
+        private static bool TryResolvePhysicalStartSeat(
+            Vector3 bookPosition,
+            IReadOnlyList<Seat> orderedSeats,
+            out Seat resolvedSeat)
+        {
+            resolvedSeat = null;
+            if (orderedSeats == null || orderedSeats.Count < 2)
+                return false;
+
+            float adjacentDistanceTotal = 0f;
+            int adjacentSegmentCount = 0;
+            float closestDistance = float.PositiveInfinity;
+            Vector2 bookTablePosition = new(bookPosition.x, bookPosition.z);
+
+            for (int index = 0; index < orderedSeats.Count; index++)
+            {
+                Seat seat = orderedSeats[index];
+                Seat nextSeat = orderedSeats[(index + 1) % orderedSeats.Count];
+                Transform destination = seat != null ? seat.GetBookDestination() : null;
+                Transform nextDestination = nextSeat != null
+                    ? nextSeat.GetBookDestination()
+                    : null;
+                if (destination == null)
+                    continue;
+
+                Vector2 destinationTablePosition = new(
+                    destination.position.x,
+                    destination.position.z);
+                float distance = Vector2.Distance(
+                    bookTablePosition,
+                    destinationTablePosition);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    resolvedSeat = seat;
+                }
+
+                if (nextDestination == null)
+                    continue;
+
+                adjacentDistanceTotal += Vector2.Distance(
+                    destinationTablePosition,
+                    new Vector2(nextDestination.position.x, nextDestination.position.z));
+                adjacentSegmentCount++;
+            }
+
+            if (resolvedSeat == null || adjacentSegmentCount == 0)
+            {
+                resolvedSeat = null;
+                return false;
+            }
+
+            float averageAdjacentDistance = adjacentDistanceTotal / adjacentSegmentCount;
+            bool isNearPhysicalSeat = averageAdjacentDistance > Mathf.Epsilon &&
+                closestDistance <= averageAdjacentDistance * 0.5f;
+            if (!isNearPhysicalSeat)
+                resolvedSeat = null;
+
+            return isNearPhysicalSeat;
+        }
+
+        private static int IndexOfSeat(IReadOnlyList<Seat> seats, Seat target)
+        {
+            for (int index = 0; index < seats.Count; index++)
+            {
+                if (seats[index] == target)
+                    return index;
+            }
+
+            return -1;
+        }
+
+        private void CompleteRitualMovement(uint expectedSequence)
+        {
 
             if (!IsServerInitialized ||
                 movementSequence.Value != expectedSequence ||
                 !hasActiveMovementCommand ||
                 activeMovementCommand.MovementSequence != expectedSequence)
             {
-                yield break;
+                return;
             }
 
             RitualBookMovementCommand completedCommand = activeMovementCommand;

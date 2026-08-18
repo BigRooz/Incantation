@@ -58,6 +58,29 @@ The book must not follow player join order or network player index.
 
 Do not put gameplay authority on visual-only book references.
 
+## Network Movement Boundary
+
+`NetworkRitualAuthority` selects only the final active, alive participant and owns turn,
+rotation, phrase, and timer rules. `NetworkBookAuthority` converts that semantic destination
+into presentation movement for the one shared Book.
+
+Authoritative ritual movement captures the Book's previous physical Seat and walks
+`SeatManager`'s complete configured physical Seat order in the synchronized ritual traversal
+direction until it reaches the final living target. Dead or empty Seats may be intermediate
+presentation waypoints, but they never become destinations, turns, arrivals, or timer starts.
+For the first movement of a ritual, lobby and post-game lifecycle intentionally leave no current
+Book Seat. If the restored authored Book pose lies within half one average adjacent-Seat distance
+of a configured Book destination in the table plane, presentation resolves that nearest Seat as
+the physical route origin. This does not create a participant, gameplay destination, or arrival;
+an unresolved or non-perimeter pose retains direct movement as the fallback.
+
+`BookMover` executes the ordered Seat destinations as one continuous route. Total travel time is
+scaled from route distance so the configured `moveDuration` remains approximately the duration
+of one adjacent Seat step. It reports completion once, at the final destination;
+`NetworkBookAuthority` produces the one ritual arrival report only from that completion. Replaced
+or cancelled movement cannot report stale completion. Direct movement remains the fallback when
+no physical Seat route is available, including initial, lobby, and offline-compatible paths.
+
 ## Design Direction
 
 The book should feel alive and theatrical.
