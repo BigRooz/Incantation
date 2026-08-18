@@ -12282,7 +12282,7 @@ MonoBehaviour:
   attackTriggerName: Attack
   resetTriggerName: Reset
   hideOnAwake: 1
-  deactivateWhenIdle: 0
+  deactivateWhenIdle: 1
   fallbackSequenceDuration: 4
   playOnStartForDebug: 0
   onSequenceStarted:
