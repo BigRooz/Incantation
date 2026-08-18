@@ -39,6 +39,7 @@ public sealed class GhostLifecycleController : MonoBehaviour
         hiddenPriest = localPriest;
         gameObject.SetActive(true);
         ghostCameraController.BeginFollowing(transform, deathCamera);
+        LocalInputContextGate.RestoreGameplay();
         ghostMovement.BeginGhostControl(
             prisonSpawn.position,
             prisonSpawn.rotation,
