@@ -24,6 +24,7 @@ public sealed class SpellDefinition : ScriptableObject
     [SerializeField] private GameObject visualPrefab;
 
     public string StableIdentifier => stableIdentifier;
+    public string DefinitionId => NormalizeDefinitionId(stableIdentifier);
     public string DisplayName => displayName;
     public string SpokenIncantation => spokenIncantation;
     public string Description => description;
@@ -32,6 +33,11 @@ public sealed class SpellDefinition : ScriptableObject
     public AudioClip AudioClip => audioClip;
     public GameObject VisualPrefab => visualPrefab;
     public Color GlowColor => overrideRarityGlowColor ? rarityGlowColor : GetDefaultGlowColor(rarity);
+
+    public static string NormalizeDefinitionId(string value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant();
+    }
 
     /// <summary>Returns the presentation-only default color for a rarity.</summary>
     public static Color GetDefaultGlowColor(SpellRarity spellRarity)

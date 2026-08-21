@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Incantation.Networking.Spells;
 
 public class NotebookInput : MonoBehaviour
 {
@@ -30,6 +31,9 @@ public class NotebookInput : MonoBehaviour
             return;
 
         if (ignoreInputWhenUiSelected && EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+            return;
+
+        if (NetworkSpellHand.IsLocalSpellToggleReserved)
             return;
 
         if (Input.GetKeyDown(toggleKey))

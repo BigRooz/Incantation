@@ -1202,6 +1202,11 @@ Add one `SpellHand` child beneath each authored Player that needs the local pres
 - `visibleOnAwake`, `openOnAwake`: leave disabled for lobby-first setup; invoke the public presentation methods explicitly later.
 - `enableDebugInput`: enables temporary `H` visibility, `E` open/close, `1`/`2`/`3` selection, and `Space` consume controls. Disable when production input owns these calls.
 
+In a network session, `NetworkSpellHand` disables this debug-input flag on every claimed local or
+remote character presentation. The owning network component exclusively handles E and numeric
+selection; Space never mutates the authoritative hand. Offline Editor/Development presentation
+testing may still use the authored debug controls.
+
 Create card data through `Assets > Create > Incantation > Spell Definition`:
 
 - `stableIdentifier`: enter a durable lowercase identifier such as `petit_fantome`; keep it separate from the asset filename and display name.
@@ -1231,7 +1236,27 @@ On each `SpellCardView`:
 
 The approved card names do not all have finalized spoken incantations, so no production `SpellDefinition` assets are created automatically by this task. Designers can create and assign definitions after approving their text.
 
-This foundation and its definition data must remain independent from `RitualController`, `BookMover`, `IncantationManager`, `Timer`, `SeatManager`, spell effects, voice activation, inventory, drawing, and networking.
+The physical presentation and definition data remain independent from `RitualController`,
+`BookMover`, `IncantationManager`, `Timer`, `SeatManager`, spell effects, and voice activation.
+`SpellHandController` accepts resolved slot data from the focused network adapter but never owns
+inventory truth or network mutation.
+
+## NetworkSpellHand
+
+The `NetworkPlayer` prefab carries one `NetworkSpellHand`.
+
+- `definitionPool`: currently contains the single unique prototype `Ghost` definition. Multiple
+  authoritative instances may share that definition; no no-duplicate rule exists yet.
+- Every pool entry requires a non-empty `SpellDefinition.stableIdentifier`. Runtime identity uses
+  its trimmed lowercase `DefinitionId`; duplicate IDs are ignored.
+- Hand capacity is code-owned at three. Do not add a second Inspector capacity value.
+- Full hand contents, ritual/turn correlation, used-this-turn state, and revision synchronize
+  owner-only and remain server-write-only.
+- The component finds the existing `SpellHandController` through its sibling
+  `NetworkCharacterPresentation.CharacterInstance`; no additional card UI or character prefab is
+  required.
+- The Book lock reads the existing authoritative active-player ID, not visual distance.
+- No casting, consumption, voice, target, effect, or Timer reference belongs on this component.
 
 ## Audio
 

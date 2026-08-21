@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 3781592462154277632}
   - component: {fileID: 7224091738461035961}
   - component: {fileID: 8073719212205013301}
+  - component: {fileID: 6934201071248039102}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -163,3 +164,20 @@ MonoBehaviour:
   yawChangeThreshold: 0.25
   heartbeatInterval: 0.75
   maximumWorldMagnitude: 1000
+--- !u!114 &6934201071248039102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4931004709519202203}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f0e6e526a734c9b839e3342f3fce50b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 1550624151087068695}
+  _networkObjectCache: {fileID: 0}
+  definitionPool:
+  - {fileID: 11400000, guid: ef742005014e6724ebd8f5e38836f19a, type: 2}

@@ -427,6 +427,19 @@ replacing canonical `IGNIS`. Both MainGame ritual libraries and the Whisper prom
 retained pronunciation aliases (`ignis`, `igneous`, `ignice`, `inice`, `inis`, `enis`) to `INIS`.
 The separate `Ignis Corvus` spell entry is unchanged and is not part of ritual phrase selection.
 
+SPELLS-NET-002 establishes authoritative spell-hand ownership without enabling spell casting.
+Every active player starts a new ritual sequence with three server-assigned card instances. On
+that player's later authoritative turns the server grants exactly one card only when the hand is
+below the maximum of three, and the same turn sequence cannot refill twice. The private hand and
+`SpellUsedThisTurn` state synchronize owner-only. The existing physical card hand remains local
+presentation; E raises or lowers it until the authoritative physical Book arrival is accepted for
+that player and turn, which automatically closes and locks it. The Solo Development Build flow is
+runtime validated: cards can rise during Book travel, accepted arrival closes them and releases the
+Spell Hand input context, and ritual voice continues normally. Eliminated players cannot refill or
+interact, and return to lobby clears Match 1 state before Match 2 initialization. Spell phrases,
+consumption, targeting, effects, buffs/debuffs, Timer changes, and casting voice recognition remain
+deferred. Host/client owner-only replication and multiplayer lifecycle validation remain pending.
+
 Successful authority waits for the bounded sequential replay, commits the existing success consequence and Book pulse, then advances the turn after the pulse lead. The server remains the only writer of success, phrase growth, participant advancement, and Book movement. Windows keyword recognition remains available through its unchanged separate path.
 
 Do not reintroduce Unity Dictation or Azure.

@@ -5,6 +5,7 @@
 public enum LocalInputContext
 {
     Gameplay,
+    SpellHand,
     BookInteraction,
     TextEntry
 }
@@ -18,6 +19,7 @@ public static class LocalInputContextGate
     public static LocalInputContext Current { get; private set; } = LocalInputContext.Gameplay;
     public static bool AllowsGameplayInput => Current == LocalInputContext.Gameplay;
     public static bool IsBookInteractionActive => Current == LocalInputContext.BookInteraction;
+    public static bool IsSpellHandActive => Current == LocalInputContext.SpellHand;
     public static bool IsTextEntryActive => Current == LocalInputContext.TextEntry;
     public static bool IsBookInputCaptured =>
         Current == LocalInputContext.BookInteraction ||

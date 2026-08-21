@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -58,6 +59,7 @@ public sealed class SpellHandController : MonoBehaviour
 
     private bool isVisible;
     private bool isOpen;
+    private bool interactionAllowed = true;
     private int selectedIndex = -1;
 
     public bool IsVisible => isVisible;
@@ -81,6 +83,7 @@ public sealed class SpellHandController : MonoBehaviour
 
     private void Update()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (!enableDebugInput || !LocalInputContextGate.AllowsGameplayInput)
             return;
 
@@ -109,6 +112,50 @@ public sealed class SpellHandController : MonoBehaviour
 
         if (Input.GetKeyDown(consumeKey))
             ConsumeSelectedCard();
+#endif
+    }
+
+    public void SetDebugInputEnabled(bool enabled)
+    {
+        enableDebugInput = enabled;
+    }
+
+    public void SetInteractionAllowed(bool allowed)
+    {
+        interactionAllowed = allowed;
+        if (!interactionAllowed && isOpen)
+            CloseHand();
+    }
+
+    /// <summary>
+    /// Applies private authoritative slot contents without changing any gameplay state.
+    /// Empty slots are hidden and occupied slots return to their authored table poses.
+    /// </summary>
+    public void ApplyAuthoritativeHand(IReadOnlyList<SpellDefinition> slots)
+    {
+        ClearSelectedCardPresentation();
+        isOpen = false;
+        selectedIndex = -1;
+        isVisible = false;
+
+        for (int index = 0; index < CardCount; index++)
+        {
+            StopCardAnimation(index);
+            SpellDefinition definition = slots != null && index < slots.Count
+                ? slots[index]
+                : null;
+            if (!HasCard(index))
+                continue;
+
+            cardViews[index].SetDefinition(definition);
+            SnapCardToTable(index);
+            bool occupied = definition != null;
+            cardViews[index].SetVisible(occupied);
+            cardStates[index] = occupied
+                ? CardVisualState.OnTable
+                : CardVisualState.Hidden;
+            isVisible |= occupied;
+        }
     }
 
     /// <summary>Enables every non-consumed card and returns hidden cards to the table state.</summary>
@@ -120,7 +167,7 @@ public sealed class SpellHandController : MonoBehaviour
 
         for (int index = 0; index < CardCount; index++)
         {
-            if (!HasCard(index) || cardStates[index] == CardVisualState.Consumed)
+            if (!CanPresentCard(index))
                 continue;
 
             StopCardAnimation(index);
@@ -157,6 +204,9 @@ public sealed class SpellHandController : MonoBehaviour
     /// <summary>Animates all available cards from their current poses to the raised fan.</summary>
     public void OpenHand()
     {
+        if (!interactionAllowed)
+            return;
+
         ClearSelectedCardPresentation();
 
         if (!isVisible)
@@ -373,7 +423,8 @@ public sealed class SpellHandController : MonoBehaviour
 
     private bool CanPresentCard(int index)
     {
-        return HasCard(index) && cardStates[index] != CardVisualState.Consumed;
+        return HasCard(index) && cardViews[index].CurrentDefinition != null &&
+            cardStates[index] != CardVisualState.Consumed;
     }
 
     private bool HasCard(int index)

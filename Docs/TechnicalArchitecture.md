@@ -69,6 +69,21 @@ Alive-to-Ghost, Ghost-to-Alive, and Ghost-to-Ghost visibility are all intentiona
 return clears Ghost presentation before normal character Seat presentation is reapplied. Voice
 routing remains independent future DEATH-002 work.
 
+`NetworkSpellHand` is a narrow server-owned inventory attached to the same persistent player
+identity. Its only lifecycle input is the read-only `NetworkRitualAuthority.Snapshot`: ritual
+sequence starts a fresh match hand, the existing authoritative player-turn sequence owns
+refill/reset idempotence, the roster owns alive eligibility, and `ActivePlayerId` owns the Book
+lock. It never chooses a Seat, moves the Book, changes a Timer, validates voice, eliminates a
+player, or resolves a spell.
+
+Each private `SpellCardInstance` carries a monotonically allocated instance ID and normalized
+`SpellDefinition` ID. The owner-only synchronized list contains no Unity object references. The
+owner maps IDs back to the serialized definition pool and sends a three-slot presentation contract
+to `SpellHandController`; empty slots remain hidden and animation stays local. The local spell
+input context reserves E during an active living hand, so `NotebookInput` yields instead of also
+toggling. When the active-player ID becomes the local player, the Book lock closes raised cards
+and prevents reopening. Remote character copies have their Spell Hand debug input disabled.
+
 `LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 
 The current v0.1 prototype includes:

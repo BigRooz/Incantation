@@ -106,6 +106,20 @@ to the active Host Book page and preserves the session.
 state currently includes Circle membership, Priest Name, Lobby Player State, Ready State, Seat
 ID, and High Priest.
 
+SPELLS-NET-002 adds one `NetworkSpellHand` beside that identity. Its
+`SyncList<SpellCardInstance>` and hand lifecycle fields use FishNet owner-only read permission,
+while all mutation remains server-only. `NetworkSpellHand` observes the existing ritual sequence,
+player-turn sequence, active-player ID, phase, and roster alive state; it does not write ritual
+state or introduce a second round counter. A new ritual sequence clears old instances and
+initializes three cards for each active participant. A player's newly observed turn sequence
+resets `SpellUsedThisTurn` and grants at most one card only when the hand contains fewer than
+three. Re-observing the same turn cannot refill twice.
+
+The owning client resolves synchronized definition IDs through the prefab's serialized
+`SpellDefinition` pool and adapts them into the existing physical `SpellHandController`. Other
+clients receive no detailed private hand list. No spell-cast RPC, consumption request, targeting,
+effect, Timer mutation, or voice submission is part of this boundary.
+
 Future systems should use `NetworkPlayer` as the authoritative multiplayer source whenever possible. Avoid creating duplicated lobby state outside `NetworkPlayer`; presentation components should observe or adapt its state instead of becoming competing authorities.
 
 NET-042.5 makes the existing `NetworkPlayer.ReadyState` SyncVar the only multiplayer Ready
