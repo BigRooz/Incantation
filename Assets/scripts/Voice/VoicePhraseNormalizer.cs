@@ -27,6 +27,58 @@ public class VoicePhraseNormalizer : MonoBehaviour
         return Normalize(phrase);
     }
 
+    /// <summary>
+    /// Converts one complete transcript into an ordered ritual attempt using
+    /// exact serialized accepted forms only. Unknown tokens remain in place.
+    /// </summary>
+    public bool TryBankCompleteAttempt(
+        string transcript,
+        out string bankedAttempt,
+        out string failureReason)
+    {
+        bankedAttempt = string.Empty;
+        failureReason = string.Empty;
+
+        List<string> tokens = TokenizeTextualWords(transcript);
+        if (tokens.Count == 0)
+        {
+            failureReason = "NO_TEXTUAL_WORDS";
+            return false;
+        }
+
+        RebuildAliasLookup();
+        List<string> orderedAttempt = new List<string>(tokens.Count);
+        foreach (string token in tokens)
+        {
+            if (aliasLookup.TryGetValue(token, out string canonicalWord) &&
+                !string.IsNullOrWhiteSpace(canonicalWord))
+            {
+                orderedAttempt.Add(canonicalWord.ToUpperInvariant());
+            }
+            else
+            {
+                // Preserve unresolved positions for authoritative failed-index
+                // validation. Never guess or silently discard a spoken token.
+                orderedAttempt.Add(token.ToUpperInvariant());
+            }
+        }
+
+        bankedAttempt = string.Join(" ", orderedAttempt);
+        return true;
+    }
+
+    public bool TryResolveExactRitualToken(string token, out string canonicalWord)
+    {
+        canonicalWord = string.Empty;
+        string normalizedToken = CleanPhrase(token);
+        if (string.IsNullOrEmpty(normalizedToken) || normalizedToken.IndexOf(' ') >= 0)
+            return false;
+
+        RebuildAliasLookup();
+        return aliasLookup.TryGetValue(normalizedToken, out canonicalWord) &&
+            !string.IsNullOrEmpty(canonicalWord);
+    }
+
     private void RebuildAliasLookup()
     {
         aliasLookup.Clear();
@@ -148,6 +200,39 @@ public class VoicePhraseNormalizer : MonoBehaviour
         }
 
         return string.Join(" ", normalizedTokens);
+    }
+
+    private List<string> TokenizeTextualWords(string transcript)
+    {
+        List<string> tokens = new List<string>();
+        if (string.IsNullOrWhiteSpace(transcript))
+            return tokens;
+
+        StringBuilder tokenBuilder = new StringBuilder();
+        foreach (char character in transcript)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                tokenBuilder.Append(char.ToLowerInvariant(character));
+                continue;
+            }
+
+            FlushTextualToken(tokenBuilder, tokens);
+        }
+
+        FlushTextualToken(tokenBuilder, tokens);
+        return tokens;
+    }
+
+    private void FlushTextualToken(
+        StringBuilder tokenBuilder,
+        List<string> tokens)
+    {
+        if (tokenBuilder.Length == 0)
+            return;
+
+        tokens.Add(tokenBuilder.ToString());
+        tokenBuilder.Clear();
     }
 
     private string BuildTokenPhrase(string[] tokens, int startIndex, int tokenCount)

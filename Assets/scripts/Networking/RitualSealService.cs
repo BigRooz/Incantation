@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -34,6 +35,7 @@ namespace Incantation.Networking
 
         private UdpClient directorySocket;
         private FishNetFoundationController foundationController;
+        private SteamRitualLobbyDirectory steamLobbyDirectory;
         private string pendingJoinSeal = string.Empty;
         private float nextAnnouncementTime;
         private float joinDeadline;
@@ -42,6 +44,8 @@ namespace Incantation.Networking
         private bool hostCreationPending;
         private bool sealReplacementPending;
         private bool clientLeavePending;
+        private bool disconnectHostOnSteamCreationFailure;
+        private bool invitedLobbyJoinPending;
         private float sealReplacementDeadline;
         private string pendingReplacementSeal = string.Empty;
         private readonly Dictionary<string, LanRitualAdvertisement> knownLanRitualsByHost = new();
@@ -63,7 +67,7 @@ namespace Incantation.Networking
         public string ActiveSeal { get; private set; } = string.Empty;
         public string StatusMessage { get; private set; } = string.Empty;
         public bool HasActiveRitual => !string.IsNullOrEmpty(ActiveSeal);
-        public bool IsJoining => !string.IsNullOrEmpty(pendingJoinSeal);
+        public bool IsJoining => !string.IsNullOrEmpty(pendingJoinSeal) || invitedLobbyJoinPending;
         public bool IsHostingRitual => HasActiveRitual && foundationController != null && foundationController.IsHostRunning;
         public bool IsCreatingRitual => hostCreationPending;
         public bool IsReplacingSeal => sealReplacementPending;
@@ -77,7 +81,11 @@ namespace Incantation.Networking
         {
             Instance = this;
             foundationController = GetComponent<FishNetFoundationController>();
-            OpenDirectorySocket();
+            steamLobbyDirectory = GetComponent<SteamRitualLobbyDirectory>();
+            if (!IsSteamMode)
+            {
+                OpenDirectorySocket();
+            }
         }
 
         private void OnEnable()
@@ -87,6 +95,14 @@ namespace Incantation.Networking
                 foundationController.StateChanged += HandleFoundationStateChanged;
                 foundationController.SceneSynchronizationStarted += HandleSceneSynchronizationStarted;
                 foundationController.SceneSynchronizationCompleted += HandleSceneSynchronizationCompleted;
+            }
+
+            if (steamLobbyDirectory != null)
+            {
+                steamLobbyDirectory.HostedLobbyReady += HandleSteamHostedLobbyReady;
+                steamLobbyDirectory.JoinedLobbyReady += HandleSteamJoinedLobbyReady;
+                steamLobbyDirectory.InvitedLobbyJoinRequested += HandleInvitedLobbyJoinRequested;
+                steamLobbyDirectory.OperationFailed += HandleSteamLobbyOperationFailed;
             }
 
             NetworkPlayer.LocalPlayerCreated += HandleLocalPlayerCreated;
@@ -102,6 +118,14 @@ namespace Incantation.Networking
                 foundationController.SceneSynchronizationCompleted -= HandleSceneSynchronizationCompleted;
             }
 
+            if (steamLobbyDirectory != null)
+            {
+                steamLobbyDirectory.HostedLobbyReady -= HandleSteamHostedLobbyReady;
+                steamLobbyDirectory.JoinedLobbyReady -= HandleSteamJoinedLobbyReady;
+                steamLobbyDirectory.InvitedLobbyJoinRequested -= HandleInvitedLobbyJoinRequested;
+                steamLobbyDirectory.OperationFailed -= HandleSteamLobbyOperationFailed;
+            }
+
             NetworkPlayer.LocalPlayerCreated -= HandleLocalPlayerCreated;
             NetworkPlayer.ActivePlayerRemoved -= HandleNetworkPlayerRemoved;
         }
@@ -110,7 +134,7 @@ namespace Incantation.Networking
         {
             ReceiveDirectoryMessages();
 
-            if (HasActiveRitual && foundationController != null && foundationController.IsHostRunning &&
+            if (!IsSteamMode && HasActiveRitual && foundationController != null && foundationController.IsHostRunning &&
                 Time.unscaledTime >= nextAnnouncementTime)
             {
                 BroadcastAvailability();
@@ -119,6 +143,11 @@ namespace Incantation.Networking
 
             if (joinAttemptActive && Time.unscaledTime >= joinDeadline)
             {
+                if (IsSteamMode)
+                {
+                    steamLobbyDirectory?.CancelPendingOperation();
+                }
+
                 if (endpointResolved)
                 {
                     Debug.LogWarning("Ritual join timed out before the local NetworkPlayer was created.", this);
@@ -164,23 +193,42 @@ namespace Incantation.Networking
                 return false;
             }
 
-            if (!foundationController.IsHostRunning &&
-                (!foundationController.TrySelectAvailableHostPort() || !foundationController.StartHost()))
+            if (IsSteamMode && !CanUseSteamLobbyDirectory())
             {
+                SetStatus("Steam is unavailable.");
+                return false;
+            }
+
+            bool hostWasRunning = foundationController.IsHostRunning;
+            hostCreationPending = true;
+            disconnectHostOnSteamCreationFailure = IsSteamMode && !hostWasRunning;
+            bool hostStartAccepted = hostWasRunning ||
+                                     (IsSteamMode
+                                         ? foundationController.StartHost()
+                                         : foundationController.TrySelectAvailableHostPort() &&
+                                           foundationController.StartHost());
+            if (!hostStartAccepted)
+            {
+                hostCreationPending = false;
+                disconnectHostOnSteamCreationFailure = false;
                 SetStatus("The ritual could not be created.");
                 return false;
             }
 
-            ActiveSeal = GenerateSeal();
             pendingJoinSeal = string.Empty;
-            hostCreationPending = !foundationController.IsHostRunning;
-            SetStatus(foundationController.IsHostRunning
-                ? "Waiting for other mages..."
-                : "Creating ritual...");
+            invitedLobbyJoinPending = false;
+            SetStatus("Creating ritual...");
 
             if (foundationController.IsHostRunning)
             {
-                Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+                if (IsSteamMode)
+                {
+                    BeginSteamLobbyCreation();
+                }
+                else
+                {
+                    CompleteLanHostCreation();
+                }
             }
 
             return true;
@@ -195,11 +243,23 @@ namespace Incantation.Networking
 
             if (IsHostingRitual)
             {
-                Broadcast($"WITHDRAW|{instanceId}");
+                if (IsSteamMode)
+                {
+                    steamLobbyDirectory?.CloseHostedLobby();
+                }
+                else
+                {
+                    Broadcast($"WITHDRAW|{instanceId}");
+                }
+            }
+            else if (IsSteamMode)
+            {
+                steamLobbyDirectory?.LeaveActiveLobby();
             }
 
             ActiveSeal = string.Empty;
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             hostCreationPending = false;
@@ -208,6 +268,7 @@ namespace Incantation.Networking
             JoinStatus = RitualJoinStatus.None;
             JoinFailureReason = string.Empty;
             StatusMessage = string.Empty;
+            disconnectHostOnSteamCreationFailure = false;
 
             bool disconnectRequested = foundationController.Disconnect();
             Changed?.Invoke();
@@ -223,7 +284,12 @@ namespace Incantation.Networking
             }
 
             clientLeavePending = true;
+            if (IsSteamMode)
+            {
+                steamLobbyDirectory?.LeaveActiveLobby();
+            }
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             ActiveSeal = string.Empty;
@@ -259,16 +325,63 @@ namespace Incantation.Networking
             pendingJoinSeal = normalizedSeal;
             joinAttemptActive = true;
             endpointResolved = false;
-            joinDeadline = Time.unscaledTime + directoryLookupTimeout;
+            joinDeadline = Time.unscaledTime +
+                           (IsSteamMode && steamLobbyDirectory != null
+                               ? steamLobbyDirectory.OperationTimeout
+                               : directoryLookupTimeout);
             SetJoinStatus(RitualJoinStatus.Joining);
-            Debug.Log($"Ritual Seal directory lookup started for {pendingJoinSeal}.", this);
-            Broadcast($"QUERY|{pendingJoinSeal}");
+            if (IsSteamMode)
+            {
+                if (!CanUseSteamLobbyDirectory() || !steamLobbyDirectory.BeginJoinLobby(pendingJoinSeal))
+                {
+                    FailJoin("Steam is unavailable");
+                    return false;
+                }
+
+                Debug.Log($"Steam Ritual Lobby search started for Seal {pendingJoinSeal}.", this);
+            }
+            else
+            {
+                Debug.Log($"Ritual Seal directory lookup started for {pendingJoinSeal}.", this);
+                Broadcast($"QUERY|{pendingJoinSeal}");
+            }
+            return true;
+        }
+
+        public bool RequestSteamInvite()
+        {
+            if (!IsSteamMode)
+            {
+                SetStatus("Steam invitations require Steam mode.");
+                return false;
+            }
+
+            if (!CanUseSteamLobbyDirectory())
+            {
+                SetStatus("Steam is unavailable.");
+                return false;
+            }
+
+            if (!IsHostingRitual)
+            {
+                SetStatus("Only the Ritual Host can invite a Priest.");
+                return false;
+            }
+
+            if (!steamLobbyDirectory.OpenHostedLobbyInviteOverlay(out string failureReason))
+            {
+                SetStatus(failureReason);
+                return false;
+            }
+
+            Debug.Log("Steam Ritual Lobby invitation overlay requested.", this);
             return true;
         }
 
         public void BeginJoinEntry()
         {
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             SetJoinStatus(RitualJoinStatus.Waiting);
@@ -276,7 +389,13 @@ namespace Incantation.Networking
 
         public void CancelJoin()
         {
+            if (IsSteamMode)
+            {
+                steamLobbyDirectory?.CancelPendingOperation();
+            }
+
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             JoinStatus = RitualJoinStatus.None;
@@ -306,6 +425,12 @@ namespace Incantation.Networking
             if (!IsHostingRitual)
             {
                 SetStatus("Seal service unavailable");
+                return false;
+            }
+
+            if (IsSteamMode)
+            {
+                SetStatus("Seal editing is unavailable for Steam Rituals");
                 return false;
             }
 
@@ -549,9 +674,17 @@ namespace Incantation.Networking
             {
                 if (foundationController.IsHostRunning)
                 {
-                    hostCreationPending = false;
-                    SetStatus("Waiting for other mages...");
-                    Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+                    if (IsSteamMode)
+                    {
+                        if (steamLobbyDirectory != null && !steamLobbyDirectory.IsCreating)
+                        {
+                            BeginSteamLobbyCreation();
+                        }
+                    }
+                    else
+                    {
+                        CompleteLanHostCreation();
+                    }
                 }
                 else if (!foundationController.CanDisconnect ||
                          (!foundationController.IsClientConnecting &&
@@ -626,6 +759,7 @@ namespace Incantation.Networking
             }
 
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             SetJoinStatus(RitualJoinStatus.Joined);
@@ -647,11 +781,164 @@ namespace Incantation.Networking
 
         private void FailJoin(string reason)
         {
+            if (IsSteamMode)
+            {
+                steamLobbyDirectory?.LeaveActiveLobby();
+            }
+
             pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
             joinAttemptActive = false;
             endpointResolved = false;
             ActiveSeal = string.Empty;
             SetJoinStatus(RitualJoinStatus.CantJoin, reason);
+        }
+
+        private bool IsSteamMode =>
+            SteamSpikeTransportSelector.SelectedMode == SteamSpikeTransportMode.SteamSpike;
+
+        private bool CanUseSteamLobbyDirectory()
+        {
+            return steamLobbyDirectory != null &&
+                   SteamPlatformBootstrap.Instance != null &&
+                   SteamPlatformBootstrap.Instance.IsInitialized;
+        }
+
+        private void BeginSteamLobbyCreation()
+        {
+            if (steamLobbyDirectory != null && steamLobbyDirectory.BeginCreateLobby(GenerateSeal))
+            {
+                return;
+            }
+
+            FailSteamHostCreation("Steam could not create the Ritual lobby.");
+        }
+
+        private void CompleteLanHostCreation()
+        {
+            ActiveSeal = GenerateSeal();
+            hostCreationPending = false;
+            SetStatus("Waiting for other mages...");
+            Broadcast($"ANNOUNCE|{ActiveSeal}|{foundationController.Port}|{instanceId}");
+        }
+
+        private void HandleSteamHostedLobbyReady(string seal)
+        {
+            if (!hostCreationPending || !foundationController.IsHostRunning)
+            {
+                steamLobbyDirectory?.LeaveActiveLobby();
+                return;
+            }
+
+            ActiveSeal = NormalizeSeal(seal);
+            hostCreationPending = false;
+            disconnectHostOnSteamCreationFailure = false;
+            SetStatus("Waiting for other mages...");
+            Debug.Log($"Steam Ritual Lobby created for Seal {ActiveSeal}.", this);
+        }
+
+        private void HandleSteamJoinedLobbyReady(string lobbySeal, ulong hostSteamId64)
+        {
+            if (!joinAttemptActive || !IsJoining || hostSteamId64 == 0)
+            {
+                steamLobbyDirectory?.LeaveActiveLobby();
+                return;
+            }
+
+            string joinedSeal = NormalizeSeal(lobbySeal);
+            if (joinedSeal.Length != 4)
+            {
+                FailJoin("Ritual invitation is invalid");
+                return;
+            }
+
+            pendingJoinSeal = string.Empty;
+            invitedLobbyJoinPending = false;
+            endpointResolved = true;
+            joinDeadline = Time.unscaledTime + connectionAttemptTimeout;
+            string hostAddress = hostSteamId64.ToString(CultureInfo.InvariantCulture);
+            Debug.Log($"Steam Ritual Lobby resolved Seal {joinedSeal} to its Host SteamID64.", this);
+
+            if (foundationController.IsClientConnected || foundationController.IsClientConnecting)
+            {
+                FailJoin("Connection rejected");
+            }
+            else if (foundationController.StartClient(hostAddress))
+            {
+                ActiveSeal = joinedSeal;
+                SetJoinStatus(RitualJoinStatus.Joining);
+            }
+            else
+            {
+                FailJoin("Connection rejected");
+            }
+        }
+
+        private void HandleInvitedLobbyJoinRequested(ulong lobbyId)
+        {
+            if (!CanAcceptSteamInvitation())
+            {
+                const string reason = "Leave the current Ritual before accepting another invitation.";
+                Debug.LogWarning(reason, this);
+                SetStatus(reason);
+                return;
+            }
+
+            invitedLobbyJoinPending = true;
+            joinAttemptActive = true;
+            endpointResolved = false;
+            joinDeadline = Time.unscaledTime + steamLobbyDirectory.OperationTimeout;
+            SetJoinStatus(RitualJoinStatus.Joining);
+
+            if (!steamLobbyDirectory.BeginJoinInvitedLobby(lobbyId))
+            {
+                FailJoin("Steam invitation could not be joined");
+                return;
+            }
+
+            Debug.Log("Accepted Steam invitation is joining its Ritual Lobby.", this);
+        }
+
+        private bool CanAcceptSteamInvitation()
+        {
+            return IsSteamMode &&
+                   CanUseSteamLobbyDirectory() &&
+                   foundationController != null &&
+                   !foundationController.CanDisconnect &&
+                   !IsHostingRitual &&
+                   !IsCreatingRitual &&
+                   !joinAttemptActive &&
+                   !IsJoining &&
+                   !clientLeavePending &&
+                   JoinStatus != RitualJoinStatus.Joining &&
+                   JoinStatus != RitualJoinStatus.Joined;
+        }
+
+        private void HandleSteamLobbyOperationFailed(string reason)
+        {
+            if (hostCreationPending)
+            {
+                FailSteamHostCreation(reason);
+            }
+            else if (joinAttemptActive)
+            {
+                FailJoin(reason);
+            }
+        }
+
+        private void FailSteamHostCreation(string reason)
+        {
+            steamLobbyDirectory?.LeaveActiveLobby();
+            ActiveSeal = string.Empty;
+            hostCreationPending = false;
+            bool shouldDisconnect = disconnectHostOnSteamCreationFailure;
+            disconnectHostOnSteamCreationFailure = false;
+            if (shouldDisconnect && foundationController != null && foundationController.CanDisconnect)
+            {
+                foundationController.Disconnect();
+            }
+
+            SetStatus(reason);
         }
     }
 }

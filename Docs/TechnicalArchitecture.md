@@ -56,6 +56,19 @@ disconnects. `Seat.currentPlayer` and `Seat.isOccupied` remain only as backward-
 offline/debug and runtime visual bindings. They must not be used as a second network
 occupancy authority.
 
+`NetworkGhostPresentation` is another one-to-one presentation observer on that same persistent
+`NetworkPlayer`; it does not create a second player identity or dead-state authority. The existing
+`NetworkRitualAuthority` roster remains the sole synchronized alive/eliminated truth. The owner may
+publish Ghost readiness only for its own NetworkPlayer at the existing timeout consequence/Book
+Prison presentation barrier, and may publish pose only after the roster marks that player dead.
+Each process reuses the authored Ghost for its local owner and instantiates the committed
+`GhostModel` for every remote eliminated player. Only world position and body yaw travel at the
+configured lightweight pose cadence; remote instances interpolate and never enable movement,
+Camera, or AudioListener components. No observer condition hides Ghosts from living players, so
+Alive-to-Ghost, Ghost-to-Alive, and Ghost-to-Ghost visibility are all intentional. Completed-match
+return clears Ghost presentation before normal character Seat presentation is reapplied. Voice
+routing remains independent future DEATH-002 work.
+
 `LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 
 The current v0.1 prototype includes:
@@ -364,6 +377,24 @@ The project currently supports two validation modes:
 
 Whisper remains available for full-phrase or experimental recognition paths and should not be removed, but it should not be forced as the only validation path.
 
+MainGame Whisper sessions are local input sessions correlated with the authoritative ritual sequence, turn sequence, and active local player. `NetworkRitualAuthority` remains the sole judge. The local recognizer discards canceled or stale inference results before submission, and temporarily suspends/restores the active local character's `VoiceAmplitudeProvider` so two Unity microphone captures do not compete during ritual recording.
+
+`WhisperVoiceRecognizer` is one Sandbox-style production path. The scene's single `WhisperManager` preloads first. Each eligible local turn then performs one `MicrophoneRecord.StartRecord()`, observes speech only to find `0.8` seconds of trailing silence, receives one complete `OnRecordStop` `AudioChunk`, and passes that same buffer once to `WhisperManager.GetTextAsync()`. Its read-only `ListeningGlow` value is `1` while that VAD reports speech and otherwise equals the remaining fraction of the same trailing-silence window; it introduces no second timer. It owns no streaming fragments, word-level candidates, or recognition during recording. Only minimal session, ritual, turn, and player identity survive to reject stale asynchronous results.
+
+`RitualController` banks the complete transcript through `VoicePhraseNormalizer.TryBankCompleteAttempt` and calls the owning `NetworkPlayer.RequestCompleteWhisperRitualAttempt` exactly once. Banking is an exact dictionary lookup built from `IncantationWordLibrary`: canonical spellings and serialized accepted forms map to canonical uppercase words, while unresolved textual tokens are retained uppercase at the same index. It contains no fuzzy, phonetic, confidence, fragment, syllable, or nearest-word logic. `NetworkRitualAuthority` performs sender, participant, sequence, phase, timer, and phrase guards and evaluates the ordered attempt once with full-phrase rules. No word is accepted locally or over the network while the player is speaking.
+
+The display has one deliberately local input: `RitualController` passes whether this process owns the current active reciter while the phase permits submission. That flag never changes progress or correctness. Accepted and rejected replay events remain replicated-authority presentation. Rejection is a stable deep-crimson failed word with no text or Book movement.
+
+Authoritative phrase-state application synchronizes phrase words, expected progress, and completion flags without owning transient verdict cleanup. Duplicate or changed timer/snapshot revisions therefore cannot cancel the authoritative verdict replay they accompany. A different ritual turn sequence remains an explicit presentation lifecycle boundary and clears transient replay state even when the next phrase happens to contain identical words; rejected retry cleanup remains owned by the post-`CompleteReplay()` retry sequence.
+
+`BookFeedbackController` consumes the local listening-glow value through `RitualController`, smooths only its rise over roughly `0.1` seconds, and forwards the resulting intensity to the existing `BookMenuReturnInteractable` highlight. That component remains the single owner of the BookModel property block and `BookHoverLight`, combining independent menu-hover and voice-listening requests by maximum intensity. Decay follows the recognizer's exact trailing-silence fraction; releasing either caller cannot disable a highlight still requested by the other. The controller otherwise owns only the existing authoritative success pulse; listening glow never invokes gameplay or judgment.
+
+`IncantationTextDisplay` owns sequential authoritative verdict presentation. For FullPhrase authority, `IncantationManager` publishes the complete immutable word-result timeline after reset; the display prepares every accepted/rejected step atomically before starting playback and ignores the redundant per-word presentation events for that verdict. Accepted replay steps accumulate in serialized muted magical green at a `0.11`-second interval and expose ordinary/final magical acknowledgement hooks. Rejection stops at the first failed expected index and holds its stable blood-wine treatment for `0.5` seconds before retry reset. Presentation never performs validation or grants success.
+
+After a successful validation, the server holds `ResolvingTurn` for the bounded word-replay duration, commits the successful consequence, then holds briefly for the presentation-only Book pulse before server-owned phrase growth, participant advancement, and Book movement. Rejection never transitions the authoritative turn. The local controller captures the exact authoritative replay version and waits for `IncantationTextDisplay.CompleteReplay()` to mark that version ended before it resets presentation to zero and starts a fresh complete recording. Instantaneous coroutine/queue activity is not treated as proof of completion. Timeout, turn loss, ritual failure, or completed-turn state cancels the pending retry through the existing eligibility guards.
+
+`MainGameWhisperSandboxAB` is a Development/Editor-only isolation harness. F8/F9 reproduces `WhisperSandboxUI`'s manual `StartRecord -> StopRecord -> OnRecordStop -> GetTextAsync(data, frequency, channels)` path without VAD, normalization, ritual submission, validation, Timer, Book arrival, or authority. During one A/B attempt it disables the production `WhisperVoiceRecognizer`, stops active `VoiceAmplitudeProvider` microphone ownership, applies the Sandbox prompt/stream settings to the already-loaded MainGame manager, then restores every changed setting and consumer after inference.
+
 Unity Dictation and Azure are not part of the current project plan.
 
 ## Phrase Ownership
@@ -380,3 +411,46 @@ The ritual phrase:
 ## Paused Systems
 
 Notebook, cards, lore, demon reactions, campaign objectives, assets, scenes, prefabs, and networking should not be changed during core ritual tasks unless explicitly requested.
+
+## ONLINE-001A Steam Compatibility Spike Boundary
+
+The persistent Bootstrap `IncantationNetworkManager` now contains both Tugboat and
+FishySteamworks, but exactly one transport is selected before `NetworkManager.Awake`. Tugboat is
+the serialized default. The explicit `-incantationTransport steam` development argument selects
+FishySteamworks. `SteamPlatformBootstrap` initializes Steamworks.NET, pumps callbacks, exposes the
+development App ID and local SteamID64, and shuts Steam down; it owns no session or gameplay state.
+
+The former `SteamSpikeHud` and `FishNetFoundationHud` IMGUI test surfaces are no longer attached
+to the persistent runtime prefab, and the asset builder does not recreate them. This removes only
+their visual/button presentation; `FishNetFoundationController` still owns the same Host/client
+lifecycle and the Living Book remains the supported Create/Join surface.
+There is no Steam Lobby, invitation, matchmaking, or Internet Ritual Seal directory in
+ONLINE-001A. Once FishNet connects, the existing `NetworkPlayer`, `NetworkRitualAuthority`, Book,
+timer, phrase, elimination, Ghost, game-over, return, and Match-2 ownership remains unchanged.
+
+### Steam Ritual Session Discovery
+
+`RitualSealService` owns the existing Create/Join presentation state and selects discovery using
+`SteamSpikeTransportSelector.SelectedMode`. Tugboat continues through its UDP directory. Steam
+delegates asynchronous lobby creation, filtered Seal search, lobby entry, and lobby-owner lookup
+to `SteamRitualLobbyDirectory`.
+
+`SteamRitualLobbyDirectory` owns no gameplay state. Its public lobby has capacity four and only
+the `game`, `ritualSeal`, and `protocol` metadata keys. It returns the joined lobby owner's
+SteamID64 to `RitualSealService`, which crosses the existing FishNet client-start boundary.
+`SteamPlatformBootstrap` remains the only initialization and callback-pump owner. Quit Ritual
+leaves the Steam Lobby; post-game Return to Lobby does not. Steam owner migration never transfers
+FishNet Host or gameplay authority.
+
+### Steam Invitation Entry
+
+The Host-only Book action remains platform-free and calls `RitualSealService.RequestSteamInvite`.
+The Seal coordinator validates Host/session role, while `SteamRitualLobbyDirectory` alone owns
+the active Lobby ID, native overlay request, and single `GameLobbyJoinRequested_t` callback.
+
+Invitation acceptance is permitted only while FishNet is fully disconnected and no create,
+join, or leave transition is active. Direct Lobby-ID entry converges at the existing
+`LobbyEnter_t` handler. That handler validates discovery metadata, recovers the active Seal, and
+returns the owner SteamID64 to the existing FishNet client-start boundary. Steam metadata still
+has no Circle or gameplay authority. Post-game Return to Lobby preserves the Lobby; Quit retains
+ONLINE-001C cleanup. Cold-start launch argument handling is outside this boundary.

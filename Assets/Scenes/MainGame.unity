@@ -251,9 +251,9 @@ MonoBehaviour:
   noContext: 1
   singleSegment: 0
   enableTokens: 0
-  initialPrompt: umbra vakor mortis noctis korva velum zulak dorim rakan nethor ignis
+  initialPrompt: umbra vakor mortis noctis korva velum zulak dorim rakan nethor inis
     vexor malum luxor tenebris
-  stepSec: 1.5
+  stepSec: 0.5
   keepSec: 0.2
   lengthSec: 10
   updatePrompt: 1
@@ -305,19 +305,8 @@ MonoBehaviour:
   whisper: {fileID: 13003002}
   microphoneRecord: {fileID: 13003003}
   ignoreEmptyTranscripts: 1
-  minimumRecordingLengthSeconds: 0.1
-  enableSpeechEndAutoStop: 1
-  speechEndSilenceSeconds: 0.8
-  useDynamicSpeechEndSilence: 1
-  oneWordSpeechEndSilenceSeconds: 0.45
-  twoWordSpeechEndSilenceSeconds: 0.55
-  threeWordSpeechEndSilenceSeconds: 0.7
-  fourOrMoreWordSpeechEndSilenceSeconds: 0.85
-  expectedPhraseWordCount: 1
-  autoEnableMicrophoneVad: 1
-  enableShortPhraseMaxRecordingDuration: 1
-  oneWordMaxRecordingSeconds: 2.75
-  twoWordMaxRecordingSeconds: 3.75
+  minimumRecordingLengthSeconds: 0.35
+  trailingSilenceSeconds: 0.8
   enableDebugLogs: 1
   logRecognizedPhrases: 1
 --- !u!1001 &19753975
@@ -2502,56 +2491,6 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 2147000004}
   m_SourcePrefab: {fileID: 100100000, guid: 4874aa720e8afdd4fb04ea39863b8b3c, type: 3}
---- !u!1 &2147000001 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 4874aa720e8afdd4fb04ea39863b8b3c, type: 3}
-  m_PrefabInstance: {fileID: 217306991}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &2147000002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 217306991}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2147000001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8a7b4f48c3d64684bd74e64afc62b1e3, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  movementSpeed: 2.5
-  lookSensitivity: 2
-  hoverHeight: -0.805
-  spawnYawOffset: 180
-  movementBounds: {fileID: 2147000012}
---- !u!114 &2147000003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 217306991}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2147000001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d57f28c0ae124deda3570063dd6f35f4, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  firstPersonOffset: {x: 0, y: 0.805, z: 0.1}
-  lookSensitivity: 2
-  minPitch: -35
-  maxPitch: 55
---- !u!114 &2147000004
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 217306991}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2147000001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7c30a919a7214fc7b79d85bb0c2b6af5, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
 --- !u!1 &218340944
 GameObject:
   m_ObjectHideFlags: 0
@@ -2712,12 +2651,12 @@ MonoBehaviour:
   incantationTextDisplay: {fileID: 1510010863}
   coreRitualLoopBridge: {fileID: 823783911}
   demonHandController: {fileID: 1229295263}
-  voiceRecognizerBehaviour: {fileID: 753472357}
-  voiceValidationMode: 0
+  voiceRecognizerBehaviour: {fileID: 13003004}
+  voiceValidationMode: 1
   voicePhraseNormalizer: {fileID: 1855418877}
   speechAliasWordLibrary: {fileID: 651073269}
   autoStart: 0
-  hourglassDuration: 20
+  hourglassDuration: 30
   ritualAcceptancePauseSeconds: 0.1
   enableLearningMode: 0
   pendingRecognizedPhrase: 
@@ -3034,8 +2973,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58e1f2b9434a42a1904d85baab88e40e, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   currentState: 0
 --- !u!1001 &233275028
 PrefabInstance:
@@ -6726,8 +6665,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 0.075, g: 0.055, b: 0.04, a: 0.92}
   m_RaycastTarget: 1
@@ -6773,8 +6712,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dd7e2043dfe799f44977b47d86ed6369, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   turnManager: {fileID: 2137985355}
   growingIncantationManager: {fileID: 1954594581}
   phraseValidator: {fileID: 1419314460}
@@ -7138,17 +7077,24 @@ MonoBehaviour:
     - umbra
     - umbrella
     - umbrah
+    - umbraa
+    - ombra
     isCompleted: 0
   - word: vakor
     speechAliases:
     - vakor
     - vacker
     - vakkor
+    - vacor
+    - va cor
+    - va kor
     isCompleted: 0
   - word: mortis
     speechAliases:
     - mortis
     - mortice
+    - mort tice
+    - mort tisse
     isCompleted: 0
   - word: noctis
     speechAliases:
@@ -7159,36 +7105,58 @@ MonoBehaviour:
     speechAliases:
     - korva
     - corva
+    - Korva
+    - Corp Va
+    - CORVA
     isCompleted: 0
   - word: velum
     speechAliases:
     - velum
     - vellum
+    - veloum
+    - viloum
+    - vie loume
+    - veloume
+    - velume
+    - velome
     isCompleted: 0
   - word: zulak
     speechAliases:
     - zulak
     - zoo lack
+    - zoulak
+    - zulack
+    - zoulack
     isCompleted: 0
   - word: dorim
     speechAliases:
     - dorim
     - door him
+    - dorhime
     isCompleted: 0
   - word: rakan
     speechAliases:
     - rakan
     - rackon
+    - raquen
+    - Raken
     isCompleted: 0
   - word: nethor
     speechAliases:
     - nethor
     - nether
+    - Nez thor
+    - Nedor
+    - netor
     isCompleted: 0
-  - word: ignis
+  - word: inis
     speechAliases:
     - ignis
     - igneous
+    - ignice
+    - inice
+    - inis
+    - enis
     isCompleted: 0
   - word: vexor
     speechAliases:
@@ -7209,6 +7177,7 @@ MonoBehaviour:
     speechAliases:
     - tenebris
     - tenebrous
+    - tenabris
     isCompleted: 0
 --- !u!1 &663801568 stripped
 GameObject:
@@ -11166,6 +11135,8 @@ MonoBehaviour:
     - umbra
     - umbrella
     - umbrah
+    - umbraa
+    - ombra
     isCompleted: 0
   - word: vakor
     speechAliases:
@@ -11213,10 +11184,14 @@ MonoBehaviour:
     - nethor
     - nether
     isCompleted: 0
-  - word: ignis
+  - word: inis
     speechAliases:
     - ignis
     - igneous
+    - ignice
+    - inice
+    - inis
+    - enis
     isCompleted: 0
   - word: vexor
     speechAliases:
@@ -11237,6 +11212,7 @@ MonoBehaviour:
     speechAliases:
     - tenebris
     - tenebrous
+    - tenabris
     isCompleted: 0
 --- !u!1001 &1182246455
 PrefabInstance:
@@ -14547,15 +14523,19 @@ MonoBehaviour:
   targetText: {fileID: 1510010864}
   emptyText: 
   completedWordColor: {r: 0.45, g: 0.45, b: 0.45, a: 1}
-  currentWordColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   remainingWordColor: {r: 1, g: 1, b: 1, a: 1}
-  correctFeedbackColor: {r: 0, g: 1, b: 0, a: 1}
-  incorrectFeedbackColor: {r: 1, g: 0, b: 0, a: 1}
+  successConfirmationColor: {r: 0.42, g: 0.68, b: 0.45, a: 1}
+  incorrectFeedbackColor: {r: 0.42, g: 0.05, b: 0.08, a: 1}
   feedbackDuration: 0.25
-  incorrectFeedbackDuration: 0.45
+  incorrectFeedbackDuration: 0.5
   replayStepDuration: 0.22
-  replayPulseScale: 1.15
   writingSpeed: 18
+  listeningPulseCycleSeconds: 1
+  listeningPulseBrightness: 0.18
+  acceptedFeedbackBrightness: 0.35
+  acceptedPulseScale: 1.04
+  speakingPulseBrightness: 0.32
+  judgmentWordInterval: 0.11
 --- !u!114 &1510010864
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14772,15 +14752,19 @@ MonoBehaviour:
   targetText: {fileID: 1510617709}
   emptyText: Awaiting incantation...
   completedWordColor: {r: 0.45, g: 0.45, b: 0.45, a: 1}
-  currentWordColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   remainingWordColor: {r: 1, g: 1, b: 1, a: 1}
-  correctFeedbackColor: {r: 0, g: 1, b: 0, a: 1}
-  incorrectFeedbackColor: {r: 1, g: 0, b: 0, a: 1}
+  successConfirmationColor: {r: 0.42, g: 0.68, b: 0.45, a: 1}
+  incorrectFeedbackColor: {r: 0.42, g: 0.05, b: 0.08, a: 1}
   feedbackDuration: 0.25
-  incorrectFeedbackDuration: 0.45
+  incorrectFeedbackDuration: 0.5
   replayStepDuration: 0.22
-  replayPulseScale: 1.15
   writingSpeed: 18
+  listeningPulseCycleSeconds: 1
+  listeningPulseBrightness: 0.18
+  acceptedFeedbackBrightness: 0.35
+  acceptedPulseScale: 1.04
+  speakingPulseBrightness: 0.32
+  judgmentWordInterval: 0.11
 --- !u!114 &1510617709
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17585,6 +17569,17 @@ MonoBehaviour:
   - Vakor
   - Mortis
   - Noctis
+  - Korva
+  - Velum
+  - Zulak
+  - Dorim
+  - Rakan
+  - Nethor
+  - Inis
+  - Vexor
+  - Malum
+  - Luxor
+  - Tenebris
   currentUnlockedWordCount: 2
   currentRitualPhrase: Umbra Vakor
   currentRitualWords:
@@ -17810,8 +17805,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 26b716c41e9b56b4baafaf13a523ba2e, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   <IsNested>k__BackingField: 0
   WasActiveDuringEdit: 1
   WasActiveDuringEdit_Set1: 1
@@ -17870,8 +17865,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _componentIndexCache: 0
   _addedNetworkObject: {fileID: 1987654322}
   _networkObjectCache: {fileID: 1987654322}
@@ -17916,8 +17911,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 50fddf2926ee466798dcf8396c57df09, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _componentIndexCache: 1
   _addedNetworkObject: {fileID: 1987654322}
   _networkObjectCache: {fileID: 1987654322}
@@ -17933,8 +17928,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: faa078c0821642a7a0f920421589ed32, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _componentIndexCache: 2
   _addedNetworkObject: {fileID: 1987654322}
   _networkObjectCache: {fileID: 1987654322}
@@ -19357,6 +19352,109 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1419314459}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2147000001 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 4874aa720e8afdd4fb04ea39863b8b3c, type: 3}
+  m_PrefabInstance: {fileID: 217306991}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2147000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2147000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a7b4f48c3d64684bd74e64afc62b1e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  movementSpeed: 2.5
+  lookSensitivity: 2
+  hoverHeight: -0.805
+  spawnYawOffset: 180
+  movementBounds: {fileID: 2147000012}
+--- !u!114 &2147000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2147000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d57f28c0ae124deda3570063dd6f35f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  firstPersonOffset: {x: 0, y: 0.805, z: 0.1}
+  lookSensitivity: 2
+  minPitch: -35
+  maxPitch: 55
+--- !u!114 &2147000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2147000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c30a919a7214fc7b79d85bb0c2b6af5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!1 &2147000010
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2147000011}
+  - component: {fileID: 2147000012}
+  m_Layer: 0
+  m_Name: GhostMovementBounds
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2147000011
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2147000010}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.7, y: 8, z: -13.7}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1548277467}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &2147000012
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2147000010}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 8, y: 2, z: 4}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!4 &1182218958569080690 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2494174287175784740, guid: 1563cdfa95860694fbaf9eb174836d47, type: 3}
@@ -19473,10 +19571,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   incantationManager: {fileID: 1179521723}
+  bookController: {fileID: 2895304713497403610}
+  listeningGlowRiseSpeed: 10
   pulseScale: 1.12
   pulseDuration: 0.18
-  shakeStrength: 0.04
-  shakeDuration: 0.2
 --- !u!114 &2895304713497403610
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -19815,59 +19913,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 3269529032147110464, guid: 5d165f10e1792ff4ea6f73ecc18646cb, type: 3}
   m_PrefabInstance: {fileID: 8201693395825366522}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &2147000010
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2147000011}
-  - component: {fileID: 2147000012}
-  m_Layer: 0
-  m_Name: GhostMovementBounds
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2147000011
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2147000010}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.7, y: 8, z: -13.7}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1548277467}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &2147000012
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2147000010}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 8, y: 2, z: 4}
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

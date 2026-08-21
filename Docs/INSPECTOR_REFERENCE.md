@@ -432,7 +432,9 @@ Notes:
 - It moves and scales the assigned target Transform during absorption, then optionally deactivates that target GameObject.
 - The Debug section is only for local tuning of death audio, smoke particles, aftermath timing, and death vision timing. It must remain disabled during normal gameplay.
 - It does not decide ritual failure, timeout, elimination, seating, voice validation, turn order, or book traversal.
-- `ResetAbsorption()` restores the absorbed target to its original position, rotation, scale, and active state for Play Mode testing.
+- `ResetAbsorption()` restores every target absorbed since the previous reset to its independently
+  captured original position, rotation, scale, and active state. Repeated absorption of the same
+  target preserves its first canonical pre-absorption state until reset completes.
 - If `BeginAbsorption` receives a null target, the controller logs one warning and the game continues.
 
 ## DeathVisionVignetteController
@@ -725,6 +727,8 @@ Notes:
 Recommended setup:
 
 - `wordLibrary`: assign `IncantationWordLibrary`, not `SpellPhraseLibrary`.
+- The canonical ritual library contains exactly 15 entries and uses `INIS`, not `IGNIS`.
+- `INIS` aliases: `ignis`, `igneous`, `ignice`, `inice`, `inis`, `enis`.
 - `incantationLength`: legacy/default value may exist, but the current growing phrase path should come from the core ritual loop when bridged.
 - Events should drive display and feedback only.
 
@@ -739,20 +743,36 @@ Script defaults and current intent:
 
 - `emptyText`: `Awaiting incantation...`.
 - `completedWordColor`: gray.
-- `currentWordColor`: yellow.
 - `remainingWordColor`: white.
-- `correctFeedbackColor`: green.
-- `incorrectFeedbackColor`: red.
+- `successConfirmationColor`: muted magical green `{0.42, 0.68, 0.45, 1}`. This is authoritative correctness, never microphone activity.
+- `incorrectFeedbackColor`: deep ritual crimson `{0.42, 0.05, 0.08, 1}`.
 - `feedbackDuration`: `0.25` seconds. `Prototype tuning`.
-- `incorrectFeedbackDuration`: `0.45` seconds. `Prototype tuning`.
+- `incorrectFeedbackDuration`: `0.5` seconds. Stable failed-word red hold before retry reset. `Prototype tuning`.
 - `replayStepDuration`: `0.22` seconds. `Prototype tuning`.
 - `replayPulseScale`: `1.15`. `Prototype tuning`.
 - `writingSpeed`: `18`. `Prototype tuning`.
+- `listeningPulseCycleSeconds` and `listeningPulseBrightness`: retained serialized compatibility values; complete-phrase UX no longer uses word color for microphone activity.
+- `acceptedFeedbackDuration`: `0.16` seconds. Interruptible authoritative acknowledgement.
+- `acceptedFeedbackBrightness`: `0.35`. Blends the current color toward the configured correct color without a full green flash.
+- `acceptedPulseScale`: `1.04`. Small accepted-word size acknowledgement.
+- Rejected words use color only: no scale, shake, or other movement animation.
+- `judgmentWordInterval`: `0.11` seconds between authoritative word judgments.
+- `speakingPulseBrightness`: retained serialized compatibility value; pre-verdict words remain at `remainingWordColor`.
+- `onJudgmentWordAccepted`, `onFinalJudgmentWordAccepted`, `onJudgmentWordRejected`: optional presentation-only audio hooks. Leave unassigned when no approved audio asset is available.
 
 Notes:
 
 - Display reacts to incantation state.
 - Display must not own phrase authority.
+- Network word feedback uses `incorrectFeedbackDuration` for the rejected expected-word flash. The authoritative reset is already committed while that presentation-only replay runs; do not use this duration to pause or alter the Timer.
+- Before an authoritative verdict, every unjudged word remains at the normal readable `remainingWordColor`. Microphone activity and transcription state never recolor words.
+- Only the authoritative complete-phrase result advances the sequential green replay or flashes the first rejected word in crimson. A retry restores the entire phrase to its unjudged readable appearance.
+
+## BookFeedbackController
+
+- The listening glow is local and read-only. `RitualController` relays `WhisperVoiceRecognizer.ListeningGlow`; `BookFeedbackController` forwards it to the existing `BookMenuReturnInteractable` highlight and never starts/stops recording, transcribes, validates, submits, or advances gameplay.
+- `listeningGlowRiseSpeed`: `10`. Smooths a zero-to-full rise over roughly `0.1` seconds; decay is not delayed and follows the recognizer value directly. `Prototype tuning`.
+- The hover component automatically combines menu-hover and voice-listening intensity and remains the sole owner of the BookModel property block and `BookHoverLight`; no duplicate listening material settings are required.
 
 ## WindowsKeywordVoiceRecognizer
 
@@ -779,24 +799,24 @@ Important references:
 
 - `whisper`: assign `WhisperManager`.
 - `microphoneRecord`: assign `MicrophoneRecord`.
+- In MainGame, assign `RitualController.voiceRecognizerBehaviour` directly to the `WhisperVoiceRecognizer` component, not to the neighboring `WhisperManager`. Do not add duplicate Whisper components.
 
 Useful defaults:
 
 - `ignoreEmptyTranscripts`: `true`.
 - `minimumRecordingLengthSeconds`: `0.35`.
-- `enableSpeechEndAutoStop`: `true`.
-- `speechEndSilenceSeconds`: `0.45`. `Prototype tuning`.
-- `useDynamicSpeechEndSilence`: `true`.
-- `oneWordSpeechEndSilenceSeconds`: `0.45`. `Prototype tuning`.
-- `twoWordSpeechEndSilenceSeconds`: `0.55`. `Prototype tuning`.
-- `threeWordSpeechEndSilenceSeconds`: `0.7`. `Prototype tuning`.
-- `fourOrMoreWordSpeechEndSilenceSeconds`: `0.85`. `Prototype tuning`.
-- `autoEnableMicrophoneVad`: `true`.
-- `enableShortPhraseMaxRecordingDuration`: `true`.
-- `oneWordMaxRecordingSeconds`: `2.75`. `Prototype tuning`.
-- `twoWordMaxRecordingSeconds`: `3.75`. `Prototype tuning`.
+- `trailingSilenceSeconds`: `0.8`. `Prototype tuning`; VAD uses this only to stop an already-running complete recording after speech.
 - `enableDebugLogs`: `true` while tuning.
 - `logRecognizedPhrases`: `true` while tuning.
+- The recognizer starts one `MicrophoneRecord` recording for the local turn. Silence before speech never submits. After speech and the configured silence window, it stops once and passes the complete audio once to `WhisperManager.GetTextAsync`.
+- `ListeningGlow` is presentation-only and requires no Inspector timer. It remains `1` during VAD speech and decays from `1` to `0` using the remaining fraction of `trailingSilenceSeconds`. Speech resumption restores it to `1` on the same recording.
+`IncantationWordLibrary` authoring:
+
+- Each `IncantationWord` appears as `Canonical Word` plus `Accepted Forms` in the Inspector.
+- Keep exactly the 15 canonical ritual words. Add observed pronunciation spellings to `Accepted Forms`; no code change is required.
+- Complete Whisper attempts use exact single-token forms only. Retained multi-token forms such as `door him` remain available to the isolated legacy/Windows normalization path and are never concatenated by the complete Whisper bank.
+- Unknown transcript tokens are intentionally preserved rather than mapped or discarded.
+- `MainGameWhisperSandboxAB` also requires no Inspector setup and is compiled only for Development builds or the Editor. In MainGame, F8 starts a manual isolated recording and F9 stops/transcribes it. The harness retains recording state, Whisper readiness, exact raw transcript, and inference time as read-only diagnostic state but creates no runtime UI. Do not use this harness as production voice input.
 
 ## Character Face
 
@@ -1224,3 +1244,62 @@ Guidance:
 - Preserve ambient audio as mood support.
 - Avoid audio changes that obscure voice recognition feedback or player understanding.
 - Record intentional mixer and volume decisions here when production audio mixing begins.
+
+# DEATH-001B Network Ghost Presentation
+
+The `NetworkPlayer` prefab carries one `NetworkGhostPresentation` with these intentional values:
+
+- Ghost Visual Prefab: committed `GhostModel.fbx` root.
+- Remote Interpolation Speed: `18`.
+- Send Rate: `15 Hz`.
+- Position Change Threshold: `0.01` world units.
+- Yaw Change Threshold: `0.25` degrees.
+- Heartbeat Interval: `0.75` seconds.
+- Maximum World Magnitude: `1000` world units as a generous malformed-pose sanity limit.
+
+The local owner continues to use the DEATH-001A scene-authored `GhostMovement`, Death Camera,
+first-person offset, hover height, and `GhostMovementBounds`. Remote Ghosts consume pose only and
+require no Camera, AudioListener, movement bounds, physics, or network transform.
+
+# ONLINE-001A Steam Compatibility Spike
+
+The persistent `IncantationNetworkManager` prefab keeps Tugboat as `TransportManager.Transport`
+and carries these additional development components:
+
+- `FishySteamworks`: Port `7770`, Maximum Clients `8`, Peer To Peer enabled, empty bind/client
+  addresses. Steam clients supply the Host SteamID64 at runtime.
+- `SteamPlatformBootstrap`: no gameplay references; initializes Steam only when Steam spike mode
+  was explicitly selected.
+- `SteamSpikeTransportSelector`: Default Mode `TugboatDevelopment`, with both Tugboat and
+  FishySteamworks references assigned and Network Runtime Root set to the inactive
+  `FishNetRuntime` child.
+
+The obsolete `FishNetFoundationHud` and `SteamSpikeHud` components are intentionally absent.
+Development builds use the Living Book Create/Join flow; no network IMGUI diagnostic panel should
+cover the runtime view.
+
+The prefab root stays active. `FishNetRuntime` must be inactive in the prefab so its FishNet
+`NetworkManager.Awake` cannot run before transport selection. Disabling only the NetworkManager
+component is not a valid gate because Unity calls `Awake` on disabled components of active objects.
+The active root owns scene persistence; the child NetworkManager's Dont Destroy On Load value is
+disabled to avoid requesting root-only persistence from a child component.
+
+Launch a development Build with `-incantationTransport steam`. The repository-root
+`steam_appid.txt` contains Spacewar App ID `480` for local development and is ignored by Git. Copy
+it beside a locally launched spike executable when Steam does not supply the App ID. Do not ship
+that file as Incantation's production Steam configuration.
+
+## ONLINE-001C Steam Ritual Lobby Directory
+
+The persistent `FishNetRuntime` carries one `SteamRitualLobbyDirectory` beside
+`RitualSealService`. Keep `operationTimeout` at `20` seconds for the current Steam development
+path. The component has no Book, Circle, Seat, Ready, ritual, voice, death, or gameplay
+references. Lobby capacity and minimal discovery metadata are code-owned constants; do not add
+gameplay metadata or treat Steam Lobby membership as the roster authority.
+
+## ONLINE-001D Steam Invitations
+
+ONLINE-001D adds no Inspector references and requires no prefab changes. The existing
+`SteamRitualLobbyDirectory` registers one accepted-Lobby callback at runtime and uses its existing
+hosted Lobby state for the native invite overlay. `Invite a Priest` is visible on the Host page
+and Host's unseated Circle presentation only; joined Clients receive no actionable entry.

@@ -66,7 +66,9 @@ public class IncantationManager : MonoBehaviour
     public event Action OnPhraseReplayReset;
     public event Action<PhraseValidationWordResult> OnPhraseReplayAcceptedWord;
     public event Action<PhraseValidationWordResult> OnPhraseReplayRejectedWord;
+    public event Action<PhraseValidationWordResult[]> OnAuthoritativePhraseReplayPrepared;
     public event Action OnPhraseReplayFinished;
+    public int AuthoritativePhraseReplayVersion { get; private set; }
 
     public void GenerateIncantation()
     {
@@ -153,7 +155,7 @@ public class IncantationManager : MonoBehaviour
         LastPhraseValidationResult = activePhraseValidationResult;
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = activePhraseValidationResult.WordTimeline.Length > 0;
-        OnPhraseReplayReset?.Invoke();
+        InvokePhraseReplayReset();
 
         if (!hasActivePhraseReplay)
             OnPhraseReplayFinished?.Invoke();
@@ -202,7 +204,7 @@ public class IncantationManager : MonoBehaviour
         LastPhraseValidationResult = result;
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = true;
-        OnPhraseReplayReset?.Invoke();
+        InvokePhraseReplayReset();
 
         if (result.WordTimeline.Length == 0)
         {
@@ -234,13 +236,74 @@ public class IncantationManager : MonoBehaviour
         OnPhraseReplayFinished?.Invoke();
     }
 
-    public void ApplyAuthoritativePhraseValidation(PhraseValidationResult result)
+    /// <summary>
+    /// Presents a replicated word verdict without independently advancing ritual progress.
+    /// The supplied expected-word index is the final server-owned state. A rejection is
+    /// staged at the failed word only long enough for the existing display replay to show it.
+    /// </summary>
+    public void PresentAuthoritativeWordValidation(
+        PhraseValidationResult result,
+        string[] phraseWords,
+        int authoritativeExpectedWordIndex,
+        bool suppressAcceptedFeedback = false)
     {
         activePhraseValidationResult = result;
         LastPhraseValidationResult = result;
         activePhraseReplayIndex = 0;
+
+        if (result.WordTimeline.Length == 0)
+        {
+            SetAuthoritativePhraseState(
+                phraseWords,
+                authoritativeExpectedWordIndex);
+            hasActivePhraseReplay = false;
+            InvokePhraseReplayReset();
+            OnPhraseReplayFinished?.Invoke();
+            return;
+        }
+
+        PhraseValidationWordResult wordResult = result.WordTimeline[0];
+        int presentationProgress = result.IsSuccess
+            ? authoritativeExpectedWordIndex
+            : wordResult.WordIndex;
+        SetAuthoritativePhraseState(
+            phraseWords,
+            presentationProgress);
+
+        hasActivePhraseReplay = true;
+        InvokePhraseReplayReset();
+        hasActivePhraseReplay = false;
+
+        if (result.IsSuccess)
+        {
+            onCorrectWord.Invoke();
+            if (!suppressAcceptedFeedback)
+                OnPhraseReplayAcceptedWord?.Invoke(wordResult);
+
+            if (authoritativeExpectedWordIndex >= currentIncantation.Count)
+                onIncantationCompleted.Invoke();
+        }
+        else
+        {
+            onIncorrectWord.Invoke();
+            OnPhraseReplayRejectedWord?.Invoke(wordResult);
+            SetAuthoritativePhraseState(
+                phraseWords,
+                authoritativeExpectedWordIndex);
+        }
+
+        OnPhraseReplayFinished?.Invoke();
+    }
+
+    public void ApplyAuthoritativePhraseValidation(PhraseValidationResult result)
+    {
+        AuthoritativePhraseReplayVersion++;
+        activePhraseValidationResult = result;
+        LastPhraseValidationResult = result;
+        activePhraseReplayIndex = 0;
         hasActivePhraseReplay = result.WordTimeline.Length > 0;
-        OnPhraseReplayReset?.Invoke();
+        InvokePhraseReplayReset();
+        OnAuthoritativePhraseReplayPrepared?.Invoke(result.WordTimeline);
 
         if (!hasActivePhraseReplay)
             OnPhraseReplayFinished?.Invoke();
@@ -325,6 +388,13 @@ public class IncantationManager : MonoBehaviour
         string[] words,
         int expectedWordIndex)
     {
+        SetAuthoritativePhraseState(words, expectedWordIndex);
+    }
+
+    private void SetAuthoritativePhraseState(
+        string[] words,
+        int expectedWordIndex)
+    {
         string[] safeWords = words ?? Array.Empty<string>();
         bool phraseChanged = currentIncantation.Count != safeWords.Length;
         if (!phraseChanged)
@@ -371,7 +441,6 @@ public class IncantationManager : MonoBehaviour
                 currentIncantation[wordIndex].MarkIncomplete();
         }
 
-        ResetPhraseReplayFeedback();
     }
 
     public void ResetCurrentPhraseProgress()
@@ -390,7 +459,7 @@ public class IncantationManager : MonoBehaviour
         activePhraseValidationResult = default(PhraseValidationResult);
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = false;
-        OnPhraseReplayReset?.Invoke();
+        InvokePhraseReplayReset();
     }
 
     public bool TryAdvancePhraseJudgmentReplay(out PhraseValidationWordResult replayedWord)
@@ -448,6 +517,11 @@ public class IncantationManager : MonoBehaviour
         LastPhraseValidationResult = default(PhraseValidationResult);
         activePhraseReplayIndex = 0;
         hasActivePhraseReplay = false;
+        InvokePhraseReplayReset();
+    }
+
+    private void InvokePhraseReplayReset()
+    {
         OnPhraseReplayReset?.Invoke();
     }
 

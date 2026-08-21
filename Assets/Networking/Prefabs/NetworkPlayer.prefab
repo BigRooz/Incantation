@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5194925898452625558}
   - component: {fileID: 3781592462154277632}
   - component: {fileID: 7224091738461035961}
+  - component: {fileID: 8073719212205013301}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -140,3 +141,25 @@ MonoBehaviour:
   heartbeatInterval: 0.75
   maxPitch: 60
   maxYaw: 45
+--- !u!114 &8073719212205013301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4931004709519202203}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2e920304c3824b94ad429a19cc0f5ca5, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 1550624151087068695}
+  _networkObjectCache: {fileID: 0}
+  ghostVisualPrefab: {fileID: 919132149155446097, guid: 4874aa720e8afdd4fb04ea39863b8b3c, type: 3}
+  remoteInterpolationSpeed: 18
+  sendRate: 15
+  positionChangeThreshold: 0.01
+  yawChangeThreshold: 0.25
+  heartbeatInterval: 0.75
+  maximumWorldMagnitude: 1000

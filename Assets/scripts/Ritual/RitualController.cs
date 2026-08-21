@@ -29,7 +29,7 @@ public class RitualController : MonoBehaviour
     [SerializeField] private DemonHandController demonHandController;
 
     [Header("Voice Recognizer Selection")]
-    [Tooltip("Stable Play Mode default: assign WindowsKeywordVoiceRecognizer for immediate per-syllable validation. Assign WhisperVoiceRecognizer only when testing experimental full-phrase recognition.")]
+    [Tooltip("Assign the local ritual recognizer. Whisper records and submits one complete phrase; Windows keyword recognition remains supported as an isolated fallback.")]
     [SerializeField] private MonoBehaviour voiceRecognizerBehaviour;
     [SerializeField] private VoiceValidationMode voiceValidationMode = VoiceValidationMode.WordByWordRealtime;
 
@@ -68,6 +68,7 @@ public class RitualController : MonoBehaviour
     private IVoiceRecognizerProcessingStatus voiceRecognizerProcessingStatus;
     private IVoiceRecognizer loggedVoiceRecognizer;
     private IVoiceRecognizer subscribedVoiceRecognizer;
+    private WhisperVoiceRecognizer subscribedWhisperPresentationRecognizer;
     private MonoBehaviour resolvedVoiceRecognizerBehaviour;
     private bool hourglassFinished;
     private bool isWaitingForOccupiedSeat;
@@ -95,7 +96,6 @@ public class RitualController : MonoBehaviour
     private Seat lastCompletedSeat;
     private Seat preferredStartingSeat;
     private Seat currentFailedSeat;
-    private string lastProcessedWhisperPhrase = string.Empty;
     private NetworkRitualAuthority ritualAuthority;
     private NetworkRitualAuthority subscribedRitualAuthority;
     private uint handledValidationSequence;
@@ -104,7 +104,11 @@ public class RitualController : MonoBehaviour
     private uint failedTurnSequence;
     private uint failedConsequenceSequence;
     private uint activeNetworkVoiceTurnSequence;
+    private uint presentedNetworkVisualTurnSequence;
     private bool? lastLoggedNetworkVoiceSubmissionEnabled;
+    private bool whisperAttemptAwaitingAuthority;
+    private bool whisperSubmissionInProgress;
+    private bool whisperVerdictReceivedDuringSubmission;
 
     public Seat CurrentActiveSeat { get; private set; }
     public Transform CurrentFailedPlayer { get; private set; }
@@ -113,6 +117,8 @@ public class RitualController : MonoBehaviour
     public IncantationManager CurrentIncantationManager => incantationManager;
     public VoicePhraseNormalizer CurrentVoicePhraseNormalizer =>
         voicePhraseNormalizer;
+    public IncantationTextDisplay DiagnosticIncantationTextDisplay =>
+        incantationTextDisplay;
     public float ConfiguredTurnDuration => hourglassDuration;
     public RitualValidationMode CurrentNetworkValidationMode =>
         voiceValidationMode == VoiceValidationMode.FullPhrase
@@ -222,6 +228,7 @@ public class RitualController : MonoBehaviour
 
     public void StopRitual()
     {
+        ResetWhisperAttemptState();
         if (turnRoutine != null)
         {
             StopCoroutine(turnRoutine);
@@ -242,6 +249,7 @@ public class RitualController : MonoBehaviour
 
         isNetworkPresentationActive = false;
         activeNetworkVoiceTurnSequence = 0;
+        presentedNetworkVisualTurnSequence = 0;
         lastLoggedNetworkVoiceSubmissionEnabled = null;
 
         hourglassFinished = false;
@@ -275,8 +283,8 @@ public class RitualController : MonoBehaviour
         currentFailedSeat = null;
         preMovedBookSeat = null;
         currentTurnBookMoveSkipped = false;
-        lastProcessedWhisperPhrase = string.Empty;
-        StopListening();
+        ResolveIncantationTextDisplay()?.SetLocalRecitationActive(false);
+        CancelListening("Ritual reset.");
 
         if (hourglassController != null)
             hourglassController.StopHourglass();
@@ -367,7 +375,7 @@ public class RitualController : MonoBehaviour
         if (hourglassController == null)
         {
             Debug.LogWarning("RitualController requires an HourglassController reference.");
-            StopListening();
+            CancelListening("Hourglass reference unavailable.");
             CompletePlayerTurn();
             yield break;
         }
@@ -381,10 +389,7 @@ public class RitualController : MonoBehaviour
         {
             bool isUsingWhisperRecognizer = IsUsingWhisperRecognizer();
 
-            StopListening();
-
-            if (isUsingWhisperRecognizer)
-                yield return WaitForVoiceRecognitionProcessing();
+            CancelListening("Local ritual timer expired.");
 
             if (!isTurnActive || playerTurnComplete)
                 yield break;
@@ -732,7 +737,6 @@ public class RitualController : MonoBehaviour
         hourglassFinished = false;
         playerTurnComplete = false;
         isTurnActive = true;
-        lastProcessedWhisperPhrase = string.Empty;
     }
 
     private void CompletePlayerTurn()
@@ -741,7 +745,9 @@ public class RitualController : MonoBehaviour
             return;
 
         StopRetryListeningRoutine();
-        StopListening();
+        ResolveIncantationTextDisplay()?.SetLocalRecitationActive(false);
+        ResetWhisperAttemptState();
+        CancelListening("Player turn completed.");
         isTurnActive = false;
         playerTurnComplete = true;
         lastCompletedSeat = CurrentActiveSeat;
@@ -759,8 +765,19 @@ public class RitualController : MonoBehaviour
         if (voiceRecognizer.IsListening)
             return;
 
+        if (voiceRecognizerProcessingStatus != null && voiceRecognizerProcessingStatus.IsProcessingRecognition)
+        {
+            if (retryListeningRoutine == null)
+            {
+                retryListeningRoutine = StartCoroutine(
+                    RestartListeningWhenRecognizerReady());
+            }
+
+            return;
+        }
+
         ConfigureWhisperListeningContext();
-        lastProcessedWhisperPhrase = string.Empty;
+        LogWhisperTurnLifecycle("WHISPER_TURN_START", "START_LISTENING");
         Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()} using {voiceValidationMode} validation mode.");
         voiceRecognizer.StartListening();
         Debug.Log($"Ritual listening started with {GetActiveVoiceRecognizerTypeName()}. Local active player microphone only.");
@@ -777,6 +794,23 @@ public class RitualController : MonoBehaviour
         LogDebug($"RitualController StopListening started for {GetActiveVoiceRecognizerTypeName()}.");
         voiceRecognizer.StopListening();
         LogDebug("Listening stopped");
+    }
+
+    private void CancelListening(string reason)
+    {
+        LogWhisperTurnLifecycle("WHISPER_TURN_END", reason);
+        if (!ResolveVoiceRecognizer())
+            return;
+
+        WhisperVoiceRecognizer whisperVoiceRecognizer = ResolveWhisperVoiceRecognizer();
+        if (whisperVoiceRecognizer != null)
+        {
+            whisperVoiceRecognizer.CancelListening(reason);
+            return;
+        }
+
+        if (voiceRecognizer.IsListening)
+            voiceRecognizer.StopListening();
     }
 
     private IEnumerator WaitForVoiceRecognitionProcessing()
@@ -837,21 +871,130 @@ public class RitualController : MonoBehaviour
 
     private void EnsureVoiceRecognizerSubscription()
     {
-        if (voiceRecognizer == null || ReferenceEquals(subscribedVoiceRecognizer, voiceRecognizer))
+        if (voiceRecognizer == null)
             return;
 
-        ClearVoiceRecognizerSubscription();
-        voiceRecognizer.OnPhraseRecognized += HandlePhraseRecognized;
-        subscribedVoiceRecognizer = voiceRecognizer;
+        string generalAction = "GENERAL_ALREADY_VALID";
+        if (!ReferenceEquals(subscribedVoiceRecognizer, voiceRecognizer))
+        {
+            generalAction = subscribedVoiceRecognizer == null
+                ? "GENERAL_RESTORED"
+                : "GENERAL_REPLACED";
+            if (subscribedVoiceRecognizer != null)
+                subscribedVoiceRecognizer.OnPhraseRecognized -= HandlePhraseRecognized;
+
+            ResetWhisperAttemptState();
+            voiceRecognizer.OnPhraseRecognized -= HandlePhraseRecognized;
+            voiceRecognizer.OnPhraseRecognized += HandlePhraseRecognized;
+            subscribedVoiceRecognizer = voiceRecognizer;
+        }
+
+        WhisperVoiceRecognizer whisperRecognizer = ResolveWhisperVoiceRecognizer();
+        if (!ReferenceEquals(
+                subscribedWhisperPresentationRecognizer,
+                whisperRecognizer))
+        {
+            if (subscribedWhisperPresentationRecognizer != null)
+            {
+                subscribedWhisperPresentationRecognizer.OnVoiceActivityChanged -=
+                    HandleWhisperVoiceActivityChanged;
+                subscribedWhisperPresentationRecognizer.OnListeningGlowChanged -=
+                    HandleWhisperListeningGlowChanged;
+                subscribedWhisperPresentationRecognizer.OnRecognitionStateChanged -=
+                    HandleWhisperRecognitionStateChanged;
+            }
+
+            subscribedWhisperPresentationRecognizer = whisperRecognizer;
+            if (subscribedWhisperPresentationRecognizer != null)
+            {
+                subscribedWhisperPresentationRecognizer.OnVoiceActivityChanged +=
+                    HandleWhisperVoiceActivityChanged;
+                subscribedWhisperPresentationRecognizer.OnListeningGlowChanged +=
+                    HandleWhisperListeningGlowChanged;
+                subscribedWhisperPresentationRecognizer.OnRecognitionStateChanged +=
+                    HandleWhisperRecognitionStateChanged;
+            }
+        }
+
+        LogWhisperDelivery(
+            $"SUBSCRIPTION Controller={GetInstanceID()} " +
+            $"ResolvedRecognizer={GetUnityInstanceId(voiceRecognizer)} " +
+            $"SubscribedGeneral={GetUnityInstanceId(subscribedVoiceRecognizer)} " +
+            $"GeneralAction={generalAction}");
     }
 
     private void ClearVoiceRecognizerSubscription()
     {
-        if (subscribedVoiceRecognizer == null)
+        if (subscribedWhisperPresentationRecognizer != null)
+        {
+            subscribedWhisperPresentationRecognizer.OnVoiceActivityChanged -=
+                HandleWhisperVoiceActivityChanged;
+            subscribedWhisperPresentationRecognizer.OnListeningGlowChanged -=
+                HandleWhisperListeningGlowChanged;
+            subscribedWhisperPresentationRecognizer.OnRecognitionStateChanged -=
+                HandleWhisperRecognitionStateChanged;
+            HandleWhisperListeningGlowChanged(0f);
+            subscribedWhisperPresentationRecognizer = null;
+        }
+
+        if (subscribedVoiceRecognizer != null)
+        {
+            subscribedVoiceRecognizer.OnPhraseRecognized -= HandlePhraseRecognized;
+            subscribedVoiceRecognizer = null;
+        }
+    }
+
+    private void HandleWhisperVoiceActivityChanged(bool isSpeaking)
+    {
+        ResolveIncantationTextDisplay()?.SetLocalVoiceActivity(isSpeaking);
+    }
+
+    private void HandleWhisperListeningGlowChanged(float glow)
+    {
+        BookController resolvedBookController = ResolveBookController();
+        if (resolvedBookController == null)
             return;
 
-        subscribedVoiceRecognizer.OnPhraseRecognized -= HandlePhraseRecognized;
-        subscribedVoiceRecognizer = null;
+        resolvedBookController.GetComponent<BookFeedbackController>()?
+            .SetListeningGlow(glow);
+    }
+
+    private void HandleWhisperRecognitionStateChanged(string state)
+    {
+        bool isJudging = string.Equals(state, "TRANSCRIBING", StringComparison.Ordinal) ||
+            string.Equals(state, "AWAITING_AUTHORITY", StringComparison.Ordinal);
+        ResolveIncantationTextDisplay()?.SetLocalJudgingState(isJudging);
+    }
+
+    private void LogWhisperTurnLifecycle(string marker, string reason)
+    {
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        RitualSnapshot snapshot = authority != null
+            ? authority.Snapshot
+            : default;
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        LogWhisperDelivery(
+            $"{marker} Controller={GetInstanceID()} " +
+            $"Recognizer={GetUnityInstanceId(ResolveWhisperVoiceRecognizer())} " +
+            $"Ritual={snapshot.SequenceId.Value} Turn={snapshot.Turn.SequenceId.Value} " +
+            $"LocalPlayer={(localPlayer != null ? localPlayer.PlayerId : string.Empty)} " +
+            $"ActivePlayer={snapshot.ActivePlayerId} IsTurnActive={isTurnActive} " +
+            $"PlayerTurnComplete={playerTurnComplete} RitualFailed={ritualFailed} " +
+            $"Reason=\"{reason}\"");
+    }
+
+    private static string GetUnityInstanceId(object value)
+    {
+        return value is UnityEngine.Object unityObject && unityObject != null
+            ? unityObject.GetInstanceID().ToString()
+            : "NONE";
+    }
+
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    private void LogWhisperDelivery(string message)
+    {
+        Debug.Log($"[WHISPER-DELIVERY] {message}", this);
     }
 
     private bool ResolveVoiceRecognizer()
@@ -1025,23 +1168,102 @@ public class RitualController : MonoBehaviour
 
     private void HandlePhraseRecognized(string recognizedPhrase)
     {
-        if (ritualFailed || playerTurnComplete || !isTurnActive)
-            return;
+        WhisperVoiceRecognizer deliveringWhisperRecognizer =
+            subscribedVoiceRecognizer as WhisperVoiceRecognizer;
+        bool isUsingWhisperRecognizer = deliveringWhisperRecognizer != null;
+        deliveringWhisperRecognizer?.SetPipelineDiagnostic(
+            "CONTROLLER_RECEIVED");
+
+        NetworkRitualAuthority diagnosticAuthority = NetworkRitualAuthority.Instance;
+        bool diagnosticNetworkActive = diagnosticAuthority != null &&
+            diagnosticAuthority.IsNetworkSessionActive;
+        Debug.Log(
+            $"[VOICE-DIAG] RitualController Received | Raw={recognizedPhrase} | NetworkActive={diagnosticNetworkActive} | IsTurnActive={isTurnActive} | PlayerTurnComplete={playerTurnComplete} | RitualFailed={ritualFailed} | ExpectedWord={(incantationManager != null ? incantationManager.CurrentWord : string.Empty)} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+            this);
 
         if (IsEmptySpeechUpdate(recognizedPhrase))
+        {
+            Debug.Log(
+                "[VOICE-DIAG] RitualController Rejected | Reason=Empty speech update",
+                this);
+            if (isUsingWhisperRecognizer)
+            {
+                deliveringWhisperRecognizer.SetNormalizationFailureDiagnostic(
+                    "NO_TEXTUAL_WORDS");
+                Debug.Log(
+                    "[VOICE-DIAG] Complete transcription contained no textual words; restarting listening.",
+                    this);
+                RestartListeningAfterFailedAttempt(false);
+            }
+            return;
+        }
+
+        ResolveVoicePhraseNormalizer();
+        string bankedPhrase = recognizedPhrase;
+        if (isUsingWhisperRecognizer)
+        {
+            string bankingFailureReason = string.Empty;
+            if (voicePhraseNormalizer == null ||
+                !voicePhraseNormalizer.TryBankCompleteAttempt(
+                    recognizedPhrase,
+                    out bankedPhrase,
+                    out bankingFailureReason))
+            {
+                string reason = voicePhraseNormalizer == null
+                    ? "NORMALIZER_UNAVAILABLE"
+                    : bankingFailureReason;
+                deliveringWhisperRecognizer.SetNormalizationFailureDiagnostic(reason);
+                deliveringWhisperRecognizer.SetPipelineBlockDiagnostic(reason);
+                RestartListeningAfterFailedAttempt(false);
+                return;
+            }
+
+            deliveringWhisperRecognizer.SetBankedAttemptDiagnostic(bankedPhrase);
+            deliveringWhisperRecognizer.SetPipelineDiagnostic("BANKED");
+        }
+
+        if (ritualFailed || playerTurnComplete || !isTurnActive)
+        {
+            deliveringWhisperRecognizer?.SetPipelineBlockDiagnostic("TURN_INACTIVE");
+            Debug.Log(
+                $"[VOICE-DIAG] RitualController Rejected | Raw={recognizedPhrase} | Reason=Turn guard | IsTurnActive={isTurnActive} | PlayerTurnComplete={playerTurnComplete} | RitualFailed={ritualFailed}",
+                this);
+            return;
+        }
+
+        if (incantationManager == null)
+        {
+            deliveringWhisperRecognizer?.SetPipelineBlockDiagnostic("INCANTATION_MANAGER_NULL");
+            Debug.Log(
+                $"[VOICE-DIAG] RitualController Rejected | Raw={recognizedPhrase} | Reason=IncantationManager unavailable",
+                this);
+            return;
+        }
+
+        if (isUsingWhisperRecognizer && whisperAttemptAwaitingAuthority)
+        {
+            deliveringWhisperRecognizer.SetPipelineBlockDiagnostic("ATTEMPT_ALREADY_PENDING");
+            Debug.Log(
+                "[WhisperLifecycle] Complete transcript ignored because this attempt is already awaiting authority.",
+                this);
+            return;
+        }
+
+        if (isUsingWhisperRecognizer && !IsCurrentWhisperSessionResult())
+        {
+            deliveringWhisperRecognizer.SetPipelineBlockDiagnostic("STALE_SESSION");
+            Debug.Log("[WhisperLifecycle] Transcript discarded because its session no longer matches the authoritative turn.", this);
+            return;
+        }
+
+        if (TryForwardAuthoritativeVoiceSubmission(
+                isUsingWhisperRecognizer ? bankedPhrase : recognizedPhrase,
+                isUsingWhisperRecognizer))
             return;
 
-        if (!ResolveVoiceRecognizer() || incantationManager == null)
-            return;
-
-        bool isUsingWhisperRecognizer = IsUsingWhisperRecognizer();
-
-        if (isUsingWhisperRecognizer && IsDuplicateWhisperUpdate(recognizedPhrase))
-            return;
-
-        if (TryForwardAuthoritativeVoiceSubmission(recognizedPhrase))
-            return;
-
+        Debug.Log(
+            $"[VOICE-DIAG] RitualController Legacy Route | Raw={recognizedPhrase} | Reason=No active network ritual",
+            this);
         ProcessRecognizedPhraseForLegacyValidation(recognizedPhrase);
     }
 
@@ -1070,21 +1292,71 @@ public class RitualController : MonoBehaviour
         ProcessSequentialWordRecognition(recognizedPhrase, normalizedPhrase);
     }
 
-    private bool TryForwardAuthoritativeVoiceSubmission(string recognizedPhrase)
+    private bool TryForwardAuthoritativeVoiceSubmission(
+        string recognizedPhrase,
+        bool containsCompleteWhisperAttempt)
     {
         NetworkRitualAuthority authority = ResolveRitualAuthority();
         if (authority == null || !authority.IsNetworkSessionActive)
+        {
+            if (containsCompleteWhisperAttempt)
+            {
+                (subscribedVoiceRecognizer as WhisperVoiceRecognizer)?
+                    .SetPipelineBlockDiagnostic("AUTHORITY_UNAVAILABLE");
+            }
+            Debug.Log(
+                $"[VOICE-DIAG] RitualController Not Forwarded | Raw={recognizedPhrase} | Reason=No active NetworkRitualAuthority",
+                this);
             return false;
+        }
+
+        if (containsCompleteWhisperAttempt)
+        {
+            whisperSubmissionInProgress = true;
+            whisperVerdictReceivedDuringSubmission = false;
+        }
 
         NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
-        if (localPlayer == null ||
-            !localPlayer.RequestRitualVoiceSubmission(recognizedPhrase))
+        bool submitted = localPlayer != null &&
+            (containsCompleteWhisperAttempt
+                ? localPlayer.RequestCompleteWhisperRitualAttempt(recognizedPhrase)
+                : localPlayer.RequestRitualVoiceSubmission(recognizedPhrase));
+        bool verdictAlreadyReceived = containsCompleteWhisperAttempt &&
+            whisperVerdictReceivedDuringSubmission;
+        if (containsCompleteWhisperAttempt)
+            whisperSubmissionInProgress = false;
+
+        if (containsCompleteWhisperAttempt && submitted)
+        {
+            WhisperVoiceRecognizer submittedWhisper =
+                subscribedVoiceRecognizer as WhisperVoiceRecognizer;
+            if (!verdictAlreadyReceived)
+            {
+                whisperAttemptAwaitingAuthority = true;
+                submittedWhisper?.SetAttemptSubmittedDiagnostic();
+            }
+            submittedWhisper?.SetPipelineDiagnostic("SUBMITTED");
+        }
+        Debug.Log(
+            $"[VOICE-DIAG] RitualController Network Route | Raw={recognizedPhrase} | LocalPlayerExists={localPlayer != null} | LocalPlayerId={(localPlayer != null ? localPlayer.PlayerId : string.Empty)} | Forwarded={submitted}",
+            this);
+
+        if (!submitted)
         {
             Debug.LogWarning(
                 "[RitualAuthority]\n" +
                 "Voice Submission Rejected\n" +
                 "Reason = Local recognized speech could not be submitted through the owning NetworkPlayer.",
                 this);
+            if (containsCompleteWhisperAttempt)
+            {
+                WhisperVoiceRecognizer failedSubmissionWhisper =
+                    subscribedVoiceRecognizer as WhisperVoiceRecognizer;
+                failedSubmissionWhisper?.SetSubmissionFailureDiagnostic();
+                failedSubmissionWhisper?.SetPipelineBlockDiagnostic(
+                    "SUBMISSION_REJECTED");
+                RestartListeningAfterFailedAttempt(false);
+            }
         }
 
         return true;
@@ -1133,6 +1405,14 @@ public class RitualController : MonoBehaviour
         if (!isNetworkPresentationActive)
             return;
 
+        if (presentedNetworkVisualTurnSequence !=
+            snapshot.Turn.SequenceId.Value)
+        {
+            ResolveIncantationTextDisplay()?.ClearTransientFeedback();
+            presentedNetworkVisualTurnSequence =
+                snapshot.Turn.SequenceId.Value;
+        }
+
         if (incantationManager != null && snapshot.Phrase.WordCount > 0)
         {
             incantationManager.ApplyAuthoritativePhraseState(
@@ -1152,6 +1432,10 @@ public class RitualController : MonoBehaviour
                 localPlayer.PlayerId,
                 snapshot.ActivePlayerId,
                 StringComparison.Ordinal);
+        ResolveWhisperVoiceRecognizer()?.SetTurnEligibilityDiagnostic(
+            submissionEnabled);
+        ResolveIncantationTextDisplay()?.SetLocalRecitationActive(
+            submissionEnabled);
 
         if (lastLoggedNetworkVoiceSubmissionEnabled != submissionEnabled)
         {
@@ -1167,7 +1451,8 @@ public class RitualController : MonoBehaviour
 
         if (!submissionEnabled)
         {
-            StopListening();
+            ResetWhisperAttemptState();
+            CancelListening("Authoritative turn no longer permits local recitation.");
             isTurnActive = false;
             playerTurnComplete = false;
             activeNetworkVoiceTurnSequence = 0;
@@ -1177,7 +1462,14 @@ public class RitualController : MonoBehaviour
         if (activeNetworkVoiceTurnSequence == snapshot.Turn.SequenceId.Value)
             return;
 
+        if (activeNetworkVoiceTurnSequence != 0)
+        {
+            ResetWhisperAttemptState();
+            CancelListening("Authoritative turn sequence changed.");
+        }
+
         activeNetworkVoiceTurnSequence = snapshot.Turn.SequenceId.Value;
+        ResetLocalWhisperAttemptForNewAuthoritativeTurn();
         BeginPlayerTurn();
         StartListening();
     }
@@ -1213,9 +1505,16 @@ public class RitualController : MonoBehaviour
 
         PhraseValidationFailureReason legacyFailureReason =
             MapLegacyValidationFailureReason(validation.FailureReason);
+        int presentationProgress =
+            validation.ValidationMode == RitualValidationMode.WordByWordRealtime &&
+            !validation.IsAccepted
+                ? validation.ValidatedWordIndex
+                : validation.ValidationMode == RitualValidationMode.FullPhrase
+                    ? 0
+                    : validation.ExpectedWordIndex;
         incantationManager.ApplyAuthoritativePhraseState(
             validation.PhraseWords,
-            validation.ExpectedWordIndex);
+            presentationProgress);
         PhraseValidationResult result =
             validation.ValidationMode ==
                 RitualValidationMode.WordByWordRealtime
@@ -1246,7 +1545,11 @@ public class RitualController : MonoBehaviour
         RitualValidationSnapshot validation,
         PhraseValidationResult result)
     {
-        incantationManager.ApplyAuthoritativeWordValidation(result);
+        incantationManager.PresentAuthoritativeWordValidation(
+            result,
+            validation.PhraseWords,
+            validation.ExpectedWordIndex,
+            false);
         if (!validation.IsAccepted)
         {
             Debug.Log($"Incorrect word: {validation.RejectedWord}");
@@ -1263,16 +1566,48 @@ public class RitualController : MonoBehaviour
         RitualValidationSnapshot validation,
         PhraseValidationResult result)
     {
+        WhisperVoiceRecognizer whisperRecognizer =
+            ResolveWhisperVoiceRecognizer();
+        whisperRecognizer?.RecordAuthorityDiagnostic(
+            validation.IsAccepted,
+            validation.FirstRejectedWordIndex);
+        if (whisperSubmissionInProgress)
+            whisperVerdictReceivedDuringSubmission = true;
+        whisperAttemptAwaitingAuthority = false;
         incantationManager.ApplyAuthoritativePhraseValidation(result);
         if (!validation.IsAccepted)
         {
-            incantationManager.ResetCurrentPhraseProgress();
+            if (whisperRecognizer != null && !whisperRecognizer.IsListening)
+            {
+                IncantationTextDisplay replayDisplay =
+                    ResolveIncantationTextDisplay();
+                RestartListeningAfterFailedAttempt(
+                    resetPhraseProgress: true,
+                    authoritativeReplayDisplay: replayDisplay,
+                    authoritativeReplayVersion: replayDisplay != null
+                        ? replayDisplay.ActiveAuthoritativeReplayVersion
+                        : 0);
+            }
             Debug.Log(
                 $"Phrase incomplete after authoritative validation: {validation.FailureReason}");
-            RestartListeningAfterFailedAttempt();
             return;
         }
 
+        ResolveIncantationTextDisplay()?.SetLocalJudgingState(true);
+    }
+
+    private void ResetWhisperAttemptState()
+    {
+        whisperAttemptAwaitingAuthority = false;
+        whisperSubmissionInProgress = false;
+        whisperVerdictReceivedDuringSubmission = false;
+    }
+
+    private void ResetLocalWhisperAttemptForNewAuthoritativeTurn()
+    {
+        ResetWhisperAttemptState();
+        ResolveIncantationTextDisplay()?.ClearTransientFeedback();
+        ResolveWhisperVoiceRecognizer()?.ResetAuthorityDiagnostic();
     }
 
     private void HandleAuthoritativeConsequence(
@@ -1295,7 +1630,7 @@ public class RitualController : MonoBehaviour
         {
             case RitualConsequenceType.TurnSucceeded:
                 UnsubscribeFromVoiceRecognizer();
-                StopListening();
+                CancelListening("Authoritative turn succeeded.");
                 isTurnActive = false;
                 playerTurnComplete = true;
 
@@ -1305,7 +1640,7 @@ public class RitualController : MonoBehaviour
                 break;
 
             case RitualConsequenceType.TimerExpired:
-                StopListening();
+                CancelListening("Authoritative timer expired.");
                 FailRitual(
                     "Timeout: authoritative ritual timer expired.",
                     stopHourglass: false,
@@ -1355,7 +1690,7 @@ public class RitualController : MonoBehaviour
         LogDebug("Incantation complete");
 
         UnsubscribeFromVoiceRecognizer();
-        StopListening();
+        CancelListening("Legacy full-phrase turn completed.");
 
         if (hourglassController != null)
             hourglassController.StopHourglass();
@@ -1553,7 +1888,61 @@ public class RitualController : MonoBehaviour
         if (whisperVoiceRecognizer == null)
             return;
 
-        whisperVoiceRecognizer.SetExpectedPhraseWordCount(GetCurrentIncantationWordCount());
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (authority != null && authority.IsNetworkSessionActive && localPlayer != null)
+        {
+            RitualSnapshot snapshot = authority.Snapshot;
+            whisperVoiceRecognizer.ConfigureAuthoritativeSession(
+                snapshot.SequenceId.Value,
+                snapshot.Turn.SequenceId.Value,
+                localPlayer.PlayerId);
+        }
+        else
+        {
+            whisperVoiceRecognizer.ConfigureAuthoritativeSession(0, 0, string.Empty);
+        }
+
+        VoiceAmplitudeProvider amplitudeProvider = CurrentActiveSeat != null && CurrentActiveSeat.currentPlayer != null
+            ? CurrentActiveSeat.currentPlayer.GetComponentInChildren<VoiceAmplitudeProvider>(true)
+            : null;
+        whisperVoiceRecognizer.SetAmplitudeProvider(amplitudeProvider);
+    }
+
+    private bool IsCurrentWhisperSessionResult()
+    {
+        WhisperVoiceRecognizer whisperVoiceRecognizer = ResolveWhisperVoiceRecognizer();
+        if (whisperVoiceRecognizer == null ||
+            !whisperVoiceRecognizer.TryGetDeliveredSessionContext(
+                out int sessionId,
+                out uint ritualSequence,
+                out uint turnSequence,
+                out string playerId))
+        {
+            return false;
+        }
+
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null || !authority.IsNetworkSessionActive)
+            return ritualSequence == 0 && turnSequence == 0;
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        RitualSnapshot snapshot = authority.Snapshot;
+        bool matches = localPlayer != null &&
+            ritualSequence == snapshot.SequenceId.Value &&
+            turnSequence == snapshot.Turn.SequenceId.Value &&
+            string.Equals(playerId, localPlayer.PlayerId, StringComparison.Ordinal) &&
+            string.Equals(playerId, snapshot.ActivePlayerId, StringComparison.Ordinal) &&
+            snapshot.Phase == RitualPhase.AwaitingRecitation;
+
+        if (!matches)
+        {
+            Debug.Log(
+                $"[WhisperLifecycle] Session {sessionId} rejected. Recorded Ritual={ritualSequence}, Turn={turnSequence}, Player={playerId}; Current Ritual={snapshot.SequenceId.Value}, Turn={snapshot.Turn.SequenceId.Value}, Player={snapshot.ActivePlayerId}, Phase={snapshot.Phase}.",
+                this);
+        }
+
+        return matches;
     }
 
     private WhisperVoiceRecognizer ResolveWhisperVoiceRecognizer()
@@ -1579,17 +1968,6 @@ public class RitualController : MonoBehaviour
             return true;
 
         return !ContainsSpeechCharacter(recognizedPhrase);
-    }
-
-    private bool IsDuplicateWhisperUpdate(string recognizedPhrase)
-    {
-        if (!string.Equals(recognizedPhrase, lastProcessedWhisperPhrase, StringComparison.Ordinal))
-        {
-            lastProcessedWhisperPhrase = recognizedPhrase;
-            return false;
-        }
-
-        return true;
     }
 
     private bool ContainsSpeechCharacter(string phrase)
@@ -1627,7 +2005,7 @@ public class RitualController : MonoBehaviour
 
         StopRetryListeningRoutine();
         UnsubscribeFromVoiceRecognizer();
-        StopListening();
+        CancelListening(reason);
 
         if (stopHourglass && hourglassController != null)
             hourglassController.StopHourglass();
@@ -1795,13 +2173,35 @@ public class RitualController : MonoBehaviour
         hasLoggedMissingDemonHandController = true;
     }
 
-    private void RestartListeningAfterFailedAttempt()
+    private void RestartListeningAfterFailedAttempt(
+        bool resetPhraseProgress = true,
+        IncantationTextDisplay authoritativeReplayDisplay = null,
+        int authoritativeReplayVersion = 0)
     {
-        if (!isTurnActive || playerTurnComplete || ritualFailed)
+        WhisperVoiceRecognizer whisperRecognizer =
+            ResolveWhisperVoiceRecognizer();
+        whisperRecognizer?.SetRetryRequestedDiagnostic(
+            "CONTROLLER_FAILED_ATTEMPT");
+
+        if (!isTurnActive)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TURN_INACTIVE");
             return;
+        }
+        if (playerTurnComplete)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TURN_COMPLETE");
+            return;
+        }
+        if (ritualFailed)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("RITUAL_FAILED");
+            return;
+        }
 
         if (hourglassFinished)
         {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TIMEOUT");
             Debug.Log("Ritual phrase attempt failed after timeout; no retry will start.");
             return;
         }
@@ -1810,29 +2210,78 @@ public class RitualController : MonoBehaviour
             StopCoroutine(retryListeningRoutine);
 
         Debug.Log("Ritual phrase attempt failed, retrying while hourglass is still running.");
-        retryListeningRoutine = StartCoroutine(RestartListeningWhenRecognizerReady());
+        retryListeningRoutine = StartCoroutine(
+            RestartListeningWhenRecognizerReady(
+                resetPhraseProgress,
+                authoritativeReplayDisplay,
+                authoritativeReplayVersion));
     }
 
-    private IEnumerator RestartListeningWhenRecognizerReady()
+    private IEnumerator RestartListeningWhenRecognizerReady(
+        bool resetPhraseProgress = true,
+        IncantationTextDisplay authoritativeReplayDisplay = null,
+        int authoritativeReplayVersion = 0)
     {
         while (isTurnActive &&
             !playerTurnComplete &&
             !ritualFailed &&
             !hourglassFinished &&
-            IsVoiceRecognizerBusy())
+            (IsVoiceRecognizerBusy() ||
+             IsAwaitingAuthoritativeReplayCompletion(
+                 authoritativeReplayDisplay,
+                 authoritativeReplayVersion) ||
+             (ResolveIncantationTextDisplay()?.IsReplayingJudgment ?? false)))
         {
+            ResolveWhisperVoiceRecognizer()?.SetRetryBlockDiagnostic(
+                IsVoiceRecognizerBusy()
+                    ? "RECOGNIZER_BUSY"
+                    : "VERDICT_PRESENTATION");
             yield return null;
         }
 
         retryListeningRoutine = null;
 
-        if (!isTurnActive || playerTurnComplete || ritualFailed || hourglassFinished)
+        WhisperVoiceRecognizer whisperRecognizer =
+            ResolveWhisperVoiceRecognizer();
+        if (!isTurnActive)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TURN_INACTIVE");
             yield break;
+        }
+        if (playerTurnComplete)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TURN_COMPLETE");
+            yield break;
+        }
+        if (ritualFailed)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("RITUAL_FAILED");
+            yield break;
+        }
+        if (hourglassFinished)
+        {
+            whisperRecognizer?.SetRetryBlockDiagnostic("TIMEOUT");
+            yield break;
+        }
 
-        if (incantationManager != null)
+        if (resetPhraseProgress && incantationManager != null)
+        {
+            incantationManager.ResetCurrentPhraseProgress();
             incantationManager.ResetPhraseReplayFeedback();
+        }
 
+        whisperRecognizer?.SetRetryBlockDiagnostic(string.Empty);
         StartListening();
+    }
+
+    private static bool IsAwaitingAuthoritativeReplayCompletion(
+        IncantationTextDisplay replayDisplay,
+        int replayVersion)
+    {
+        return replayDisplay != null &&
+            replayVersion > 0 &&
+            replayDisplay.ActiveAuthoritativeReplayVersion == replayVersion &&
+            !replayDisplay.HasCompletedAuthoritativeReplay(replayVersion);
     }
 
     private bool IsVoiceRecognizerBusy()

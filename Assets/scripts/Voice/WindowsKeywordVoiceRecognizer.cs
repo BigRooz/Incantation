@@ -42,6 +42,10 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
     public void StartListening()
     {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_WSA
+        Debug.Log(
+            $"[VOICE-DIAG] StartListening Enter | ComponentId={GetInstanceID()} | RecognizerExists={keywordRecognizer != null} | RecognizerId={GetKeywordRecognizerId()} | IsRunning={(keywordRecognizer != null && keywordRecognizer.IsRunning)} | ExpectedWord={GetExpectedRitualWord()} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+            this);
+
         if (!TryInitializeKeywordRecognizer())
             return;
 
@@ -55,6 +59,9 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
         {
             keywordRecognizer.Start();
             isListening = true;
+            Debug.Log(
+                $"[VOICE-DIAG] StartListening Started | ComponentId={GetInstanceID()} | RecognizerId={GetKeywordRecognizerId()} | IsRunning={keywordRecognizer.IsRunning} | ExpectedWord={GetExpectedRitualWord()} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+                this);
         }
         catch (Exception exception)
         {
@@ -100,7 +107,12 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
     private bool TryInitializeKeywordRecognizer()
     {
         if (keywordRecognizer != null)
+        {
+            Debug.Log(
+                $"[VOICE-DIAG] KeywordRecognizer Reused | ComponentId={GetInstanceID()} | RecognizerId={GetKeywordRecognizerId()} | IsRunning={keywordRecognizer.IsRunning}",
+                this);
             return true;
+        }
 
         string[] keywords = BuildKeywords();
 
@@ -111,6 +123,9 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
         {
             keywordRecognizer = new KeywordRecognizer(keywords);
             keywordRecognizer.OnPhraseRecognized += HandleKeywordRecognized;
+            Debug.Log(
+                $"[VOICE-DIAG] KeywordRecognizer Created | ComponentId={GetInstanceID()} | RecognizerId={GetKeywordRecognizerId()} | KeywordCount={keywords.Length} | ContainsUmbra={ContainsKeyword(keywords, "umbra")} | ContainsKorva={ContainsKeyword(keywords, "korva")} | UmbraAliases=[{BuildDiagnosticAliasList("umbra")}] | KorvaAliases=[{BuildDiagnosticAliasList("korva")}]",
+                this);
             return true;
         }
         catch (Exception exception)
@@ -177,6 +192,10 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
 
     private void HandleKeywordRecognized(PhraseRecognizedEventArgs args)
     {
+        Debug.Log(
+            $"[VOICE-DIAG] Keyword Event | ComponentId={GetInstanceID()} | RecognizerId={GetKeywordRecognizerId()} | Raw={args.text} | Confidence={args.confidence} | ExpectedWord={GetExpectedRitualWord()} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+            this);
+
         if (logRecognizedPhrases)
             Debug.Log($"Keyword recognized: {args.text}", this);
 
@@ -192,6 +211,54 @@ public class WindowsKeywordVoiceRecognizer : MonoBehaviour, IVoiceRecognizer
         keywordRecognizer.OnPhraseRecognized -= HandleKeywordRecognized;
         keywordRecognizer.Dispose();
         keywordRecognizer = null;
+    }
+
+    private int GetKeywordRecognizerId()
+    {
+        return keywordRecognizer != null ? keywordRecognizer.GetHashCode() : 0;
+    }
+
+    private string GetExpectedRitualWord()
+    {
+        RitualController controller = FindFirstObjectByType<RitualController>(
+            FindObjectsInactive.Include);
+        IncantationManager manager = controller != null
+            ? controller.CurrentIncantationManager
+            : null;
+        return manager != null ? manager.CurrentWord : string.Empty;
+    }
+
+    private static bool ContainsKeyword(string[] keywords, string expectedKeyword)
+    {
+        foreach (string keyword in keywords)
+        {
+            if (string.Equals(keyword, expectedKeyword, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private string BuildDiagnosticAliasList(string canonicalWord)
+    {
+        IncantationWordLibrary resolvedWordLibrary = ResolveWordLibrary();
+        if (resolvedWordLibrary == null)
+            return string.Empty;
+
+        HashSet<string> aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (IncantationWordLibrary.SpeechAliasMapping mapping in resolvedWordLibrary.GetSpeechAliasMappings())
+        {
+            if (mapping != null &&
+                string.Equals(mapping.Word, canonicalWord, StringComparison.OrdinalIgnoreCase))
+            {
+                aliases.Add(mapping.Alias);
+            }
+        }
+
+        string[] sortedAliases = new string[aliases.Count];
+        aliases.CopyTo(sortedAliases);
+        Array.Sort(sortedAliases, StringComparer.OrdinalIgnoreCase);
+        return string.Join(", ", sortedAliases);
     }
 #else
     private void LogKeywordRecognitionUnavailable()

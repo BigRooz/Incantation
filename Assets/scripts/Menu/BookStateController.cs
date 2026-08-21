@@ -304,8 +304,12 @@ public sealed class BookStateController : MonoBehaviour
                     : "Priest";
                 rightLine2Text =
                     $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})";
-                rightLine3Text = "Invite a Priest";
-                rightLine3Action = bookMenuController != null ? bookMenuController.InvitePriest : null;
+                bool isHost = RitualSealService.Instance != null &&
+                              RitualSealService.Instance.IsHostingRitual;
+                rightLine3Text = isHost ? "Invite a Priest" : string.Empty;
+                rightLine3Action = isHost && bookMenuController != null
+                    ? bookMenuController.InvitePriest
+                    : null;
                 break;
 
             case LobbyPlayerState.Seated:
@@ -706,6 +710,8 @@ public sealed class BookStateController : MonoBehaviour
 
         if (lobbyPlayerState == LobbyPlayerState.NotSeated)
         {
+            bool isHost = RitualSealService.Instance != null &&
+                          RitualSealService.Instance.IsHostingRitual;
             RefreshLeftEntry(line1, menuItem1, "Priest Name",
                 bookMenuController != null ? bookMenuController.EditPriestName : null);
             RefreshLeftEntry(line2, menuItem2, "Character",
@@ -720,8 +726,8 @@ public sealed class BookStateController : MonoBehaviour
                     ? NetworkPlayer.LocalPlayer.PriestName
                     : "Priest",
                 $"Players ({NetworkPlayer.CircleMemberCount} / {NetworkPlayer.MaximumCircleMembers})",
-                "Invite a Priest",
-                bookMenuController != null ? bookMenuController.InvitePriest : null,
+                isHost ? "Invite a Priest" : string.Empty,
+                isHost && bookMenuController != null ? bookMenuController.InvitePriest : null,
                 string.Empty,
                 null,
                 string.Empty,

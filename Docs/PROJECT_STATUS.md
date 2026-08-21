@@ -414,6 +414,21 @@ The prototype supports two voice validation modes:
 
 Whisper is kept in the project but should not be forced as the only validation path.
 
+MainGame Whisper uses one rebuilt Sandbox-style path. Its single `WhisperManager` preloads during scene startup; no local turn recording starts until it is ready. The Book starts one complete recording on local turn arrival. Silence before speech creates no attempt. VAD only observes speech and the subsequent `0.8` seconds of trailing silence; it neither gates nor trims capture. The same silence fraction drives the existing orange Book menu-hover highlight with a quick smoothed rise and exact timer-driven decay to zero. Renewed VAD speech restores that shared highlight and continues the same recording. `OnRecordStop` sends the exact complete audio once to `WhisperManager.GetTextAsync`. The active `VoiceAmplitudeProvider` is suspended only while `MicrophoneRecord` owns the device, then restored before inference.
+
+The complete transcript is banked once through `VoicePhraseNormalizer.TryBankCompleteAttempt`. It tokenizes in spoken order and resolves only exact canonical spellings or explicit `IncantationWordLibrary` accepted forms. Unknown words retain their position, and missing/extra words remain missing/extra for server judgment. `RitualController` sends exactly one complete-attempt request. No local or network word validation occurs while the player speaks. Session, ritual, turn, player, and server-phase checks discard late results after timeout, turn change, teardown, or Match reset.
+
+Development builds include a temporary manual MainGame Sandbox A/B harness. F8 starts and F9 stops the same MainGame `MicrophoneRecord`; the resulting complete `AudioChunk` is passed directly to the same `WhisperManager.GetTextAsync` overload as `WhisperSandboxUI`. The harness retains its result as read-only diagnostic state, suspends production microphone consumers only for the isolated attempt, and performs no ritual submission or gameplay action. It creates no runtime UI.
+
+The Living Book separates input from judgment. Its local renderer glow means only "voice heard" and is off before speech, after the silence window, throughout transcription, and during authority wait. Only the authoritative full-phrase result colors words: its complete judgment timeline is prepared before playback, confirmed words accumulate in muted magical green at `0.11` seconds per word, and rejection stops at the first failed expected index in stable deep crimson for `0.5` seconds with no text or Book shake. Authoritative phrase-state synchronization preserves that active verdict presentation. A rejection retry waits for the exact replay version to reach `CompleteReplay()` before clearing phrase progress and recording the entire phrase again while the same timer continues.
+
+The authoritative shuffled ritual vocabulary remains exactly 15 canonical words, with `INIS`
+replacing canonical `IGNIS`. Both MainGame ritual libraries and the Whisper prompt normalize the
+retained pronunciation aliases (`ignis`, `igneous`, `ignice`, `inice`, `inis`, `enis`) to `INIS`.
+The separate `Ignis Corvus` spell entry is unchanged and is not part of ritual phrase selection.
+
+Successful authority waits for the bounded sequential replay, commits the existing success consequence and Book pulse, then advances the turn after the pulse lead. The server remains the only writer of success, phrase growth, participant advancement, and Book movement. Windows keyword recognition remains available through its unchanged separate path.
+
 Do not reintroduce Unity Dictation or Azure.
 
 ## Seat State
@@ -504,7 +519,7 @@ release presentation occupancy; each local owner returns to the configured lobby
 position while remote unseated clones remain hidden. Ready and ritual start both require a valid
 Seat assignment. After that reset, both Host and Client land on the canonical `BookState.Lobby`
 Circle page; the Host reaches `HostMenu` only through the existing Circle Back action. Host/client
-runtime validation remains required.
+runtime validation is complete.
 
 REALIGN-007.4 gives result UI priority at game over. The local winner's procedural look is
 immediately settled to its authored neutral pose, the unlocked visible cursor prevents further
@@ -527,6 +542,13 @@ is the moved eliminated-character root or one of its descendants. Remote absorpt
 Prison placement no longer rewrite an unrelated survivor gameplay camera, preventing a stale
 camera-local offset from carrying through Return to Lobby into a later match.
 
+POSTGAME-001 replaces `PlayerAbsorptionController`'s single overwritten restoration cache with a
+per-target ledger. Every eliminated character now retains its first canonical pre-absorption
+position, rotation, scale, and active state until completed-match reset restores all surviving
+targets and clears the ledger. This fixes the static multiple-elimination path that could leave
+earlier absorbed priests at zero scale after Return to Lobby; two- and four-player multiplayer
+runtime validation remains required.
+
 LOBBY-002 separates full Circle/Ritual exit presentation from completed-match lobby return.
 `LobbyController` captures the local scene character's authored startup position and rotation
 before any Seat placement. Host Circle Back now requests a server-authoritative NotReady,
@@ -543,12 +565,59 @@ reset disables the Ghost and restores
 the normal character for the existing Return-to-Lobby and Match-2 lifecycle. Ghost networking and
 dead/alive voice routing remain explicitly deferred.
 
-Continue migrating lobby systems so `NetworkPlayer` becomes the authoritative source of
-multiplayer lobby state. Synchronized Seat assignment and appearance are complete; the remaining
-sequence is Lobby UI, removal of duplicated local lobby state, and transition of Book systems to
-read `NetworkPlayer`.
+DEATH-001B extends that validated presentation through each player's existing `NetworkPlayer`
+identity. Every observed player owns one `NetworkGhostPresentation`: the local owner keeps the
+authored immediate Ghost movement and Death Camera, while other peers instantiate the same
+committed `GhostModel` and interpolate only world position and body yaw. Activation requires both
+the existing Book Prison presentation barrier and the authoritative ritual roster's eliminated
+state, so Ghosts do not replace priests at timeout or before absorption/aftermath completes.
+Living players and Ghosts render every remote Ghost without observer filtering. Return to Lobby
+clears all Ghost presentation and pose state before normal Seat presentation is restored for the
+next match. Ghost networking remains presentation-only; authoritative elimination is unchanged,
+and dead/alive voice routing remains deferred to DEATH-002. Host/build runtime validation for
+DEATH-001B is complete.
+
+ONLINE-001A adds an isolated, development-only Steam/FishNet compatibility spike without changing
+the Book lobby, Ritual Seal, `NetworkPlayer`, ritual authority, or DEATH-001B. FishNet remains
+pinned to `4.7.2`; Steamworks.NET `2025.164.1` and FishySteamworks tag `4.1.1` are pinned as
+packages. Tugboat remains the default transport. Launching with `-incantationTransport steam`
+selects FishySteamworks before FishNet initializes, initializes development App ID `480`, and
+initializes development App ID `480`. Static compilation and two-computer/two-account Steam
+connectivity are complete. This spike is not Steam Lobby matchmaking and does not make the
+four-character Ritual Seal Internet-capable.
+
+The first Windows standalone run confirmed Steam initialization, App ID `480`, SteamID64 exposure,
+and the compatibility HUD, but exposed that FishySteamworks `4.1.1`'s legacy UPM layout omitted its
+transport scripts from the player. ONLINE-001A now mirrors the exact tagged transport sources and
+upstream script GUIDs under `Assets/Plugins/FishySteamworks`, so the existing serialized component
+and selector reference resolve in builds. The rebuilt standalone Host path is validated.
+
+ONLINE-001A.5 replaces the ineffective below-minimum execution-order attempt with an explicit
+active-state gate. The prefab's active root owns Steam initialization and transport selection; its
+`FishNetRuntime` child contains the existing FishNet managers, transports, foundation controller,
+and diagnostics but starts inactive. The selector assigns Tugboat or FishySteamworks and only then
+activates that child, allowing FishNet alone to initialize the selected transport, construct its
+sockets, cache MTUs, and subscribe manager events. A Steam initialization failure preserves Tugboat
+and activates FishNet while Steam actions remain disabled. Local Steam Host Started and normal
+Tugboat regression checks are complete.
+
+The next production task begins `SPELLS-NET-002` from this validated checkpoint.
 
 ## Last Reviewed
 
-2026-08-13 after adding Inspector-tunable late-stage TopSand horizontal narrowing without changing
-local-Z height, anchoring, BottomSand, or timer authority.
+2026-08-21 after runtime validation of the accumulated ritual, voice, Steam/network,
+post-game/lobby, Ghost, and StudioIntro startup state.
+
+ONLINE-001C is implemented and runtime validated. Steam-mode Create Ritual starts or reuses the FishySteamworks Host, reserves
+a four-character Seal, creates a public four-member Steam Lobby, and publishes minimal discovery
+metadata. Steam-mode Join Ritual performs an exact filtered search, joins one matching lobby,
+resolves the lobby owner's SteamID64 internally, and passes it to the existing FishNet client
+start path. Tugboat UDP discovery, FishNet gameplay authority, and transport-independent
+DEATH-001B behavior are unchanged.
+
+ONLINE-001C manual Seal joining and ONLINE-001D invitation joining have passed their required
+two-account runtime validation. A Host's Living Book Invite action opens Steam's native Lobby friend picker.
+Accepting while the invitee's Steam-mode game is already running and disconnected joins the
+invited Lobby ID, validates the Incantation marker/protocol/Seal, resolves the owner SteamID64,
+and reuses the existing FishNet join lifecycle. Manual Seal joining remains available. Cold-start
+invitation acceptance is not implemented.

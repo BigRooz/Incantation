@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using FishNet.Connection;
@@ -121,6 +122,10 @@ namespace Incantation.Networking
         [Header("Authoritative Phrase Source")]
         [SerializeField] private GrowingIncantationManager growingIncantationManager;
 
+        [Header("Successful Judgment Presentation")]
+        [SerializeField, Min(0f)] private float judgmentWordIntervalSeconds = 0.11f;
+        [SerializeField, Min(0f)] private float bookSuccessPulseLeadSeconds = 0.3f;
+
         private bool snapshotNotificationPending;
         private bool rosterNotificationPending;
         private bool bookArrivalNotificationPending;
@@ -132,6 +137,8 @@ namespace Incantation.Networking
         private bool ownsDiscoveryReference;
         private NetworkBookAuthority networkBookAuthority;
         private RitualController ritualController;
+        private Coroutine successfulJudgmentRoutine;
+        private Coroutine successfulAdvanceRoutine;
 
         public static NetworkRitualAuthority Instance { get; private set; }
         public bool IsNetworkSessionActive => IsServerInitialized || IsClientInitialized;
@@ -190,6 +197,7 @@ namespace Incantation.Networking
 
         private void OnDisable()
         {
+            StopSuccessfulPresentationRoutines();
             ReleaseDiscoveryReference();
         }
 
@@ -303,6 +311,7 @@ namespace Incantation.Networking
 
         public override void OnStopNetwork()
         {
+            StopSuccessfulPresentationRoutines();
             rosterRevision.OnChange -= HandleRosterRevisionChanged;
             bookArrivalRevision.OnChange -= HandleBookArrivalRevisionChanged;
             timerRevision.OnChange -= HandleTimerRevisionChanged;
@@ -348,6 +357,8 @@ namespace Incantation.Networking
                     this);
                 return false;
             }
+
+            StopSuccessfulPresentationRoutines();
 
             RitualPhase currentPhase = ritualPhase.Value;
             if (!RitualPhaseTransitions.IsLegal(currentPhase, requestedPhase))
@@ -629,6 +640,8 @@ namespace Incantation.Networking
                 return false;
             }
 
+            StopSuccessfulPresentationRoutines();
+
             if (ritualRoster.Count == 0 && !TryBuildRosterFromCurrentSeating())
                 return false;
 
@@ -656,6 +669,8 @@ namespace Incantation.Networking
 
             if (!TryTransitionPhase(RitualPhase.Inactive))
                 return false;
+
+            StopSuccessfulPresentationRoutines();
 
             activePlayerId.Value = NoActivePlayerId;
             activeSeatId.Value = NoSeatId;
@@ -930,6 +945,10 @@ namespace Incantation.Networking
             RitualVoiceSubmission submission)
         {
             int connectionId = sender != null ? sender.ClientId : -1;
+            Debug.Log(
+                $"[VOICE-DIAG] Server Submission Enter | ConnectionId={connectionId} | Raw={submission.RecognizedText} | RitualSequence={submission.RitualSequence} | TurnSequence={submission.TurnSequence} | SubmissionSequence={submission.SubmissionSequence} | ActivePlayerId={activePlayerId.Value} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+                this);
+
             if (!IsServerInitialized)
             {
                 return RejectVoiceSubmission(
@@ -1087,13 +1106,33 @@ namespace Incantation.Networking
                     submission);
             }
 
+            string authoritativeExpectedWord = expectedWordIndex.Value >= 0 &&
+                expectedWordIndex.Value < phraseWords.Count
+                    ? phraseWords[expectedWordIndex.Value]
+                    : string.Empty;
+            RitualController diagnosticController = ResolveRitualController();
+            VoicePhraseNormalizer diagnosticNormalizer = diagnosticController != null
+                ? diagnosticController.CurrentVoicePhraseNormalizer
+                : null;
+            string normalizedValidationCandidate = diagnosticNormalizer != null
+                ? diagnosticNormalizer.Normalize(normalizedRecognizedText)
+                : PhraseValidator.NormalizePhrase(normalizedRecognizedText);
+            string normalizedExpectedWord = diagnosticNormalizer != null
+                ? diagnosticNormalizer.Normalize(authoritativeExpectedWord)
+                : PhraseValidator.NormalizePhrase(authoritativeExpectedWord);
+            Debug.Log(
+                $"[VOICE-DIAG] Server Submission Accepted For Validation | SenderPlayerId={submittingParticipant.PlayerId} | Raw={submission.RecognizedText} | TransportNormalized={normalizedRecognizedText} | NormalizedCandidate={normalizedValidationCandidate} | Expected={authoritativeExpectedWord} | NormalizedExpected={normalizedExpectedWord} | ActivePlayerId={activePlayerId.Value} | RitualSequence={submission.RitualSequence} | TurnSequence={submission.TurnSequence}",
+                this);
+
             RitualVoiceSubmissionSnapshot acceptedSubmission = new(
                 new RitualSequenceId(submission.RitualSequence),
                 new RitualTurnSequenceId(submission.TurnSequence),
                 submission.SubmissionSequence,
                 submittingParticipant.PlayerId,
                 normalizedRecognizedText,
-                serverTimestamp);
+                serverTimestamp,
+                submission.ContainsIncrementalTokenBatch,
+                submission.ContainsCompleteAttempt);
 
             acceptedVoiceRitualSequence.Value = submission.RitualSequence;
             acceptedVoiceTurnSequence.Value = submission.TurnSequence;
@@ -1212,10 +1251,22 @@ namespace Incantation.Networking
                     submission);
             }
 
-            RitualValidationMode mode = validationMode.Value;
+            RitualValidationMode mode = submission.ContainsCompleteAttempt
+                ? RitualValidationMode.FullPhrase
+                : validationMode.Value;
             manager.ApplyAuthoritativePhraseState(
                 CopyAuthoritativePhraseWords(),
                 expectedWordIndex.Value);
+
+            if (submission.ContainsIncrementalTokenBatch)
+            {
+                return TryValidateIncrementalTokenBatch(
+                    submission,
+                    controller,
+                    manager,
+                    serverTimestamp);
+            }
+
             int validatedWordIndex = expectedWordIndex.Value;
             PhraseValidationResult deterministicResult =
                 mode == RitualValidationMode.FullPhrase
@@ -1321,7 +1372,123 @@ namespace Incantation.Networking
                 if (!TryTransitionPhase(RitualPhase.ResolvingTurn))
                     return false;
 
-                TryCommitTurnOutcome(
+                BeginSuccessfulJudgmentPresentation(validation);
+            }
+
+            return true;
+        }
+
+        private bool TryValidateIncrementalTokenBatch(
+            RitualVoiceSubmissionSnapshot submission,
+            RitualController controller,
+            IncantationManager manager,
+            double serverTimestamp)
+        {
+            string normalizedBatch = controller.CurrentVoicePhraseNormalizer != null
+                ? controller.CurrentVoicePhraseNormalizer.Normalize(submission.RecognizedText)
+                : PhraseValidator.NormalizePhrase(submission.RecognizedText);
+            string[] tokens = normalizedBatch.Split(
+                new[] { ' ' },
+                StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0)
+                return RejectValidation("The incremental token batch is empty.", submission);
+
+            foreach (string token in tokens)
+            {
+                if (validationSequence.Value == uint.MaxValue)
+                    return RejectValidation("The validation sequence is exhausted.", submission);
+
+                manager.ApplyAuthoritativePhraseState(
+                    CopyAuthoritativePhraseWords(),
+                    expectedWordIndex.Value);
+                int validatedWordIndex = expectedWordIndex.Value;
+                PhraseValidationResult deterministicResult =
+                    manager.EvaluateCurrentWordRealtime(
+                        token,
+                        controller.CurrentVoicePhraseNormalizer);
+                string expectedWord = validatedWordIndex >= 0 &&
+                    validatedWordIndex < manager.CurrentIncantation.Count
+                        ? manager.CurrentIncantation[validatedWordIndex]?.Text ?? string.Empty
+                        : string.Empty;
+                string rejectedWord = deterministicResult.IsSuccess ? string.Empty : token;
+                RitualValidationResult result = deterministicResult.IsSuccess
+                    ? RitualValidationResult.Accepted
+                    : RitualValidationResult.Rejected;
+
+                if (deterministicResult.IsSuccess)
+                {
+                    expectedWordIndex.Value = Mathf.Min(
+                        phraseWords.Count,
+                        expectedWordIndex.Value + 1);
+                }
+                else
+                {
+                    expectedWordIndex.Value = 0;
+                }
+
+                validationSequence.Value++;
+                validationRitualSequence.Value = submission.RitualSequenceId.Value;
+                validationTurnSequence.Value = submission.TurnSequenceId.Value;
+                validationSubmissionSequence.Value = submission.SubmissionSequence;
+                validationPlayerId.Value = submission.PlayerId;
+                validatedMode.Value = RitualValidationMode.WordByWordRealtime;
+                validationResult.Value = result;
+                validationAcceptedWordCount.Value = deterministicResult.IsSuccess ? 1 : 0;
+                validationWordIndex.Value = validatedWordIndex;
+                validationRejectedWordIndex.Value = deterministicResult.IsSuccess
+                    ? -1
+                    : validatedWordIndex;
+                validationExpectedWordIndex.Value = expectedWordIndex.Value;
+                validationExpectedWord.Value = expectedWord;
+                validationRejectedWord.Value = rejectedWord;
+                validationReceivedText.Value = token;
+                validationFailureReason.Value = MapValidationFailureReason(
+                    deterministicResult.FailureReason);
+                validationServerTimestamp.Value = serverTimestamp;
+                validationRevision.Value++;
+                snapshotRevision.Value++;
+
+                RitualValidationSnapshot validation = CreateValidationSnapshot();
+                LogValidationCommitted(validation);
+                PublishValidation(validation);
+                PublishValidationObserversRpc(
+                    validation.RitualSequenceId.Value,
+                    validation.TurnSequenceId.Value,
+                    validation.SubmissionSequence,
+                    validation.ValidationSequence,
+                    validation.PlayerId,
+                    validation.ValidationMode,
+                    validation.Result,
+                    validation.AcceptedWordCount,
+                    validation.ValidatedWordIndex,
+                    validation.FirstRejectedWordIndex,
+                    validation.PhraseWords,
+                    validation.ExpectedWordIndex,
+                    validation.ExpectedWord,
+                    validation.RejectedWord,
+                    validation.ReceivedText,
+                    validation.FailureReason,
+                    validation.ServerTimestamp);
+
+                if (!deterministicResult.IsSuccess)
+                {
+                    Debug.Log(
+                        $"[WHISPER-STREAM] authoritative attempt rejected | Player={submission.PlayerId} ExpectedIndex={validatedWordIndex} Expected={expectedWord} Received={token} Progress=0",
+                        this);
+                    return true;
+                }
+
+                Debug.Log(
+                    $"[WHISPER-STREAM] authoritative word accepted | Player={submission.PlayerId} AcceptedIndex={validatedWordIndex} Progress={expectedWordIndex.Value}/{phraseWords.Count}",
+                    this);
+
+                if (expectedWordIndex.Value != phraseWords.Count)
+                    continue;
+
+                if (!TryTransitionPhase(RitualPhase.ResolvingTurn))
+                    return false;
+
+                return TryCommitTurnOutcome(
                     TurnOutcomeType.Success,
                     validation.ValidationSequence,
                     0);
@@ -1518,7 +1685,10 @@ namespace Incantation.Networking
                 return false;
 
             if (requestedOutcome == TurnOutcomeType.Success)
-                return TryAdvanceAfterSuccessfulTurn(outcome);
+            {
+                BeginSuccessfulAdvanceAfterBookPulse(outcome);
+                return true;
+            }
 
             return true;
         }
@@ -2255,6 +2425,85 @@ namespace Incantation.Networking
                 "TurnSucceeded");
         }
 
+        private void BeginSuccessfulJudgmentPresentation(
+            RitualValidationSnapshot validation)
+        {
+            if (successfulJudgmentRoutine != null)
+                StopCoroutine(successfulJudgmentRoutine);
+
+            successfulJudgmentRoutine = StartCoroutine(
+                WaitForSuccessfulJudgmentPresentation(validation));
+        }
+
+        private IEnumerator WaitForSuccessfulJudgmentPresentation(
+            RitualValidationSnapshot validation)
+        {
+            float delay = Mathf.Max(0f, judgmentWordIntervalSeconds) *
+                Mathf.Max(0, validation.PhraseWords.Length);
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
+
+            successfulJudgmentRoutine = null;
+            if (!IsServerInitialized ||
+                validation.RitualSequenceId.Value != ritualSequence.Value ||
+                validation.TurnSequenceId.Value != turnSequence.Value ||
+                ritualPhase.Value != RitualPhase.ResolvingTurn ||
+                isGameOver.Value)
+            {
+                yield break;
+            }
+
+            TryCommitTurnOutcome(
+                TurnOutcomeType.Success,
+                validation.ValidationSequence,
+                0);
+        }
+
+        private void BeginSuccessfulAdvanceAfterBookPulse(
+            TurnOutcomeSnapshot outcome)
+        {
+            if (successfulAdvanceRoutine != null)
+                StopCoroutine(successfulAdvanceRoutine);
+
+            successfulAdvanceRoutine = StartCoroutine(
+                WaitForBookPulseThenAdvance(outcome));
+        }
+
+        private IEnumerator WaitForBookPulseThenAdvance(
+            TurnOutcomeSnapshot outcome)
+        {
+            float delay = Mathf.Max(0f, bookSuccessPulseLeadSeconds);
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
+
+            successfulAdvanceRoutine = null;
+            if (!IsServerInitialized ||
+                outcome.RitualSequenceId.Value != ritualSequence.Value ||
+                outcome.TurnSequenceId.Value != turnSequence.Value ||
+                ritualPhase.Value != RitualPhase.ResolvingTurn ||
+                isGameOver.Value)
+            {
+                yield break;
+            }
+
+            TryAdvanceAfterSuccessfulTurn(outcome);
+        }
+
+        private void StopSuccessfulPresentationRoutines()
+        {
+            if (successfulJudgmentRoutine != null)
+            {
+                StopCoroutine(successfulJudgmentRoutine);
+                successfulJudgmentRoutine = null;
+            }
+
+            if (successfulAdvanceRoutine != null)
+            {
+                StopCoroutine(successfulAdvanceRoutine);
+                successfulAdvanceRoutine = null;
+            }
+        }
+
         private bool TryAdvanceAfterResolvedParticipant(
             string previousPlayerId,
             string advancementReason)
@@ -2472,6 +2721,9 @@ namespace Incantation.Networking
                 ? "Validation Accepted"
                 : "Validation Rejected";
             Debug.Log(
+                $"[VOICE-DIAG] Final Validation | Result={(validation.IsAccepted ? "ACCEPTED" : "REJECTED")} | PlayerId={validation.PlayerId} | Expected={validation.ExpectedWord} | Received={validation.ReceivedText} | FailureReason={validation.FailureReason} | RitualSequence={validation.RitualSequenceId.Value} | TurnSequence={validation.TurnSequenceId.Value} | SubmissionSequence={validation.SubmissionSequence}",
+                this);
+            Debug.Log(
                 "[RitualAuthority]\n" +
                 $"{label}\n" +
                 $"PlayerId = {validation.PlayerId}\n" +
@@ -2490,6 +2742,9 @@ namespace Incantation.Networking
             string reason,
             RitualVoiceSubmissionSnapshot submission)
         {
+            Debug.LogWarning(
+                $"[VOICE-DIAG] Server Validation Rejected Before Verdict | PlayerId={submission.PlayerId} | Raw={submission.RecognizedText} | RitualSequence={submission.RitualSequenceId.Value} | TurnSequence={submission.TurnSequenceId.Value} | SubmissionSequence={submission.SubmissionSequence} | Reason={reason}",
+                this);
             Debug.LogWarning(
                 "[RitualAuthority]\n" +
                 "Validation Rejected\n" +
@@ -2718,6 +2973,9 @@ namespace Incantation.Networking
             int connectionId,
             RitualVoiceSubmission submission)
         {
+            Debug.LogWarning(
+                $"[VOICE-DIAG] Server Submission Rejected | ConnectionId={connectionId} | Raw={submission.RecognizedText} | ActivePlayerId={activePlayerId.Value} | RitualSequence={submission.RitualSequence} | TurnSequence={submission.TurnSequence} | SubmissionSequence={submission.SubmissionSequence} | Reason={reason}",
+                this);
             Debug.LogWarning(
                 "[RitualAuthority]\n" +
                 "Voice Submission Rejected\n" +

@@ -24,6 +24,7 @@ public class BookMenuReturnInteractable : MonoBehaviour
     private RendererHighlightState[] rendererStates;
     private Coroutine hoverLightFadeCoroutine;
     private bool isHovered;
+    private float voiceListeningIntensity;
 
     private void Awake()
     {
@@ -47,6 +48,7 @@ public class BookMenuReturnInteractable : MonoBehaviour
         if (hoverLight != null)
             hoverLight.intensity = 0f;
 
+        voiceListeningIntensity = 0f;
         RestoreOriginalVisualState();
         isHovered = false;
     }
@@ -57,15 +59,15 @@ public class BookMenuReturnInteractable : MonoBehaviour
             return;
 
         isHovered = true;
-        ApplyHoverVisualState();
-        StartHoverLightFade(hoverLightIntensity);
+        ApplyRequestedVisualState();
+        StartHoverLightFade(GetRequestedLightIntensity());
     }
 
     private void OnMouseExit()
     {
         isHovered = false;
-        RestoreOriginalVisualState();
-        StartHoverLightFade(0f);
+        ApplyRequestedVisualState();
+        StartHoverLightFade(GetRequestedLightIntensity());
     }
 
     private void OnMouseDown()
@@ -107,11 +109,27 @@ public class BookMenuReturnInteractable : MonoBehaviour
         StopHoverEffects();
     }
 
+    public void SetVoiceListeningIntensity(float intensity)
+    {
+        float clampedIntensity = Mathf.Clamp01(intensity);
+        if (Mathf.Approximately(voiceListeningIntensity, clampedIntensity))
+            return;
+
+        voiceListeningIntensity = clampedIntensity;
+        ApplyRequestedVisualState();
+
+        if (isHovered || hoverLight == null)
+            return;
+
+        StopHoverLightFade();
+        hoverLight.intensity = GetRequestedLightIntensity();
+    }
+
     private void StopHoverEffects()
     {
         isHovered = false;
-        RestoreOriginalVisualState();
-        StartHoverLightFade(0f);
+        ApplyRequestedVisualState();
+        StartHoverLightFade(GetRequestedLightIntensity());
     }
 
     private void StartHoverLightFade(float targetIntensity)
@@ -180,13 +198,30 @@ public class BookMenuReturnInteractable : MonoBehaviour
         }
     }
 
-    private void ApplyHoverVisualState()
+    private void ApplyRequestedVisualState()
+    {
+        float intensity = GetRequestedHighlightIntensity();
+        if (intensity <= 0f)
+        {
+            RestoreOriginalVisualState();
+            return;
+        }
+
+        ApplyHighlightVisualState(intensity);
+    }
+
+    private void ApplyHighlightVisualState(float intensity)
     {
         if (rendererStates == null)
             CacheOriginalPropertyBlocks();
 
-        Color emissionColor = hoverEmissionColor * Mathf.Max(0f, hoverEmissionIntensity);
-        float baseColorMultiplier = Mathf.Max(1f, hoverBaseColorMultiplier);
+        float clampedIntensity = Mathf.Clamp01(intensity);
+        Color emissionColor = hoverEmissionColor *
+            (Mathf.Max(0f, hoverEmissionIntensity) * clampedIntensity);
+        float baseColorMultiplier = Mathf.Lerp(
+            1f,
+            Mathf.Max(1f, hoverBaseColorMultiplier),
+            clampedIntensity);
 
         for (int i = 0; i < rendererStates.Length; i++)
         {
@@ -210,6 +245,17 @@ public class BookMenuReturnInteractable : MonoBehaviour
 
             rendererState.Renderer.SetPropertyBlock(workingPropertyBlock);
         }
+    }
+
+    private float GetRequestedHighlightIntensity()
+    {
+        return Mathf.Max(isHovered ? 1f : 0f, voiceListeningIntensity);
+    }
+
+    private float GetRequestedLightIntensity()
+    {
+        return Mathf.Max(0f, hoverLightIntensity) *
+            GetRequestedHighlightIntensity();
     }
 
     private void RestoreOriginalVisualState()

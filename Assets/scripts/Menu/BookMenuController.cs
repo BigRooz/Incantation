@@ -580,7 +580,13 @@ public class BookMenuController : MonoBehaviour
 
     public void InvitePriest()
     {
-        Debug.Log("Invite a Priest is not implemented yet.", this);
+        RitualSealService service = RitualSealService.Instance;
+        if (service == null || !service.RequestSteamInvite())
+        {
+            Debug.LogWarning(
+                service != null ? service.StatusMessage : "The Ritual invitation service is unavailable.",
+                this);
+        }
     }
 
     public bool TryLeaveLobbySeat()

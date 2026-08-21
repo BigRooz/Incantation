@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class IncantationTextDisplay : MonoBehaviour
 {
@@ -13,17 +14,34 @@ public class IncantationTextDisplay : MonoBehaviour
     [Header("Display")]
     [SerializeField] private string emptyText = "Awaiting incantation...";
     [SerializeField] private Color completedWordColor = new Color(0.45f, 0.45f, 0.45f);
-    [SerializeField] private Color currentWordColor = Color.yellow;
     [SerializeField] private Color remainingWordColor = Color.white;
-    [SerializeField] private Color correctFeedbackColor = Color.green;
-    [SerializeField] private Color incorrectFeedbackColor = Color.red;
+    [SerializeField] private Color successConfirmationColor = new Color(0.42f, 0.68f, 0.45f);
+    [SerializeField] private Color incorrectFeedbackColor = new Color(0.42f, 0.05f, 0.08f);
     [SerializeField] private float feedbackDuration = 0.25f;
     [Min(0f)]
-    [SerializeField] private float incorrectFeedbackDuration = 0.45f;
+    [SerializeField] private float incorrectFeedbackDuration = 0.5f;
     [SerializeField] private float replayStepDuration = 0.22f;
-    [SerializeField] private float replayPulseScale = 1.15f;
     [Min(0f)]
     [SerializeField] private float writingSpeed = 18f;
+
+    [Header("Recitation Feedback")]
+    [Min(0.1f)]
+    [SerializeField] private float listeningPulseCycleSeconds = 1f;
+    [Range(0f, 1f)]
+    [SerializeField] private float listeningPulseBrightness = 0.18f;
+    [Range(0f, 1f)]
+    [SerializeField] private float speakingPulseBrightness = 0.32f;
+    [Range(0f, 1f)]
+    [SerializeField] private float acceptedFeedbackBrightness = 0.35f;
+    [Min(1f)]
+    [SerializeField] private float acceptedPulseScale = 1.04f;
+    [Min(0f)]
+    [SerializeField] private float judgmentWordInterval = 0.11f;
+
+    [Header("Judgment Audio Hooks")]
+    [SerializeField] private UnityEvent onJudgmentWordAccepted = new UnityEvent();
+    [SerializeField] private UnityEvent onFinalJudgmentWordAccepted = new UnityEvent();
+    [SerializeField] private UnityEvent onJudgmentWordRejected = new UnityEvent();
 
     private Coroutine writingCoroutine;
     private Coroutine replayCoroutine;
@@ -36,11 +54,25 @@ public class IncantationTextDisplay : MonoBehaviour
     private bool hasReplayWordColor;
     private bool hasReplayFinishedSignal;
     private bool hasFinalRejectedWord;
+    private bool hasSuccessfulJudgment;
     private float replayWordScale = 1f;
     private Color replayWordColor;
     private int finalRejectedWordIndex = -1;
+    private bool isLocalRecitationActive;
+    private bool isLocalVoiceActive;
+    private bool isLocalJudging;
+    private bool hasPreparedAuthoritativeTimeline;
+    private int activeAuthoritativeReplayVersion;
+    private int completedAuthoritativeReplayVersion;
 
     public bool IsReplayingJudgment => isReplayingJudgment || replayCoroutine != null || replaySteps.Count > 0;
+    public int ActiveAuthoritativeReplayVersion => activeAuthoritativeReplayVersion;
+
+    public bool HasCompletedAuthoritativeReplay(int replayVersion)
+    {
+        return replayVersion > 0 &&
+            completedAuthoritativeReplayVersion == replayVersion;
+    }
 
     private void Reset()
     {
@@ -55,9 +87,18 @@ public class IncantationTextDisplay : MonoBehaviour
 
     private void OnDisable()
     {
+        isLocalRecitationActive = false;
+        isLocalVoiceActive = false;
+        isLocalJudging = false;
         UnsubscribeFromIncantationManager();
         StopWriting();
         StopReplayAnimation();
+    }
+
+    private void Update()
+    {
+        if (ShouldAnimateListeningPulse())
+            UpdateDisplay();
     }
 
     private void OnValidate()
@@ -86,7 +127,13 @@ public class IncantationTextDisplay : MonoBehaviour
 
     public void ReplayReset()
     {
+        int requestVersion = incantationManager != null
+            ? incantationManager.AuthoritativePhraseReplayVersion
+            : 0;
         StopReplayAnimation();
+        hasPreparedAuthoritativeTimeline = false;
+        activeAuthoritativeReplayVersion = requestVersion;
+        hasSuccessfulJudgment = false;
         replaySteps.Clear();
         replayBaseCompletedWordIndex = incantationManager != null ? incantationManager.CurrentWordIndex : 0;
         replayAcceptedWordCount = 0;
@@ -97,20 +144,103 @@ public class IncantationTextDisplay : MonoBehaviour
         UpdateDisplay();
     }
 
+    public void SetLocalRecitationActive(bool isActive)
+    {
+        if (isLocalRecitationActive == isActive)
+            return;
+
+        isLocalRecitationActive = isActive;
+        if (!isActive)
+        {
+            isLocalVoiceActive = false;
+            isLocalJudging = false;
+        }
+        UpdateDisplay();
+    }
+
+    public void SetLocalVoiceActivity(bool isActive)
+    {
+        if (isLocalVoiceActive == isActive)
+            return;
+
+        isLocalVoiceActive = isActive;
+        UpdateDisplay();
+    }
+
+    public void SetLocalJudgingState(bool isJudging)
+    {
+        if (isLocalJudging == isJudging)
+            return;
+
+        isLocalJudging = isJudging;
+        if (isJudging)
+            isLocalVoiceActive = false;
+        UpdateDisplay();
+    }
+
+    public void ClearTransientFeedback()
+    {
+        StopReplayAnimation();
+        hasSuccessfulJudgment = false;
+        isLocalVoiceActive = false;
+        isLocalJudging = false;
+        UpdateDisplay();
+    }
+
     public void ReplayAcceptedWord(PhraseValidationWordResult wordResult)
     {
+        if (hasPreparedAuthoritativeTimeline)
+            return;
+
         EnsureReplayStarted(wordResult.WordIndex);
-        replaySteps.Enqueue(new ReplayWordStep(wordResult.WordIndex, correctFeedbackColor, true));
+        replaySteps.Enqueue(new ReplayWordStep(
+            wordResult.WordIndex,
+            GetAcceptedFeedbackColor(),
+            true));
         StartReplayAnimation();
     }
 
     public void ReplayRejectedWord(PhraseValidationWordResult wordResult)
     {
+        if (hasPreparedAuthoritativeTimeline)
+            return;
+
         EnsureReplayStarted(wordResult.WordIndex);
         hasFinalRejectedWord = true;
         finalRejectedWordIndex = wordResult.WordIndex;
         replaySteps.Enqueue(new ReplayWordStep(wordResult.WordIndex, incorrectFeedbackColor, false));
         StartReplayAnimation();
+    }
+
+    private void PrepareAuthoritativePhraseReplay(
+        PhraseValidationWordResult[] timeline)
+    {
+        PhraseValidationWordResult[] safeTimeline = timeline ??
+            System.Array.Empty<PhraseValidationWordResult>();
+        hasPreparedAuthoritativeTimeline = true;
+
+        for (int index = 0; index < safeTimeline.Length; index++)
+        {
+            PhraseValidationWordResult wordResult = safeTimeline[index];
+            bool isAccepted =
+                wordResult.State == PhraseValidationWordState.Success;
+
+            if (!isAccepted)
+            {
+                hasFinalRejectedWord = true;
+                finalRejectedWordIndex = wordResult.WordIndex;
+            }
+
+            replaySteps.Enqueue(new ReplayWordStep(
+                wordResult.WordIndex,
+                isAccepted
+                    ? GetAcceptedFeedbackColor()
+                    : incorrectFeedbackColor,
+                isAccepted));
+        }
+
+        if (replaySteps.Count > 0)
+            StartReplayAnimation();
     }
 
     public void ReplayFinished()
@@ -131,6 +261,8 @@ public class IncantationTextDisplay : MonoBehaviour
         incantationManager.OnPhraseReplayReset += ReplayReset;
         incantationManager.OnPhraseReplayAcceptedWord += ReplayAcceptedWord;
         incantationManager.OnPhraseReplayRejectedWord += ReplayRejectedWord;
+        incantationManager.OnAuthoritativePhraseReplayPrepared +=
+            PrepareAuthoritativePhraseReplay;
         incantationManager.OnPhraseReplayFinished += ReplayFinished;
     }
 
@@ -144,6 +276,8 @@ public class IncantationTextDisplay : MonoBehaviour
         incantationManager.OnPhraseReplayReset -= ReplayReset;
         incantationManager.OnPhraseReplayAcceptedWord -= ReplayAcceptedWord;
         incantationManager.OnPhraseReplayRejectedWord -= ReplayRejectedWord;
+        incantationManager.OnAuthoritativePhraseReplayPrepared -=
+            PrepareAuthoritativePhraseReplay;
         incantationManager.OnPhraseReplayFinished -= ReplayFinished;
     }
 
@@ -266,7 +400,13 @@ public class IncantationTextDisplay : MonoBehaviour
             elapsed += Time.deltaTime;
             float progress = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
             float pulse = Mathf.Sin(progress * Mathf.PI);
-            replayWordScale = Mathf.Lerp(1f, Mathf.Max(1f, replayPulseScale), pulse);
+            float targetPulseScale = replayStep.IsAccepted
+                ? acceptedPulseScale
+                : 1f;
+            replayWordScale = Mathf.Lerp(
+                1f,
+                Mathf.Max(1f, targetPulseScale),
+                pulse);
             UpdateDisplay();
             yield return null;
         }
@@ -279,7 +419,13 @@ public class IncantationTextDisplay : MonoBehaviour
         if (!replayStep.IsAccepted)
             return Mathf.Max(0f, incorrectFeedbackDuration);
 
-        return Mathf.Max(0f, replayStepDuration > 0f ? replayStepDuration : feedbackDuration);
+        float duration = judgmentWordInterval > 0f
+            ? judgmentWordInterval
+            : replayStepDuration > 0f
+                ? replayStepDuration
+                : feedbackDuration;
+
+        return Mathf.Max(0f, duration);
     }
 
     private void ApplyReplayStepImmediately(ReplayWordStep replayStep)
@@ -292,15 +438,33 @@ public class IncantationTextDisplay : MonoBehaviour
     {
         replayWordIndex = replayStep.WordIndex;
         replayWordColor = replayStep.Color;
-        replayWordScale = Mathf.Max(1f, replayPulseScale);
+        replayWordScale = replayStep.IsAccepted
+            ? Mathf.Max(1f, acceptedPulseScale)
+            : 1f;
         hasReplayWordColor = true;
+        if (replayStep.IsAccepted)
+        {
+            onJudgmentWordAccepted.Invoke();
+            if (incantationManager != null &&
+                replayStep.WordIndex == incantationManager.CurrentIncantation.Count - 1)
+            {
+                onFinalJudgmentWordAccepted.Invoke();
+            }
+        }
+        else
+        {
+            onJudgmentWordRejected.Invoke();
+        }
         UpdateDisplay();
     }
 
     private void FinishReplayStep(ReplayWordStep replayStep)
     {
-        if (replayStep.IsAccepted)
+        if (replayStep.IsAccepted &&
+            replayStep.WordIndex >= replayBaseCompletedWordIndex + replayAcceptedWordCount)
+        {
             replayAcceptedWordCount++;
+        }
 
         replayWordIndex = -1;
         replayWordScale = 1f;
@@ -310,6 +474,12 @@ public class IncantationTextDisplay : MonoBehaviour
 
     private void CompleteReplay()
     {
+        if (activeAuthoritativeReplayVersion > 0)
+            completedAuthoritativeReplayVersion = activeAuthoritativeReplayVersion;
+        hasSuccessfulJudgment = !hasFinalRejectedWord &&
+            incantationManager != null &&
+            replayBaseCompletedWordIndex + replayAcceptedWordCount >=
+                incantationManager.CurrentIncantation.Count;
         isReplayingJudgment = false;
         hasReplayFinishedSignal = false;
         replayAcceptedWordCount = 0;
@@ -318,6 +488,7 @@ public class IncantationTextDisplay : MonoBehaviour
         hasReplayWordColor = false;
         hasFinalRejectedWord = false;
         finalRejectedWordIndex = -1;
+        isLocalJudging = false;
         UpdateDisplay();
     }
 
@@ -337,6 +508,7 @@ public class IncantationTextDisplay : MonoBehaviour
         replayWordIndex = -1;
         finalRejectedWordIndex = -1;
         replayWordScale = 1f;
+        hasSuccessfulJudgment = false;
     }
 
     private int GetPlainIncantationCharacterCount()
@@ -409,15 +581,18 @@ public class IncantationTextDisplay : MonoBehaviour
         if (hasFinalRejectedWord && wordIndex == finalRejectedWordIndex)
             return incorrectFeedbackColor;
 
+        if (hasSuccessfulJudgment && word.IsCompleted)
+            return successConfirmationColor;
+
         if (isReplayingJudgment)
         {
             int visuallyCompletedWordCount = replayBaseCompletedWordIndex + replayAcceptedWordCount;
 
             if (wordIndex < visuallyCompletedWordCount)
-                return completedWordColor;
+                return successConfirmationColor;
 
             if (wordIndex == visuallyCompletedWordCount)
-                return currentWordColor;
+                return remainingWordColor;
 
             return remainingWordColor;
         }
@@ -425,10 +600,52 @@ public class IncantationTextDisplay : MonoBehaviour
         if (word.IsCompleted)
             return completedWordColor;
 
-        if (!incantationManager.IsCompleted && wordIndex == incantationManager.CurrentWordIndex)
-            return currentWordColor;
-
         return remainingWordColor;
+    }
+
+    private bool ShouldAnimateListeningPulse()
+    {
+        return false;
+    }
+
+    private int GetVisualProgress()
+    {
+        if (incantationManager == null)
+            return 0;
+
+        int authoritativeProgress = Mathf.Clamp(
+            incantationManager.CurrentWordIndex,
+            0,
+            incantationManager.CurrentIncantation.Count);
+        return authoritativeProgress;
+    }
+
+    private Color GetCurrentWordColor()
+    {
+        if (!ShouldAnimateListeningPulse())
+            return remainingWordColor;
+
+        float cycleSeconds = Mathf.Max(0.1f, listeningPulseCycleSeconds);
+        float wave = (Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f / cycleSeconds) + 1f) * 0.5f;
+        float pulseBrightness = isLocalVoiceActive
+            ? speakingPulseBrightness
+            : listeningPulseBrightness;
+        Color dimmedReadableColor = Color.Lerp(
+            remainingWordColor,
+            Color.black,
+            Mathf.Clamp01(pulseBrightness));
+        return Color.Lerp(
+            dimmedReadableColor,
+            remainingWordColor,
+            wave);
+    }
+
+    private Color GetAcceptedFeedbackColor()
+    {
+        return Color.Lerp(
+            remainingWordColor,
+            successConfirmationColor,
+            Mathf.Clamp01(acceptedFeedbackBrightness));
     }
 
     private void AppendColoredWord(StringBuilder builder, string wordText, Color color, int wordIndex)

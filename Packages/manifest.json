@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "com.firstgeargames.fishnet": "https://github.com/FirstGearGames/FishNet.git?path=Assets/FishNet#4.7.2",
+    "com.firstgeargames.fishysteamworks": "https://github.com/FirstGearGames/FishySteamworks.git?path=/FishNet/Plugins/FishySteamworks#4.1.1",
+    "com.rlabrecque.steamworks.net": "https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net#2025.164.1",
     "com.unity.ai.navigation": "2.0.8",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.formats.fbx": "5.1.6",

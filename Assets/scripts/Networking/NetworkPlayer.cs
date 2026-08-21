@@ -191,16 +191,51 @@ namespace Incantation.Networking
         /// </summary>
         public bool RequestRitualVoiceSubmission(string recognizedText)
         {
+            return RequestRitualVoiceSubmission(recognizedText, false, false);
+        }
+
+        public bool RequestIncrementalRitualTokenBatch(string recognizedTokens)
+        {
+            return RequestRitualVoiceSubmission(recognizedTokens, true, false);
+        }
+
+        public bool RequestCompleteWhisperRitualAttempt(string recognizedAttempt)
+        {
+            return RequestRitualVoiceSubmission(recognizedAttempt, false, true);
+        }
+
+        private bool RequestRitualVoiceSubmission(
+            string recognizedText,
+            bool containsIncrementalTokenBatch,
+            bool containsCompleteAttempt)
+        {
+            Debug.Log(
+                $"[VOICE-DIAG] NetworkPlayer Request | PlayerId={PlayerId} | Raw={recognizedText} | IsOwner={IsOwner} | IsServerInitialized={IsServerInitialized} | Frame={Time.frameCount} | Timestamp={Time.realtimeSinceStartupAsDouble:0.000}",
+                this);
+
             if (!IsOwner ||
                 string.IsNullOrWhiteSpace(recognizedText) ||
                 recognizedText.Length > RitualVoiceSubmission.MaximumRecognizedTextLength)
             {
+                string rejectionReason = !IsOwner
+                    ? "Local NetworkPlayer is not the owner"
+                    : string.IsNullOrWhiteSpace(recognizedText)
+                        ? "Candidate is empty"
+                        : "Candidate exceeds maximum length";
+                Debug.Log(
+                    $"[VOICE-DIAG] NetworkPlayer Rejected Locally | PlayerId={PlayerId} | Raw={recognizedText} | Reason={rejectionReason}",
+                    this);
                 return false;
             }
 
             NetworkRitualAuthority authority = NetworkRitualAuthority.Instance;
             if (authority == null || !authority.IsNetworkSessionActive)
+            {
+                Debug.Log(
+                    $"[VOICE-DIAG] NetworkPlayer Rejected Locally | PlayerId={PlayerId} | Raw={recognizedText} | Reason=No active NetworkRitualAuthority",
+                    this);
                 return false;
+            }
 
             RitualSnapshot ritualSnapshot = authority.Snapshot;
             uint currentTurnSequence = ritualSnapshot.Turn.SequenceId.Value;
@@ -211,6 +246,9 @@ namespace Incantation.Networking
                     ritualSnapshot.ActivePlayerId,
                     StringComparison.Ordinal))
             {
+                Debug.Log(
+                    $"[VOICE-DIAG] NetworkPlayer Rejected Locally | PlayerId={PlayerId} | Raw={recognizedText} | RitualSequence={ritualSnapshot.SequenceId.Value} | TurnSequence={currentTurnSequence} | Phase={ritualSnapshot.Phase} | ActivePlayerId={ritualSnapshot.ActivePlayerId} | Reason=Not eligible for active recitation",
+                    this);
                 return false;
             }
 
@@ -221,7 +259,12 @@ namespace Incantation.Networking
             }
 
             if (localVoiceSubmissionSequence == uint.MaxValue)
+            {
+                Debug.Log(
+                    $"[VOICE-DIAG] NetworkPlayer Rejected Locally | PlayerId={PlayerId} | Raw={recognizedText} | RitualSequence={ritualSnapshot.SequenceId.Value} | TurnSequence={currentTurnSequence} | Reason=Submission sequence exhausted",
+                    this);
                 return false;
+            }
 
             localVoiceSubmissionSequence++;
             RitualVoiceSubmission submission = new(
@@ -229,13 +272,22 @@ namespace Incantation.Networking
                 currentTurnSequence,
                 localVoiceSubmissionSequence,
                 recognizedText,
-                Time.realtimeSinceStartupAsDouble);
+                Time.realtimeSinceStartupAsDouble,
+                containsIncrementalTokenBatch,
+                containsCompleteAttempt);
 
             if (IsServerInitialized)
             {
-                return authority.TryAcceptVoiceSubmission(Owner, submission);
+                bool acceptedByServer = authority.TryAcceptVoiceSubmission(Owner, submission);
+                Debug.Log(
+                    $"[VOICE-DIAG] NetworkPlayer Host Submission | PlayerId={PlayerId} | Raw={recognizedText} | RitualSequence={ritualSnapshot.SequenceId.Value} | TurnSequence={currentTurnSequence} | SubmissionSequence={localVoiceSubmissionSequence} | AcceptedByServer={acceptedByServer}",
+                    this);
+                return acceptedByServer;
             }
 
+            Debug.Log(
+                $"[VOICE-DIAG] NetworkPlayer Client Submission Sent | PlayerId={PlayerId} | Raw={recognizedText} | RitualSequence={ritualSnapshot.SequenceId.Value} | TurnSequence={currentTurnSequence} | SubmissionSequence={localVoiceSubmissionSequence}",
+                this);
             SubmitRitualVoiceServerRpc(submission);
             return true;
         }

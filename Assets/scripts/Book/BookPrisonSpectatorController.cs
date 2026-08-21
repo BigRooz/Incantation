@@ -107,7 +107,16 @@ public class BookPrisonSpectatorController : MonoBehaviour
         if (deactivateTablePlayerModel)
             player.gameObject.SetActive(false);
 
-        if (isLocalDeathCameraTarget)
+        if (isNetworkSession && eliminatedNetworkPlayer != null)
+        {
+            eliminatedNetworkPlayer.GetComponent<NetworkGhostPresentation>()?
+                .ReachDeathPresentationBarrier(
+                    player.gameObject,
+                    slot.spawnPoint,
+                    slot.spectatorCamera,
+                    isLocalDeathCameraTarget ? ResolveGhostLifecycleController() : null);
+        }
+        else if (isLocalDeathCameraTarget)
         {
             ResolveGhostLifecycleController()?.BeginGhostPresentation(
                 player.gameObject,

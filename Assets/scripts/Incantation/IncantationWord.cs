@@ -5,8 +5,9 @@ using UnityEngine;
 [Serializable]
 public class IncantationWord
 {
-    [SerializeField] private string word;
-    [SerializeField] private List<string> speechAliases = new List<string>();
+    [SerializeField, InspectorName("Canonical Word")] private string word;
+    [SerializeField, InspectorName("Accepted Forms")]
+    private List<string> speechAliases = new List<string>();
     [SerializeField] private bool isCompleted;
 
     public string Word => word;

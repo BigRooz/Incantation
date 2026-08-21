@@ -12,6 +12,19 @@ This document does not contain gameplay law, current task planning, source-code 
 
 Read next: `Docs/INSPECTOR_REFERENCE.md` for tuning values and `Docs/PROJECT_KNOWLEDGE.md` for scene knowledge.
 
+## Startup Presentation
+
+The player startup presentation is:
+
+1. Unity splash screen.
+2. `StudioIntro` on black, playing the One More Game Studio video once.
+3. `MainGame` after completion, skip, or safe playback failure fallback.
+
+`StudioIntro` is the first enabled build scene. It also instantiates the existing persistent
+network-manager prefab so the initialization previously provided by `Bootstrap` is preserved.
+`Bootstrap` remains enabled in the build for compatibility, but is not part of the normal startup
+transition.
+
 ## Purpose
 
 This document records the current scene setup expectations for the v0.1 playable prototype.

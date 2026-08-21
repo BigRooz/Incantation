@@ -7,6 +7,7 @@ using FishNet.Managing.Server;
 using FishNet.Managing.Timing;
 using FishNet.Managing.Transporting;
 using FishNet.Object;
+using FishNet.Transporting;
 using FishNet.Transporting.Tugboat;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -81,7 +82,7 @@ namespace Incantation.Networking.Editor
             player.AddComponent<NetworkPlayer>();
 
             GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath);
-            Object.DestroyImmediate(player);
+            UnityEngine.Object.DestroyImmediate(player);
             return savedPrefab.GetComponent<NetworkObject>();
         }
 
@@ -96,27 +97,52 @@ namespace Incantation.Networking.Editor
         private static GameObject BuildManagerPrefab(NetworkObject playerPrefab)
         {
             GameObject manager = new GameObject("IncantationNetworkManager");
-            manager.AddComponent<NetworkManager>();
-            manager.AddComponent<ServerManager>();
-            manager.AddComponent<ClientManager>();
-            manager.AddComponent<TransportManager>();
-            manager.AddComponent<TimeManager>();
-            manager.AddComponent<FishNetSceneManager>();
-            manager.AddComponent<ObserverManager>();
+            manager.AddComponent<SteamPlatformBootstrap>();
+            SteamSpikeTransportSelector transportSelector = manager.AddComponent<SteamSpikeTransportSelector>();
 
-            Tugboat tugboat = manager.AddComponent<Tugboat>();
-            TransportManager transportManager = manager.GetComponent<TransportManager>();
+            GameObject runtime = new GameObject("FishNetRuntime");
+            runtime.transform.SetParent(manager.transform, false);
+            NetworkManager networkManager = runtime.AddComponent<NetworkManager>();
+            SerializedObject networkManagerSettings = new SerializedObject(networkManager);
+            networkManagerSettings.FindProperty("_dontDestroyOnLoad").boolValue = false;
+            networkManagerSettings.ApplyModifiedPropertiesWithoutUndo();
+            runtime.AddComponent<ServerManager>();
+            runtime.AddComponent<ClientManager>();
+            runtime.AddComponent<TransportManager>();
+            runtime.AddComponent<TimeManager>();
+            runtime.AddComponent<FishNetSceneManager>();
+            runtime.AddComponent<ObserverManager>();
+
+            Tugboat tugboat = runtime.AddComponent<Tugboat>();
+            System.Type steamTransportType =
+                System.Type.GetType("FishySteamworks.FishySteamworks, Assembly-CSharp-firstpass") ??
+                System.Type.GetType("FishySteamworks.FishySteamworks, Assembly-CSharp");
+            if (steamTransportType == null || !typeof(Transport).IsAssignableFrom(steamTransportType))
+            {
+                throw new System.InvalidOperationException(
+                    "FishySteamworks is unavailable. Resolve the pinned ONLINE-001A packages before rebuilding networking assets.");
+            }
+
+            Transport steamTransport = (Transport)runtime.AddComponent(steamTransportType);
+            SerializedObject steamTransportSettings = new SerializedObject(steamTransport);
+            steamTransportSettings.FindProperty("_peerToPeer").boolValue = true;
+            steamTransportSettings.FindProperty("_maximumClients").intValue = 8;
+            steamTransportSettings.ApplyModifiedPropertiesWithoutUndo();
+            TransportManager transportManager = runtime.GetComponent<TransportManager>();
             transportManager.Transport = tugboat;
 
-            PlayerSpawner playerSpawner = manager.AddComponent<PlayerSpawner>();
+            PlayerSpawner playerSpawner = runtime.AddComponent<PlayerSpawner>();
             playerSpawner.SetPlayerPrefab(playerPrefab);
 
-            FishNetFoundationController controller = manager.AddComponent<FishNetFoundationController>();
-            FishNetFoundationHud hud = manager.AddComponent<FishNetFoundationHud>();
-            hud.SetFoundationController(controller);
+            FishNetFoundationController controller = runtime.AddComponent<FishNetFoundationController>();
+            runtime.AddComponent<SteamRitualLobbyDirectory>();
+            runtime.AddComponent<RitualSealService>();
+
+            transportSelector.Configure(tugboat, steamTransport, runtime);
+            runtime.SetActive(false);
 
             GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(manager, ManagerPrefabPath);
-            Object.DestroyImmediate(manager);
+            UnityEngine.Object.DestroyImmediate(manager);
             return savedPrefab;
         }
 

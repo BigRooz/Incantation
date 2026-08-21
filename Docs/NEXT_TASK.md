@@ -18,7 +18,9 @@ Read next: `Docs/PROJECT_STATUS.md` for current reality, then `Docs/Roadmap.md` 
 
 ## Immediate Objective
 
-Synchronize the remaining lobby presentation and character selection through `NetworkPlayer`.
+Begin `SPELLS-NET-002` from the validated ritual, voice, Steam, post-game/lobby, and startup
+checkpoint. ONLINE-001C manual Seal joining and ONLINE-001D invitation joining have passed their
+required two-account runtime validation. Cold-start invitation handling remains deferred.
 
 ## Why This Is Next
 
@@ -28,7 +30,7 @@ The network ritual now also owns timeout elimination, survivor traversal, and sy
 winner/game-over state. REALIGN-004 adds a presentation-only winner Book movement and result
 overlay. REALIGN-005 adds Host-authoritative return to the connected lobby, Ready reset, full
 death-presentation restoration, Book lobby-pose restoration, and second-match preparation. Its
-two-match Host/client runtime checklist remains pending. Automatic rematch remains future work
+two-match Host/client runtime checklist is complete. Automatic rematch remains future work
 and does not change the immediate lobby objective below.
 
 Create Ritual is genuine animated navigation from `PlayMenu`; no pre-creation confirmation

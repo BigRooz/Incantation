@@ -7,467 +7,436 @@ using Whisper.Utils;
 using Debug = UnityEngine.Debug;
 
 /// <summary>
-/// Captures one complete microphone recording and transcribes it once through Whisper.
-/// Depends on WhisperManager and MicrophoneRecord on this object or serialized in the Inspector.
-/// Raises a single final transcript per completed listening session and leaves ritual validation to gameplay systems.
+/// Sandbox-style production recognizer: preload once, record one complete
+/// recitation, transcribe one complete AudioChunk, and publish one transcript.
 /// </summary>
-public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInput, IVoiceRecognizerProcessingStatus
+public sealed class WhisperVoiceRecognizer : MonoBehaviour,
+    IVoiceRecognizer,
+    IVoiceInput,
+    IVoiceRecognizerProcessingStatus
 {
-    private const float MinimumAllowedRecordingLengthSeconds = 0.35f;
-    private const float DefaultSpeechEndSilenceSeconds = 0.45f;
-    private const float MinimumAllowedSpeechEndSilenceSeconds = 0.2f;
-    private const int MinimumExpectedPhraseWordCount = 1;
-    private const int EmptyTranscriptRetryWordCount = 4;
-    private const float MeaningfulDetectedSpeechRecordingSeconds = 1.0f;
-    private const float EmptyTranscriptRetryPaddingSeconds = 0.35f;
-    private const float MinimumShortPhraseMaxRecordingSeconds = 1.0f;
-    private const float LongPhraseCropLeadingPaddingSeconds = 1.25f;
-    private const float LongPhraseCropTrailingPaddingSeconds = 0.9f;
-    private const float MinimumLongPhraseCropDurationSeconds = 2.0f;
+    private const float MinimumRecordingLengthSeconds = 0.35f;
 
-    [Header("Whisper")]
+    [Header("Sandbox References")]
     [SerializeField] private WhisperManager whisper;
     [SerializeField] private MicrophoneRecord microphoneRecord;
-
-    [Header("Recognition")]
-    [SerializeField] private bool ignoreEmptyTranscripts = true;
-    [SerializeField] private float minimumRecordingLengthSeconds = MinimumAllowedRecordingLengthSeconds;
-
-    [Header("Speech End Detection")]
-    [SerializeField] private bool enableSpeechEndAutoStop = true;
-    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float speechEndSilenceSeconds = DefaultSpeechEndSilenceSeconds;
-    [SerializeField] private bool useDynamicSpeechEndSilence = true;
-    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float oneWordSpeechEndSilenceSeconds = 0.45f;
-    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float twoWordSpeechEndSilenceSeconds = 0.55f;
-    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float threeWordSpeechEndSilenceSeconds = 0.7f;
-    [SerializeField, Min(MinimumAllowedSpeechEndSilenceSeconds)] private float fourOrMoreWordSpeechEndSilenceSeconds = 0.85f;
-    [SerializeField, Min(MinimumExpectedPhraseWordCount)] private int expectedPhraseWordCount = MinimumExpectedPhraseWordCount;
-    [SerializeField] private bool autoEnableMicrophoneVad = true;
-
-    [Header("Short Phrase Guard")]
-    [SerializeField] private bool enableShortPhraseMaxRecordingDuration = true;
-    [SerializeField, Min(MinimumShortPhraseMaxRecordingSeconds)] private float oneWordMaxRecordingSeconds = 2.75f;
-    [SerializeField, Min(MinimumShortPhraseMaxRecordingSeconds)] private float twoWordMaxRecordingSeconds = 3.75f;
-
+    [Header("End Of Recitation")]
+    [SerializeField, Min(0.3f)] private float trailingSilenceSeconds = 0.8f;
     [Header("Debug")]
     [SerializeField] private bool enableDebugLogs = true;
     [SerializeField] private bool logRecognizedPhrases = true;
 
-    private bool isListening;
-    private bool isStarting;
-    private bool isTranscribing;
-    private bool isProcessingRecognition;
-    private bool discardNextRecording;
-    private bool cancelPendingStart;
-    private bool hasSpeechStarted;
-    private bool hasTemporaryMicrophoneVadOverride;
+    private VoiceAmplitudeProvider amplitudeProvider;
+    private VoiceAmplitudeProvider suspendedAmplitudeProvider;
+    private bool restoreAmplitudeRecording;
     private bool previousMicrophoneUseVad;
-    private bool sessionSpeechDetected;
-    private float lastSpeechDetectedAt;
-    private float sessionActiveSpeechDuration;
-    private float lastSpeechDetectionUpdateAt;
-    private float sessionRecordingStartedAt;
-    private float sessionSpeechStartedAt;
-    private float sessionDetectedSpeechStartOffset;
-    private float sessionDetectedSpeechEndOffset;
-    private int listeningSessionId;
-    private long lastRecognitionLatencyMs;
+    private bool hasTemporaryVadOverride;
+    private bool preloadInProgress;
+    private bool preloadFailed;
+    private bool startRequestedWhenReady;
+    private bool isListening;
+    private bool isTranscribing;
+    private bool speechObserved;
+    private bool voiceActive;
+    private bool discardStoppedRecording;
+    private float recordingStartedAt;
+    private float lastVoiceActivityAt;
+    private float listeningGlow;
 
-    private struct AudioPreparationDetails
-    {
-        public float RawDuration;
-        public float FinalDuration;
-        public float LeadingPaddingUsed;
-        public float TrailingPaddingUsed;
-        public float ActiveSpeechDuration;
-        public int ExpectedWordCount;
-        public bool WasCropped;
-        public string Reason;
-    }
+    private int sessionId;
+    private int invalidatedThroughSessionId;
+    private uint pendingRitualSequence;
+    private uint pendingTurnSequence;
+    private string pendingPlayerId = string.Empty;
+    private uint sessionRitualSequence;
+    private uint sessionTurnSequence;
+    private string sessionPlayerId = string.Empty;
+    private int deliveredSessionId;
+    private uint deliveredRitualSequence;
+    private uint deliveredTurnSequence;
+    private string deliveredPlayerId = string.Empty;
+
+    private bool hasPendingTranscript;
+    private int pendingTranscriptSessionId;
+    private string pendingTranscript = string.Empty;
+    private bool pendingTranscriptHasText;
+
+    private int diagnosticVersion;
+    private string diagnosticState = "PRELOADING";
+    private string diagnosticRaw = string.Empty;
+    private string diagnosticBanked = string.Empty;
+    private string diagnosticAuthority = "NOT SUBMITTED";
+    private string diagnosticPipeline = string.Empty;
+    private string diagnosticPipelineBlock = string.Empty;
+    private int diagnosticFailedIndex = -1;
+    private long diagnosticInferenceMilliseconds;
+    private bool preserveTokenlessDiagnostic;
+    private string diagnosticPreviousState = string.Empty;
+    private string diagnosticTransitionReason = "INITIAL_STATE";
+    private bool diagnosticTurnEligible;
+    private bool diagnosticRetryRequested;
+    private string diagnosticRetryBlock = string.Empty;
 
     public bool IsListening => isListening;
-    public bool IsProcessingRecognition => isProcessingRecognition || isTranscribing;
+    public bool IsProcessingRecognition => isTranscribing || hasPendingTranscript ||
+        (startRequestedWhenReady && preloadInProgress);
+    public bool IsWhisperReady => whisper != null && whisper.IsLoaded;
+    public float ListeningGlow => listeningGlow;
 
     public event Action<string> OnPhraseRecognized;
+    public event Action<bool> OnVoiceActivityChanged;
+    public event Action<float> OnListeningGlowChanged;
+    public event Action<string> OnRecognitionStateChanged;
 
-    public void SetExpectedPhraseWordCount(int wordCount)
-    {
-        expectedPhraseWordCount = Mathf.Max(MinimumExpectedPhraseWordCount, wordCount);
-    }
+    public WhisperStreamDiagnosticSnapshot DiagnosticSnapshot =>
+        new WhisperStreamDiagnosticSnapshot(
+            diagnosticVersion,
+            IsWhisperReady,
+            isListening && microphoneRecord != null && microphoneRecord.IsRecording,
+            voiceActive,
+            listeningGlow,
+            diagnosticPreviousState,
+            diagnosticTransitionReason,
+            $"S{sessionId} R{sessionRitualSequence} T{sessionTurnSequence} P:{sessionPlayerId}",
+            diagnosticTurnEligible,
+            microphoneRecord != null && microphoneRecord.IsRecording,
+            diagnosticRetryRequested,
+            diagnosticRetryBlock,
+            diagnosticState,
+            diagnosticRaw,
+            diagnosticBanked,
+            diagnosticAuthority,
+            diagnosticPipeline,
+            diagnosticPipelineBlock,
+            diagnosticFailedIndex,
+            diagnosticInferenceMilliseconds);
 
-    private void Awake()
-    {
-        ApplyRecognitionTimingMinimums();
-        ResolveReferences();
-    }
+    private void Awake() => ResolveReferences();
 
     private void OnEnable()
     {
-        ApplyRecognitionTimingMinimums();
         ResolveReferences();
-
         if (microphoneRecord != null)
             microphoneRecord.OnRecordStop += HandleRecordStop;
+        BeginPreload();
     }
 
     private void OnDisable()
     {
-        StopListeningAndDiscardRecording();
-
+        CancelListening("Recognizer disabled.");
         if (microphoneRecord != null)
             microphoneRecord.OnRecordStop -= HandleRecordStop;
     }
 
-    private void Update()
+    private void OnValidate()
     {
-        UpdateSpeechEndDetection();
+        trailingSilenceSeconds = Mathf.Max(0.3f, trailingSilenceSeconds);
     }
 
-    public async void StartListening()
+    private void Update()
+    {
+        if (hasPendingTranscript)
+        {
+            ProcessPendingTranscript();
+            return;
+        }
+
+        if (!isListening || microphoneRecord == null || !microphoneRecord.IsRecording)
+            return;
+
+        bool detected = microphoneRecord.useVad && microphoneRecord.IsVoiceDetected;
+        SetVoiceActivity(detected);
+        if (detected)
+        {
+            speechObserved = true;
+            lastVoiceActivityAt = Time.realtimeSinceStartup;
+            SetListeningGlow(1f);
+            return;
+        }
+
+        if (!speechObserved)
+        {
+            SetListeningGlow(0f);
+            return;
+        }
+
+        float silenceElapsed = Time.realtimeSinceStartup - lastVoiceActivityAt;
+        float glow = 1f - silenceElapsed / Mathf.Max(0.3f, trailingSilenceSeconds);
+        SetListeningGlow(glow);
+        if (glow > 0f)
+            return;
+
+        StopCompleteRecording();
+    }
+
+    public void StartListening()
     {
         if (!ValidateReferences())
-            return;
-
-        if (isListening || microphoneRecord.IsRecording)
         {
-            Log("Start ignored because Whisper voice recognition is already listening.");
-            isListening = true;
+            SetRetryBlockDiagnostic("REFERENCES_MISSING");
             return;
         }
-
-        if (isStarting)
+        if (isListening)
         {
-            Log("Start ignored because Whisper voice recognition is already starting.");
+            SetRetryBlockDiagnostic("ALREADY_LISTENING");
             return;
         }
-
         if (isTranscribing)
         {
-            Log("Start ignored because Whisper is still transcribing the previous recording.");
+            SetRetryBlockDiagnostic("TRANSCRIPTION_ACTIVE");
+            return;
+        }
+        if (hasPendingTranscript)
+        {
+            SetRetryBlockDiagnostic("TRANSCRIPT_PENDING");
             return;
         }
 
-        isStarting = true;
-        discardNextRecording = false;
-        cancelPendingStart = false;
+        if (!IsWhisperReady)
+        {
+            startRequestedWhenReady = true;
+            SetRetryBlockDiagnostic(preloadFailed
+                ? "PRELOAD_FAILED"
+                : "WHISPER_NOT_READY");
+            SetState(
+                preloadFailed ? "READY_FAILED" : "PRELOADING",
+                "START_DEFERRED_WHISPER_NOT_READY");
+            BeginPreload();
+            Log("Recording deferred because Whisper is not ready.");
+            return;
+        }
 
+        startRequestedWhenReady = false;
+        sessionId++;
+        sessionRitualSequence = pendingRitualSequence;
+        sessionTurnSequence = pendingTurnSequence;
+        sessionPlayerId = pendingPlayerId;
+        deliveredSessionId = 0;
+        deliveredRitualSequence = 0;
+        deliveredTurnSequence = 0;
+        deliveredPlayerId = string.Empty;
+        speechObserved = false;
+        lastVoiceActivityAt = 0f;
+        recordingStartedAt = Time.realtimeSinceStartup;
+        discardStoppedRecording = false;
+        SetVoiceActivity(false);
+        SetListeningGlow(0f);
+        ResetAttemptDiagnostics();
+        AcquireMicrophoneOwnership();
+        EnableVadObservation();
+        microphoneRecord.StartRecord();
+        isListening = microphoneRecord.IsRecording;
+        diagnosticRetryBlock = isListening ? string.Empty : "MIC_START_FAILED";
+        if (isListening)
+            diagnosticRetryRequested = false;
+        diagnosticVersion++;
+        SetState(
+            isListening ? "LISTENING" : "READY_FAILED",
+            isListening ? "START_RECORD_SUCCEEDED" : "START_RECORD_FAILED");
+        Log($"Complete recording started. Session={sessionId}, Ritual={sessionRitualSequence}, Turn={sessionTurnSequence}, Player={sessionPlayerId}.");
+    }
+
+    public void StopListening() => StopCompleteRecording();
+    public void CancelListening() => CancelListening("Recognition session invalidated.");
+
+    public void CancelListening(string reason)
+    {
+        invalidatedThroughSessionId = Mathf.Max(invalidatedThroughSessionId, sessionId);
+        startRequestedWhenReady = false;
+        discardStoppedRecording = true;
+        isListening = false;
+        SetVoiceActivity(false);
+        SetListeningGlow(0f);
+        if (microphoneRecord != null && microphoneRecord.IsRecording)
+            microphoneRecord.StopRecord();
+        else
+            ReleaseMicrophoneOwnership();
+        SetState(
+            IsWhisperReady ? "READY" : "PRELOADING",
+            $"CANCEL_LISTENING: {reason}");
+        Log($"Session invalidated. Session={sessionId}, Reason={reason}");
+    }
+
+    public void ConfigureAuthoritativeSession(uint ritualSequence, uint turnSequence, string playerId)
+    {
+        pendingRitualSequence = ritualSequence;
+        pendingTurnSequence = turnSequence;
+        pendingPlayerId = playerId ?? string.Empty;
+    }
+
+    public void SetAmplitudeProvider(VoiceAmplitudeProvider provider) => amplitudeProvider = provider;
+
+    public bool TryGetDeliveredSessionContext(
+        out int deliveredId, out uint ritualSequence, out uint turnSequence, out string playerId)
+    {
+        deliveredId = deliveredSessionId;
+        ritualSequence = deliveredRitualSequence;
+        turnSequence = deliveredTurnSequence;
+        playerId = deliveredPlayerId;
+        return deliveredId > 0;
+    }
+
+    public void SetBankedAttemptDiagnostic(string bankedAttempt)
+    {
+        diagnosticBanked = bankedAttempt ?? string.Empty;
+        preserveTokenlessDiagnostic = false;
+        diagnosticVersion++;
+    }
+
+    public void SetPipelineDiagnostic(string boundary)
+    {
+        diagnosticPipeline = boundary ?? string.Empty;
+        diagnosticPipelineBlock = string.Empty;
+        diagnosticVersion++;
+    }
+
+    public void SetPipelineBlockDiagnostic(string guardName)
+    {
+        diagnosticPipelineBlock = guardName ?? string.Empty;
+        diagnosticVersion++;
+    }
+
+    public void SetNormalizationFailureDiagnostic(string reason)
+    {
+        diagnosticBanked = string.IsNullOrWhiteSpace(reason)
+            ? "<FAILED>" : $"<FAILED: {reason}>";
+        diagnosticAuthority = "NOT SUBMITTED";
+        preserveTokenlessDiagnostic = true;
+        diagnosticVersion++;
+    }
+
+    public void SetAttemptSubmittedDiagnostic()
+    {
+        diagnosticAuthority = "WAITING";
+        SetState("AWAITING_AUTHORITY", "ATTEMPT_SUBMITTED");
+    }
+
+    public void SetSubmissionFailureDiagnostic()
+    {
+        diagnosticAuthority = "NOT SUBMITTED";
+        diagnosticVersion++;
+    }
+
+    public void RecordAuthorityDiagnostic(bool accepted, int failedIndex)
+    {
+        diagnosticAuthority = accepted ? "ACCEPTED" : "REJECTED";
+        diagnosticFailedIndex = accepted ? -1 : failedIndex;
+        SetState("AWAITING_AUTHORITY", "AUTHORITY_VERDICT_RECEIVED");
+    }
+
+    public void ResetAuthorityDiagnostic()
+    {
+        diagnosticAuthority = "NOT SUBMITTED";
+        diagnosticFailedIndex = -1;
+        diagnosticRaw = string.Empty;
+        diagnosticBanked = string.Empty;
+        diagnosticPipeline = string.Empty;
+        diagnosticPipelineBlock = string.Empty;
+        preserveTokenlessDiagnostic = false;
+        diagnosticVersion++;
+    }
+
+    private async void BeginPreload()
+    {
+        if (IsWhisperReady)
+        {
+            CompletePreload(true);
+            return;
+        }
+        if (preloadInProgress || whisper == null)
+            return;
+
+        preloadInProgress = true;
+        preloadFailed = false;
+        SetState("PRELOADING", "PRELOAD_STARTED");
         try
         {
-            await EnsureWhisperIsReady();
-
-            if (cancelPendingStart)
-            {
-                Log("Whisper voice recognition start canceled before recording began.");
-                return;
-            }
-
-            if (!isActiveAndEnabled)
-            {
-                Log("Whisper voice recognition start canceled because the component is no longer active.");
-                return;
-            }
-
-            if (whisper == null || !whisper.IsLoaded)
-            {
-                Debug.LogWarning("WhisperVoiceRecognizer could not start because the Whisper model is not loaded.", this);
-                return;
-            }
-
-            StartRecordedRecognition();
-            microphoneRecord.StartRecord();
+            if (!whisper.IsLoading)
+                await whisper.InitModel();
+            while (whisper.IsLoading)
+                await Task.Yield();
+            CompletePreload(whisper.IsLoaded);
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"WhisperVoiceRecognizer failed to start: {exception.Message}", this);
-            isListening = false;
-            EndSpeechEndDetection();
+            Debug.LogError($"Whisper preload failed: {exception.Message}", this);
+            CompletePreload(false);
         }
         finally
         {
-            isStarting = false;
+            preloadInProgress = false;
         }
     }
 
-    public void StopListening()
+    private void CompletePreload(bool succeeded)
     {
-        StopListeningAndTranscribeRecording();
-    }
-
-    public void CancelListening()
-    {
-        StopListeningAndDiscardRecording();
-    }
-
-    private void StopListeningAndTranscribeRecording()
-    {
-        if (microphoneRecord == null)
-        {
-            isListening = false;
-            cancelPendingStart = true;
+        preloadFailed = !succeeded;
+        SetState(
+            succeeded ? "READY" : "READY_FAILED",
+            succeeded ? "PRELOAD_SUCCEEDED" : "PRELOAD_FAILED");
+        if (!succeeded || !startRequestedWhenReady)
             return;
-        }
+        startRequestedWhenReady = false;
+        StartListening();
+    }
 
-        if (isStarting && !microphoneRecord.IsRecording)
-        {
-            isListening = false;
-            cancelPendingStart = true;
-            Log("Whisper voice recognition stop requested while startup is pending.");
+    private void StopCompleteRecording()
+    {
+        if (!isListening || microphoneRecord == null ||
+            !microphoneRecord.IsRecording || !speechObserved)
             return;
-        }
-
-        if (!isListening && !microphoneRecord.IsRecording)
+        if (Time.realtimeSinceStartup - recordingStartedAt < MinimumRecordingLengthSeconds)
             return;
 
         isListening = false;
-        EndSpeechEndDetection();
-
-        if (!microphoneRecord.IsRecording)
-        {
-            Log("Whisper voice recognition stopped without an active microphone recording.");
-            return;
-        }
-
-        isProcessingRecognition = true;
-        discardNextRecording = false;
-        Log($"Whisper voice recognition stopping. Session {listeningSessionId} will be transcribed.");
+        discardStoppedRecording = false;
+        SetVoiceActivity(false);
+        SetListeningGlow(0f);
+        SetState("TRANSCRIBING", "TERMINAL_SILENCE_COMPLETE");
         microphoneRecord.StopRecord();
     }
 
-    private void StopListeningAndDiscardRecording()
+    private void HandleRecordStop(AudioChunk completeRecording)
     {
-        if (microphoneRecord == null)
+        ReleaseMicrophoneOwnership();
+        if (discardStoppedRecording)
         {
-            isListening = false;
-            cancelPendingStart = true;
+            discardStoppedRecording = false;
             return;
         }
-
-        if (isStarting && !microphoneRecord.IsRecording)
-        {
-            isListening = false;
-            discardNextRecording = true;
-            cancelPendingStart = true;
-            Log("Whisper voice recognition cancel requested while startup is pending.");
+        int stoppedSessionId = sessionId;
+        if (stoppedSessionId <= invalidatedThroughSessionId)
             return;
-        }
-
-        if (!isListening && !microphoneRecord.IsRecording)
-            return;
-
-        isListening = false;
-        discardNextRecording = true;
-        EndSpeechEndDetection();
-
-        if (!microphoneRecord.IsRecording)
-            return;
-
-        Log($"Whisper voice recognition stopping. Session {listeningSessionId} recording will be discarded.");
-        microphoneRecord.StopRecord();
+        TranscribeCompleteRecording(completeRecording, stoppedSessionId);
     }
 
-    private async void HandleRecordStop(AudioChunk recordedAudio)
+    private async void TranscribeCompleteRecording(AudioChunk completeRecording, int transcribedSessionId)
     {
-        int sessionId = listeningSessionId;
-        isListening = false;
-        EndSpeechEndDetection();
-
-        if (discardNextRecording)
+        if (completeRecording.Data == null || completeRecording.Data.Length == 0)
         {
-            discardNextRecording = false;
-            isProcessingRecognition = false;
-            Log($"Whisper voice recognition discarded recording for session {sessionId}.");
-            return;
-        }
-
-        isProcessingRecognition = true;
-
-        try
-        {
-            await TranscribeRecording(recordedAudio, sessionId);
-        }
-        finally
-        {
-            isProcessingRecognition = false;
-        }
-    }
-
-    private void StartRecordedRecognition()
-    {
-        listeningSessionId++;
-        isListening = true;
-        BeginSpeechEndDetection();
-        Log($"Whisper voice recognition recording started. Session {listeningSessionId}.");
-    }
-
-    private void BeginSpeechEndDetection()
-    {
-        hasSpeechStarted = false;
-        sessionSpeechDetected = false;
-        lastSpeechDetectedAt = 0f;
-        sessionActiveSpeechDuration = 0f;
-        lastSpeechDetectionUpdateAt = Time.realtimeSinceStartup;
-        sessionRecordingStartedAt = lastSpeechDetectionUpdateAt;
-        sessionSpeechStartedAt = 0f;
-        sessionDetectedSpeechStartOffset = 0f;
-        sessionDetectedSpeechEndOffset = 0f;
-
-        if (!enableSpeechEndAutoStop || microphoneRecord == null)
-            return;
-
-        if (!autoEnableMicrophoneVad || microphoneRecord.useVad)
-            return;
-
-        previousMicrophoneUseVad = microphoneRecord.useVad;
-        hasTemporaryMicrophoneVadOverride = true;
-        microphoneRecord.useVad = true;
-    }
-
-    private void EndSpeechEndDetection()
-    {
-        hasSpeechStarted = false;
-        lastSpeechDetectedAt = 0f;
-        lastSpeechDetectionUpdateAt = 0f;
-        sessionRecordingStartedAt = 0f;
-        sessionSpeechStartedAt = 0f;
-
-        if (!hasTemporaryMicrophoneVadOverride || microphoneRecord == null)
-            return;
-
-        microphoneRecord.useVad = previousMicrophoneUseVad;
-        hasTemporaryMicrophoneVadOverride = false;
-    }
-
-    private void UpdateSpeechEndDetection()
-    {
-        if (!enableSpeechEndAutoStop || !isListening || isStarting || isTranscribing || isProcessingRecognition)
-            return;
-
-        if (microphoneRecord == null || !microphoneRecord.IsRecording)
-            return;
-
-        if (!microphoneRecord.useVad)
-            return;
-
-        float now = Time.realtimeSinceStartup;
-        float deltaSeconds = Mathf.Max(0f, now - lastSpeechDetectionUpdateAt);
-        lastSpeechDetectionUpdateAt = now;
-
-        if (ShouldStopShortPhraseRecording(now))
-        {
-            float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
-            float recordingDuration = now - sessionRecordingStartedAt;
-            float speechDuration = now - sessionSpeechStartedAt;
-            Log($"Whisper voice recognition reached short phrase recording cap after {speechDuration:0.00}s of detected speech using {maxRecordingSeconds:0.00}s maximum for {expectedPhraseWordCount} expected word(s). Recording duration: {recordingDuration:0.00}s. Active speech: {sessionActiveSpeechDuration:0.00}s. Session {listeningSessionId} will be transcribed.");
-            StopListeningAndTranscribeRecording();
-            return;
-        }
-
-        if (microphoneRecord.IsVoiceDetected)
-        {
-            if (!hasSpeechStarted)
-            {
-                Log($"Whisper voice recognition detected speech. Session {listeningSessionId}. Expected words: {expectedPhraseWordCount}. VAD threshold: {microphoneRecord.vadThd:0.00}.");
-                sessionSpeechStartedAt = now;
-                sessionDetectedSpeechStartOffset = Mathf.Max(0f, sessionSpeechStartedAt - sessionRecordingStartedAt);
-            }
-
-            if (hasSpeechStarted)
-                sessionActiveSpeechDuration += deltaSeconds;
-
-            hasSpeechStarted = true;
-            sessionSpeechDetected = true;
-            lastSpeechDetectedAt = now;
-            sessionDetectedSpeechEndOffset = Mathf.Max(sessionDetectedSpeechStartOffset, lastSpeechDetectedAt - sessionRecordingStartedAt);
-            return;
-        }
-
-        if (!hasSpeechStarted)
-            return;
-
-        float silenceSeconds = now - lastSpeechDetectedAt;
-
-        float activeSpeechEndSilenceSeconds = GetActiveSpeechEndSilenceSeconds();
-
-        if (silenceSeconds < activeSpeechEndSilenceSeconds)
-            return;
-
-        Log($"Whisper voice recognition detected speech end after {silenceSeconds:0.00}s of silence using {activeSpeechEndSilenceSeconds:0.00}s threshold for {expectedPhraseWordCount} expected word(s). Active speech: {sessionActiveSpeechDuration:0.00}s. Session {listeningSessionId} will be transcribed.");
-        StopListeningAndTranscribeRecording();
-    }
-
-    private async Task TranscribeRecording(AudioChunk recordedAudio, int sessionId)
-    {
-        if (!ValidateReferences())
-            return;
-
-        if (recordedAudio.Data == null || recordedAudio.Data.Length == 0)
-        {
-            Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: empty audio. Expected words: {expectedPhraseWordCount}. Speech detected: {sessionSpeechDetected}. Active speech: {sessionActiveSpeechDuration:0.00}s.");
-            return;
-        }
-
-        AudioChunk audioForWhisper = PrepareAudioForWhisper(recordedAudio, sessionId, out AudioPreparationDetails audioPreparation);
-
-        Log($"Whisper voice recognition prepared audio for session {sessionId}. Raw recording: {audioPreparation.RawDuration:0.00}s. Final Whisper chunk: {audioPreparation.FinalDuration:0.00}s. Leading padding: {audioPreparation.LeadingPaddingUsed:0.00}s. Trailing padding: {audioPreparation.TrailingPaddingUsed:0.00}s. Chunk mode: {(audioPreparation.WasCropped ? "cropped" : "full")}. Reason: {audioPreparation.Reason}. Active speech: {audioPreparation.ActiveSpeechDuration:0.00}s. Expected words: {audioPreparation.ExpectedWordCount}.");
-
-        if (audioForWhisper.Length < minimumRecordingLengthSeconds)
-        {
-            Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: short audio ({audioForWhisper.Length:0.00}s < {minimumRecordingLengthSeconds:0.00}s). Expected words: {expectedPhraseWordCount}. Speech detected: {sessionSpeechDetected}. Active speech: {sessionActiveSpeechDuration:0.00}s.");
+            QueueTranscript(transcribedSessionId, string.Empty, false, 0);
             return;
         }
 
         isTranscribing = true;
         Stopwatch stopwatch = Stopwatch.StartNew();
-
         try
         {
-            bool speechWasDetected = sessionSpeechDetected || audioForWhisper.IsVoiceDetected;
-            float activeSpeechDuration = sessionActiveSpeechDuration;
-            float activeSpeechEndSilenceSeconds = GetActiveSpeechEndSilenceSeconds();
-
-            Log($"Whisper voice recognition transcribing final recording for session {sessionId}: {audioForWhisper.Length:0.00}s, {audioForWhisper.Frequency}Hz, {audioForWhisper.Channels} channel(s). Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. VAD threshold: {GetVadThresholdLogValue()}.");
-
-            WhisperResult result = await whisper.GetTextAsync(audioForWhisper.Data, audioForWhisper.Frequency, audioForWhisper.Channels);
+            WhisperResult result = await whisper.GetTextAsync(
+                completeRecording.Data, completeRecording.Frequency, completeRecording.Channels);
             stopwatch.Stop();
-            lastRecognitionLatencyMs = stopwatch.ElapsedMilliseconds;
-
-            string recognizedText = result != null ? result.Result.Trim() : string.Empty;
-
-            if (IsEmptyTranscript(recognizedText) && ShouldRetryEmptyTranscript(audioForWhisper, speechWasDetected))
-            {
-                Log($"Whisper voice recognition returned an empty transcript for session {sessionId} despite detected speech. Retrying once with {EmptyTranscriptRetryPaddingSeconds:0.00}s padding for {expectedPhraseWordCount} expected word(s). Latency: {lastRecognitionLatencyMs} ms.");
-
-                stopwatch.Restart();
-                float[] paddedAudio = CreatePaddedAudio(audioForWhisper.Data, audioForWhisper.Frequency, audioForWhisper.Channels, EmptyTranscriptRetryPaddingSeconds);
-                float paddedDuration = GetAudioDuration(paddedAudio, audioForWhisper.Frequency, audioForWhisper.Channels);
-                Log($"Whisper voice recognition retry audio for session {sessionId}. Raw recording: {audioPreparation.RawDuration:0.00}s. Final Whisper chunk: {paddedDuration:0.00}s. Leading padding: {EmptyTranscriptRetryPaddingSeconds:0.00}s. Trailing padding: {EmptyTranscriptRetryPaddingSeconds:0.00}s. Chunk mode: {(audioPreparation.WasCropped ? "cropped+retry-padding" : "full+retry-padding")}. Active speech: {activeSpeechDuration:0.00}s. Expected words: {expectedPhraseWordCount}.");
-                result = await whisper.GetTextAsync(paddedAudio, audioForWhisper.Frequency, audioForWhisper.Channels);
-                stopwatch.Stop();
-                lastRecognitionLatencyMs += stopwatch.ElapsedMilliseconds;
-                recognizedText = result != null ? result.Result.Trim() : string.Empty;
-            }
-
-            if (IsEmptyTranscript(recognizedText))
-            {
-                Log($"Whisper voice recognition found no speech in session {sessionId}. Expected words: {expectedPhraseWordCount}. Speech detected: {speechWasDetected}. Recording duration: {audioForWhisper.Length:0.00}s. Active speech: {activeSpeechDuration:0.00}s. Silence threshold: {activeSpeechEndSilenceSeconds:0.00}s. Latency: {lastRecognitionLatencyMs} ms.");
-
-                if (!ShouldEmitEmptyTranscript(audioForWhisper, speechWasDetected) && (ignoreEmptyTranscripts || IsPunctuationOnlyTranscript(recognizedText)))
-                {
-                    Log($"Whisper voice recognition emitted no transcript for session {sessionId}. Reason: empty Whisper result ignored.");
-                    return;
-                }
-            }
-            else if (logRecognizedPhrases)
-            {
-                Debug.Log($"Whisper final phrase recognized in {lastRecognitionLatencyMs} ms for {expectedPhraseWordCount} expected word(s): \"{recognizedText}\"", this);
-            }
-
-            OnPhraseRecognized?.Invoke(recognizedText);
+            if (IsSessionStale(transcribedSessionId))
+                return;
+            string transcript = result != null ? result.Result.Trim() : string.Empty;
+            QueueTranscript(transcribedSessionId, transcript,
+                !string.IsNullOrWhiteSpace(transcript), stopwatch.ElapsedMilliseconds);
         }
         catch (Exception exception)
         {
             stopwatch.Stop();
-            Debug.LogWarning($"WhisperVoiceRecognizer transcription failed: {exception.Message}", this);
+            Debug.LogWarning($"Complete Whisper transcription failed: {exception.Message}", this);
+            if (!IsSessionStale(transcribedSessionId))
+                QueueTranscript(transcribedSessionId, string.Empty, false, stopwatch.ElapsedMilliseconds);
         }
         finally
         {
@@ -475,303 +444,165 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
         }
     }
 
-    private async Task EnsureWhisperIsReady()
+    private void QueueTranscript(int transcribedSessionId, string transcript,
+        bool hasText, long inferenceMilliseconds)
     {
-        if (whisper == null || whisper.IsLoaded)
+        pendingTranscriptSessionId = transcribedSessionId;
+        pendingTranscript = transcript ?? string.Empty;
+        pendingTranscriptHasText = hasText;
+        diagnosticInferenceMilliseconds = inferenceMilliseconds;
+        diagnosticPipeline = "RESULT_READY";
+        diagnosticVersion++;
+        hasPendingTranscript = true;
+    }
+
+    private void ProcessPendingTranscript()
+    {
+        int completedSessionId = pendingTranscriptSessionId;
+        string transcript = pendingTranscript;
+        bool hasText = pendingTranscriptHasText;
+        hasPendingTranscript = false;
+        pendingTranscriptSessionId = 0;
+        pendingTranscript = string.Empty;
+        pendingTranscriptHasText = false;
+        if (IsSessionStale(completedSessionId))
             return;
 
-        Log(whisper.IsLoading ? "Waiting for Whisper model to finish loading." : "Initializing Whisper model.");
-
-        if (!whisper.IsLoading)
-            await whisper.InitModel();
-
-        while (whisper.IsLoading)
-            await Task.Yield();
-    }
-
-    private void ApplyRecognitionTimingMinimums()
-    {
-        minimumRecordingLengthSeconds = Mathf.Max(minimumRecordingLengthSeconds, MinimumAllowedRecordingLengthSeconds);
-        speechEndSilenceSeconds = Mathf.Max(speechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
-        oneWordSpeechEndSilenceSeconds = Mathf.Max(oneWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
-        twoWordSpeechEndSilenceSeconds = Mathf.Max(twoWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
-        threeWordSpeechEndSilenceSeconds = Mathf.Max(threeWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
-        fourOrMoreWordSpeechEndSilenceSeconds = Mathf.Max(fourOrMoreWordSpeechEndSilenceSeconds, MinimumAllowedSpeechEndSilenceSeconds);
-        oneWordMaxRecordingSeconds = Mathf.Max(oneWordMaxRecordingSeconds, MinimumShortPhraseMaxRecordingSeconds);
-        twoWordMaxRecordingSeconds = Mathf.Max(twoWordMaxRecordingSeconds, MinimumShortPhraseMaxRecordingSeconds);
-        expectedPhraseWordCount = Mathf.Max(expectedPhraseWordCount, MinimumExpectedPhraseWordCount);
-    }
-
-    private float GetActiveSpeechEndSilenceSeconds()
-    {
-        if (!useDynamicSpeechEndSilence)
-            return speechEndSilenceSeconds;
-
-        if (expectedPhraseWordCount <= 1)
-            return oneWordSpeechEndSilenceSeconds;
-
-        if (expectedPhraseWordCount == 2)
-            return twoWordSpeechEndSilenceSeconds;
-
-        if (expectedPhraseWordCount == 3)
-            return threeWordSpeechEndSilenceSeconds;
-
-        return fourOrMoreWordSpeechEndSilenceSeconds;
-    }
-
-    private bool ShouldStopShortPhraseRecording(float now)
-    {
-        if (!enableShortPhraseMaxRecordingDuration || !hasSpeechStarted || sessionSpeechStartedAt <= 0f)
-            return false;
-
-        float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
-
-        if (maxRecordingSeconds <= 0f)
-            return false;
-
-        return now - sessionSpeechStartedAt >= maxRecordingSeconds;
-    }
-
-    private float GetShortPhraseMaxRecordingSeconds()
-    {
-        if (expectedPhraseWordCount <= 1)
-            return oneWordMaxRecordingSeconds;
-
-        if (expectedPhraseWordCount == 2)
-            return twoWordMaxRecordingSeconds;
-
-        return 0f;
-    }
-
-    private AudioChunk PrepareAudioForWhisper(AudioChunk recordedAudio, int sessionId, out AudioPreparationDetails details)
-    {
-        details = new AudioPreparationDetails
+        diagnosticRaw = transcript;
+        diagnosticPipeline = "MAIN_THREAD_DELIVERED";
+        diagnosticVersion++;
+        if (!hasText)
         {
-            RawDuration = GetAudioDuration(recordedAudio),
-            FinalDuration = GetAudioDuration(recordedAudio),
-            LeadingPaddingUsed = 0f,
-            TrailingPaddingUsed = 0f,
-            ActiveSpeechDuration = sessionActiveSpeechDuration,
-            ExpectedWordCount = expectedPhraseWordCount,
-            WasCropped = false,
-            Reason = "full raw recording"
-        };
-
-        if (recordedAudio.Data == null)
-            return recordedAudio;
-
-        AudioChunk preparedAudio = GetBoundedShortPhraseRecording(recordedAudio, sessionId, out bool wasShortPhraseCropped);
-
-        if (wasShortPhraseCropped)
-        {
-            details.FinalDuration = GetAudioDuration(preparedAudio);
-            details.WasCropped = true;
-            details.Reason = "short phrase recording cap";
-            return preparedAudio;
+            SetNormalizationFailureDiagnostic("NO_TEXTUAL_WORDS");
+            SetRetryRequestedDiagnostic("TOKENLESS_RESULT");
+            StartListening();
+            return;
         }
 
-        if (!ShouldUseLongPhraseSpeechCrop(recordedAudio))
+        deliveredSessionId = completedSessionId;
+        deliveredRitualSequence = sessionRitualSequence;
+        deliveredTurnSequence = sessionTurnSequence;
+        deliveredPlayerId = sessionPlayerId;
+        if (logRecognizedPhrases)
+            Debug.Log($"Whisper complete recitation: {transcript}", this);
+        OnPhraseRecognized?.Invoke(transcript);
+    }
+
+    private bool IsSessionStale(int checkedSessionId) =>
+        checkedSessionId <= invalidatedThroughSessionId || checkedSessionId != sessionId;
+
+    private void EnableVadObservation()
+    {
+        previousMicrophoneUseVad = microphoneRecord.useVad;
+        hasTemporaryVadOverride = !microphoneRecord.useVad;
+        microphoneRecord.useVad = true;
+    }
+
+    private void AcquireMicrophoneOwnership()
+    {
+        if (amplitudeProvider == null || !amplitudeProvider.IsRecording)
+            return;
+        suspendedAmplitudeProvider = amplitudeProvider;
+        restoreAmplitudeRecording = true;
+        amplitudeProvider.StopRecording();
+    }
+
+    private void ReleaseMicrophoneOwnership()
+    {
+        if (hasTemporaryVadOverride && microphoneRecord != null)
+            microphoneRecord.useVad = previousMicrophoneUseVad;
+        hasTemporaryVadOverride = false;
+        VoiceAmplitudeProvider provider = suspendedAmplitudeProvider;
+        bool shouldRestore = restoreAmplitudeRecording;
+        suspendedAmplitudeProvider = null;
+        restoreAmplitudeRecording = false;
+        if (shouldRestore && provider != null && provider.isActiveAndEnabled)
+            provider.StartRecording();
+    }
+
+    private void SetVoiceActivity(bool active)
+    {
+        if (active && preserveTokenlessDiagnostic)
         {
-            details.FinalDuration = GetAudioDuration(preparedAudio);
-            return preparedAudio;
+            diagnosticRaw = string.Empty;
+            diagnosticBanked = string.Empty;
+            preserveTokenlessDiagnostic = false;
+            diagnosticVersion++;
         }
-
-        AudioChunk croppedAudio = GetSpeechCenteredLongPhraseRecording(recordedAudio, sessionId, out bool wasLongPhraseCropped, out float leadingPaddingUsed, out float trailingPaddingUsed, out string reason);
-        details.FinalDuration = GetAudioDuration(croppedAudio);
-        details.LeadingPaddingUsed = leadingPaddingUsed;
-        details.TrailingPaddingUsed = trailingPaddingUsed;
-        details.WasCropped = wasLongPhraseCropped;
-        details.Reason = reason;
-        return croppedAudio;
+        if (voiceActive == active)
+            return;
+        voiceActive = active;
+        diagnosticVersion++;
+        OnVoiceActivityChanged?.Invoke(active);
     }
 
-    private bool ShouldUseLongPhraseSpeechCrop(AudioChunk recordedAudio)
+    private void SetListeningGlow(float value)
     {
-        return expectedPhraseWordCount >= EmptyTranscriptRetryWordCount &&
-            sessionSpeechDetected &&
-            recordedAudio.Data != null &&
-            recordedAudio.Data.Length > 0 &&
-            recordedAudio.Frequency > 0 &&
-            sessionDetectedSpeechEndOffset > 0f;
+        float clampedValue = Mathf.Clamp01(value);
+        if (Mathf.Approximately(listeningGlow, clampedValue))
+            return;
+
+        listeningGlow = clampedValue;
+        diagnosticVersion++;
+        OnListeningGlowChanged?.Invoke(listeningGlow);
     }
 
-    private AudioChunk GetBoundedShortPhraseRecording(AudioChunk recordedAudio, int sessionId, out bool wasCropped)
+    public void SetTurnEligibilityDiagnostic(bool eligible)
     {
-        wasCropped = false;
+        if (diagnosticTurnEligible == eligible)
+            return;
 
-        if (!enableShortPhraseMaxRecordingDuration || recordedAudio.Data == null)
-            return recordedAudio;
-
-        float maxRecordingSeconds = GetShortPhraseMaxRecordingSeconds();
-
-        if (maxRecordingSeconds <= 0f || recordedAudio.Length <= maxRecordingSeconds)
-            return recordedAudio;
-
-        if (recordedAudio.Frequency <= 0)
-            return recordedAudio;
-
-        int channels = Mathf.Max(1, recordedAudio.Channels);
-        int maxSampleCount = Mathf.RoundToInt(recordedAudio.Frequency * channels * maxRecordingSeconds);
-
-        if (maxSampleCount <= 0 || recordedAudio.Data.Length <= maxSampleCount)
-            return recordedAudio;
-
-        float[] boundedAudio = new float[maxSampleCount];
-        Array.Copy(recordedAudio.Data, recordedAudio.Data.Length - maxSampleCount, boundedAudio, 0, maxSampleCount);
-
-        float originalLength = recordedAudio.Length;
-        recordedAudio.Data = boundedAudio;
-        recordedAudio.Length = (float)boundedAudio.Length / (recordedAudio.Frequency * channels);
-        wasCropped = true;
-
-        Log($"Whisper voice recognition limited short phrase recording for session {sessionId} from {originalLength:0.00}s to {recordedAudio.Length:0.00}s for {expectedPhraseWordCount} expected word(s).");
-        return recordedAudio;
+        diagnosticTurnEligible = eligible;
+        diagnosticVersion++;
     }
 
-    private AudioChunk GetSpeechCenteredLongPhraseRecording(AudioChunk recordedAudio, int sessionId, out bool wasCropped, out float leadingPaddingUsed, out float trailingPaddingUsed, out string reason)
+    public void SetRetryRequestedDiagnostic(string reason)
     {
-        wasCropped = false;
-        leadingPaddingUsed = 0f;
-        trailingPaddingUsed = 0f;
-        reason = "full raw recording";
+        diagnosticRetryRequested = true;
+        diagnosticRetryBlock = string.Empty;
+        diagnosticVersion++;
+    }
 
-        float rawDuration = GetAudioDuration(recordedAudio);
+    public void SetRetryBlockDiagnostic(string guard)
+    {
+        string safeGuard = guard ?? string.Empty;
+        if (string.Equals(diagnosticRetryBlock, safeGuard, StringComparison.Ordinal))
+            return;
 
-        if (rawDuration <= 0f || recordedAudio.Frequency <= 0)
+        diagnosticRetryBlock = safeGuard;
+        diagnosticVersion++;
+    }
+
+    private void SetState(string state, string reason)
+    {
+        if (string.Equals(diagnosticState, state, StringComparison.Ordinal))
+            return;
+        diagnosticPreviousState = diagnosticState;
+        diagnosticState = state ?? "READY_FAILED";
+        diagnosticTransitionReason = reason ?? string.Empty;
+        diagnosticVersion++;
+        OnRecognitionStateChanged?.Invoke(diagnosticState);
+    }
+
+    private void ResetAttemptDiagnostics()
+    {
+        if (!preserveTokenlessDiagnostic)
         {
-            reason = "invalid audio timing";
-            return recordedAudio;
+            diagnosticRaw = string.Empty;
+            diagnosticBanked = string.Empty;
         }
-
-        float speechStartSeconds = Mathf.Clamp(sessionDetectedSpeechStartOffset, 0f, rawDuration);
-        float speechEndSeconds = Mathf.Clamp(Mathf.Max(sessionDetectedSpeechEndOffset, speechStartSeconds + sessionActiveSpeechDuration), speechStartSeconds, rawDuration);
-
-        if (speechEndSeconds <= speechStartSeconds)
-        {
-            reason = "invalid detected speech window";
-            return recordedAudio;
-        }
-
-        float cropStartSeconds = Mathf.Max(0f, speechStartSeconds - LongPhraseCropLeadingPaddingSeconds);
-        float cropEndSeconds = Mathf.Min(rawDuration, speechEndSeconds + LongPhraseCropTrailingPaddingSeconds);
-        float cropDurationSeconds = cropEndSeconds - cropStartSeconds;
-
-        if (cropDurationSeconds < MinimumLongPhraseCropDurationSeconds && rawDuration > MinimumLongPhraseCropDurationSeconds)
-        {
-            float speechCenterSeconds = (speechStartSeconds + speechEndSeconds) * 0.5f;
-            cropStartSeconds = Mathf.Clamp(speechCenterSeconds - MinimumLongPhraseCropDurationSeconds * 0.5f, 0f, rawDuration - MinimumLongPhraseCropDurationSeconds);
-            cropEndSeconds = cropStartSeconds + MinimumLongPhraseCropDurationSeconds;
-        }
-
-        leadingPaddingUsed = Mathf.Max(0f, speechStartSeconds - cropStartSeconds);
-        trailingPaddingUsed = Mathf.Max(0f, cropEndSeconds - speechEndSeconds);
-
-        if (cropStartSeconds <= 0f && cropEndSeconds >= rawDuration)
-        {
-            reason = "detected speech already spans raw recording";
-            return recordedAudio;
-        }
-
-        int channels = Mathf.Max(1, recordedAudio.Channels);
-        int startSample = Mathf.FloorToInt(cropStartSeconds * recordedAudio.Frequency) * channels;
-        int endSample = Mathf.CeilToInt(cropEndSeconds * recordedAudio.Frequency) * channels;
-        startSample = Mathf.Clamp(startSample, 0, recordedAudio.Data.Length);
-        endSample = Mathf.Clamp(endSample, startSample, recordedAudio.Data.Length);
-        int croppedSampleCount = endSample - startSample;
-
-        if (croppedSampleCount <= 0 || croppedSampleCount >= recordedAudio.Data.Length)
-        {
-            reason = "crop matched raw recording";
-            return recordedAudio;
-        }
-
-        float[] croppedAudio = new float[croppedSampleCount];
-        Array.Copy(recordedAudio.Data, startSample, croppedAudio, 0, croppedSampleCount);
-
-        recordedAudio.Data = croppedAudio;
-        recordedAudio.Length = GetAudioDuration(croppedAudio, recordedAudio.Frequency, channels);
-        wasCropped = true;
-        reason = $"speech-centered crop for session {sessionId}";
-        return recordedAudio;
-    }
-
-    private bool IsEmptyTranscript(string transcript)
-    {
-        if (string.IsNullOrWhiteSpace(transcript))
-            return true;
-
-        return IsPunctuationOnlyTranscript(transcript);
-    }
-
-    private bool IsPunctuationOnlyTranscript(string transcript)
-    {
-        if (string.IsNullOrWhiteSpace(transcript))
-            return false;
-
-        foreach (char character in transcript)
-        {
-            if (char.IsLetterOrDigit(character))
-                return false;
-        }
-
-        return true;
-    }
-
-    private bool ShouldRetryEmptyTranscript(AudioChunk recordedAudio, bool speechWasDetected)
-    {
-        return expectedPhraseWordCount >= EmptyTranscriptRetryWordCount &&
-            speechWasDetected &&
-            recordedAudio.Length >= MeaningfulDetectedSpeechRecordingSeconds;
-    }
-
-    private bool ShouldEmitEmptyTranscript(AudioChunk recordedAudio, bool speechWasDetected)
-    {
-        return expectedPhraseWordCount >= EmptyTranscriptRetryWordCount &&
-            speechWasDetected &&
-            recordedAudio.Length >= MeaningfulDetectedSpeechRecordingSeconds;
-    }
-
-    private string GetVadThresholdLogValue()
-    {
-        if (microphoneRecord == null || !microphoneRecord.useVad)
-            return "disabled";
-
-        return microphoneRecord.vadThd.ToString("0.00");
-    }
-
-    private static float GetAudioDuration(AudioChunk audioChunk)
-    {
-        if (audioChunk.Data == null)
-            return 0f;
-
-        return GetAudioDuration(audioChunk.Data, audioChunk.Frequency, audioChunk.Channels);
-    }
-
-    private static float GetAudioDuration(float[] audioData, int frequency, int channels)
-    {
-        if (audioData == null || audioData.Length == 0 || frequency <= 0)
-            return 0f;
-
-        return (float)audioData.Length / (frequency * Mathf.Max(1, channels));
-    }
-
-    private static float[] CreatePaddedAudio(float[] audioData, int frequency, int channels, float paddingSeconds)
-    {
-        int paddingSamples = Mathf.Max(0, Mathf.RoundToInt(frequency * Mathf.Max(1, channels) * paddingSeconds));
-
-        if (paddingSamples <= 0)
-            return audioData;
-
-        float[] paddedAudio = new float[audioData.Length + paddingSamples * 2];
-        Array.Copy(audioData, 0, paddedAudio, paddingSamples, audioData.Length);
-        return paddedAudio;
+        diagnosticAuthority = "NOT SUBMITTED";
+        diagnosticPipeline = string.Empty;
+        diagnosticPipelineBlock = string.Empty;
+        diagnosticFailedIndex = -1;
+        diagnosticInferenceMilliseconds = 0;
+        diagnosticVersion++;
     }
 
     private void ResolveReferences()
     {
         if (whisper == null)
             whisper = GetComponent<WhisperManager>();
-
         if (microphoneRecord == null)
             microphoneRecord = GetComponent<MicrophoneRecord>();
     }
@@ -779,29 +610,17 @@ public class WhisperVoiceRecognizer : MonoBehaviour, IVoiceRecognizer, IVoiceInp
     private bool ValidateReferences()
     {
         ResolveReferences();
-
-        bool hasReferences = true;
-
-        if (whisper == null)
-        {
-            Debug.LogWarning("WhisperVoiceRecognizer requires a WhisperManager reference.", this);
-            hasReferences = false;
-        }
-
-        if (microphoneRecord == null)
-        {
-            Debug.LogWarning("WhisperVoiceRecognizer requires a MicrophoneRecord reference.", this);
-            hasReferences = false;
-        }
-
-        return hasReferences;
+        if (whisper != null && microphoneRecord != null)
+            return true;
+        Debug.LogError("WhisperVoiceRecognizer requires WhisperManager and MicrophoneRecord references.", this);
+        return false;
     }
 
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
     private void Log(string message)
     {
-        if (!enableDebugLogs)
-            return;
-
-        Debug.Log(message, this);
+        if (enableDebugLogs)
+            Debug.Log($"[WhisperPhrase] {message}", this);
     }
 }

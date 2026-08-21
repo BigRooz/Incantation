@@ -9,13 +9,24 @@ using UnityEngine;
 public class GrowingIncantationManager : MonoBehaviour
 {
     [Header("Ritual Vocabulary")]
-    [Tooltip("Ordered ritual words used to grow the shared phrase. The first valid word becomes the reset phrase.")]
+    [Tooltip("Canonical ritual words shuffled into a runtime order when the shared phrase resets for a new match.")]
     [SerializeField] private List<string> ritualVocabulary = new List<string>
     {
         "Umbra",
         "Vakor",
         "Mortis",
-        "Noctis"
+        "Noctis",
+        "Korva",
+        "Velum",
+        "Zulak",
+        "Dorim",
+        "Rakan",
+        "Nethor",
+        "Inis",
+        "Vexor",
+        "Malum",
+        "Luxor",
+        "Tenebris"
     };
 
     [Header("Phrase State")]
@@ -28,6 +39,8 @@ public class GrowingIncantationManager : MonoBehaviour
     [Tooltip("Current ritual words in phrase order.")]
     [SerializeField] private List<string> currentRitualWords = new List<string>();
 
+    private readonly List<string> runtimeShuffledVocabulary = new List<string>();
+
     /// <summary>
     /// Resets the shared ritual phrase so it contains exactly one word.
     /// Empty or whitespace-only vocabulary entries are ignored.
@@ -35,14 +48,17 @@ public class GrowingIncantationManager : MonoBehaviour
     public void ResetPhrase()
     {
         currentRitualWords.Clear();
+        runtimeShuffledVocabulary.Clear();
         currentUnlockedWordCount = 0;
 
-        if (GetValidVocabularyCount() == 0)
+        List<string> configuredVocabulary = GetConfiguredVocabulary();
+        if (configuredVocabulary.Count == 0)
         {
             currentRitualPhrase = string.Empty;
             return;
         }
 
+        AppendShuffledCycle(configuredVocabulary);
         currentUnlockedWordCount = 1;
         RebuildCurrentPhrase();
     }
@@ -111,17 +127,48 @@ public class GrowingIncantationManager : MonoBehaviour
             return;
         }
 
+        EnsureRuntimeVocabularyCount(configuredVocabulary, currentUnlockedWordCount);
+
         for (int wordIndex = 0; wordIndex < currentUnlockedWordCount; wordIndex++)
         {
-            currentRitualWords.Add(configuredVocabulary[wordIndex % configuredVocabulary.Count]);
+            currentRitualWords.Add(runtimeShuffledVocabulary[wordIndex]);
         }
 
         currentRitualPhrase = string.Join(" ", currentRitualWords);
     }
 
-    private int GetValidVocabularyCount()
+    private void EnsureRuntimeVocabularyCount(List<string> configuredVocabulary, int requiredWordCount)
     {
-        return GetConfiguredVocabulary().Count;
+        while (runtimeShuffledVocabulary.Count < requiredWordCount)
+        {
+            string previousWord = runtimeShuffledVocabulary.Count > 0
+                ? runtimeShuffledVocabulary[runtimeShuffledVocabulary.Count - 1]
+                : string.Empty;
+            AppendShuffledCycle(configuredVocabulary, previousWord);
+        }
+    }
+
+    private void AppendShuffledCycle(List<string> configuredVocabulary, string previousWord = "")
+    {
+        List<string> shuffledCycle = new List<string>(configuredVocabulary);
+
+        for (int wordIndex = shuffledCycle.Count - 1; wordIndex > 0; wordIndex--)
+        {
+            int swapIndex = Random.Range(0, wordIndex + 1);
+            string swappedWord = shuffledCycle[wordIndex];
+            shuffledCycle[wordIndex] = shuffledCycle[swapIndex];
+            shuffledCycle[swapIndex] = swappedWord;
+        }
+
+        if (shuffledCycle.Count > 1 && shuffledCycle[0] == previousWord)
+        {
+            int swapIndex = Random.Range(1, shuffledCycle.Count);
+            string firstWord = shuffledCycle[0];
+            shuffledCycle[0] = shuffledCycle[swapIndex];
+            shuffledCycle[swapIndex] = firstWord;
+        }
+
+        runtimeShuffledVocabulary.AddRange(shuffledCycle);
     }
 
     private List<string> GetConfiguredVocabulary()

@@ -1045,7 +1045,9 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
   membership, name, and appearance. Existing `SeatId` observers release presentation occupancy;
   only the local owner moves to the configured waiting transform. Ready and Host start eligibility
   both require an assigned Seat.
-- The Bootstrap diagnostic HUD can start a host, server, localhost client, and clean disconnect.
+- The obsolete Bootstrap and direct-SteamID diagnostic HUD components are not attached at runtime.
+  Host, client, lobby discovery, and disconnect behavior remain owned by the existing foundation
+  and Living Book flows.
 - Bootstrap remains the launcher and persistent network-composition owner. It now opens
   `MainGame` before connection so the Book can create or join a ritual. The first successful
   server start still registers/requests `MainGame` through FishNet global scene loading with
@@ -1076,8 +1078,38 @@ TASK-038 installed the FishNet foundation and TASK-039 established the permanent
    transition before opening it. Confirm the current-state query restores the correct Circle
    page and count without waiting for another membership event.
 
-Production Steam discovery, Steam transport, social voice chat, and authoritative shared lobby
-presentation remain unimplemented. Steamworks.NET and FishySteamworks are not installed.
+Production Steam discovery, Steam Lobby matchmaking, Internet Ritual Seal resolution, social
+voice chat, and authoritative shared lobby presentation remain unimplemented. ONLINE-001A pins
+Steamworks.NET `2025.164.1` and FishySteamworks tag `4.1.1` beside FishNet `4.7.2` only for an
+isolated compatibility spike. Tugboat remains the default transport. An explicit
+`-incantationTransport steam` launch selects FishySteamworks before FishNet initialization and
+uses a temporary direct Host SteamID64 HUD; this is not production Create/Join UX.
+
+FishySteamworks `4.1.1` is pinned to its repository package subfolder. Because that legacy package
+does not include an assembly definition and Unity ignores its transport scripts as immutable UPM
+source, the exact tagged transport sources and upstream `.meta` GUIDs are mirrored under
+`Assets/Plugins/FishySteamworks`. This ensures the serialized manager-prefab component and selector
+reference resolve in standalone players; it is spike packaging, not a production dependency plan.
+
+ONLINE-001A.5 uses an explicit active-state gate because Unity calls `Awake` on disabled components
+of active GameObjects and effective script order cannot precede FishNet's `-32768`. The manager
+prefab keeps `SteamPlatformBootstrap` and `SteamSpikeTransportSelector` on its active root, while
+all FishNet runtime components live on an initially inactive `FishNetRuntime` child. After Steam
+initialization, the selector assigns Tugboat or FishySteamworks and activates that child. FishNet
+then initializes, caches MTUs for, and subscribes to the already-selected transport. If Steam
+initialization fails in Steam mode, the selector preserves Tugboat, reports the failure, activates
+FishNet consistently, and leaves Steam Host/Client actions unavailable.
+
+The active gate root owns `DontDestroyOnLoad`, preserving Steam callbacks and its inactive/active
+runtime child together across scene changes. FishNet's child-level `_dontDestroyOnLoad` is disabled
+because Unity persistence must be requested by the hierarchy root.
+
+ONLINE-001A's `SteamPlatformBootstrap` is platform infrastructure only: it initializes Steam,
+runs callbacks, exposes App ID/local SteamID64 diagnostics, and performs shutdown. It does not
+own Steam Lobbies, Circle state, Seats, Ready, Book state, ritual state, elimination, or Ghost
+state. Successful Steam transport connection must still complete through FishNet scene sync,
+the existing owning `NetworkPlayer`, and synchronized Circle membership. The current
+two-account/two-device Steam flow has passed runtime validation.
 
 `NetworkRitualAuthority` is the intended sole orchestrator and single writer for the migrated
 multiplayer ritual chain on
@@ -1096,6 +1128,25 @@ Host or Client. The server authority initializes the one-word phrase, starts the
 roster/participant/Book-command sequence, starts time only after accepted Book arrival, accepts
 speech only from the active stable player identity, and advances successful turns itself. A wrap
 through the locked physical roster increments the rotation count and appends exactly one word.
+Continuous Whisper uses the same authenticated speech transport with an explicit incremental-token
+batch marker. After all existing ownership, participant, ritual, turn, phase, timer, and phrase
+guards pass, the server processes canonical textual words in spoken order. The server-owned
+expected-word index is also the current recitation-attempt progress. Correct partial progress does
+not resolve the turn; the first mismatch publishes an authoritative rejection, resets only that
+progress to zero, and discards the rest of the batch. Full progress enters the existing successful
+turn path once. No token verdict starts, pauses, extends, or resets the timer, and clients cannot
+commit progress.
+The local Whisper optimization may fast-submit only exact configured vocabulary/alias tokens with
+a complete boundary. It can read the replicated expected word to prioritize and diagnose the
+candidate, but each word still crosses the authenticated transport individually and waits for the
+server verdict before the next queued word is sent. Exact wrong vocabulary words therefore reach
+authoritative rejection quickly; provisional fragments and unresolved text remain on the
+conservative stable-prefix fallback.
+Network latency does not throttle the package-native WhisperStream. Monotonic stream-word
+identities and attempt watermarks provide local duplicate/retry isolation while recognized words
+may queue behind one outstanding submission. Rejection clears the failed generation's queued
+run-ahead speech without stopping capture or transcription. These are local recognition concerns;
+`NetworkRitualAuthority` remains the sole writer of attempt progress.
 Timeout waits at the existing consequence boundary until absorption, aftermath, and Book Prison
 presentation finish. The Host then completes elimination through `NetworkRitualAuthority`, which
 validates the current sequence metadata, marks the fixed roster entry inactive/dead, and either
@@ -1129,3 +1180,36 @@ only local join/transient Seal state and requests the existing foundation discon
 the client owns no local server, FishNet stops only its `ClientManager`; the remote Host, its
 Seal, and other clients are unaffected. A pending-leave guard rejects repeat submissions until
 the local connection is stopped.
+
+## Steam Ritual Seal Discovery
+
+ONLINE-001C keeps `RitualSealService` as the Living Book coordinator and delegates discovery by
+the selected transport. `TugboatDevelopment` retains the existing UDP directory. `SteamSpike`
+uses `SteamRitualLobbyDirectory`, which creates a public four-member lobby so manual Seal joining
+works for non-friends. It publishes only `game=INCANTATION_DEV`, `ritualSeal=<four characters>`,
+and `protocol=1`.
+
+Steam Host creation checks up to twelve generated candidates with exact metadata filters before
+publishing a Seal. Join applies the game, protocol, and Seal filters, rejects zero or multiple
+matches, enters the one available lobby, resolves its owner SteamID64, and passes that invariant
+numeric string to `FishNetFoundationController.StartClient(string)`. No SteamID64 is displayed by
+the Book. Lobby metadata and membership are discovery information only; FishNet and the Host
+server retain all Circle and gameplay authority. Spacewar App ID 480 shares a development lobby
+ecosystem, making the Incantation marker and protocol filters mandatory but not production
+isolation.
+
+## Steam Lobby Invitations
+
+ONLINE-001D adds a Host-only invitation entry to the same Steam discovery boundary. The Living
+Book delegates `Invite a Priest` through `RitualSealService`; the directory validates that the
+local process owns an active hosted Lobby, then opens Steam's native friend picker with
+`ActivateGameOverlayInviteDialog`. Joined Clients do not receive an actionable Invite entry.
+
+For an already-running invitee, the directory owns exactly one
+`GameLobbyJoinRequested_t` callback. A disconnected client may enter the supplied Lobby ID
+directly. After `LobbyEnter_t`, the existing game and protocol metadata are validated, the
+four-character `ritualSeal` is read and normalized, and the Lobby owner SteamID64 returns through
+the same `RitualSealService -> FishNetFoundationController.StartClient(string)` route used by
+manual Seal joining. Active or transitioning sessions reject the request without disconnecting.
+Cold-start `+connect_lobby` handling is deferred to ONLINE-001D.1 and remains dependent on the
+real Incantation Steam App ID and launch configuration.

@@ -80,6 +80,14 @@ namespace Incantation.Networking
                 absorption.ResetAbsorption();
             }
 
+            foreach (NetworkGhostPresentation ghostPresentation in
+                FindObjectsByType<NetworkGhostPresentation>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None))
+            {
+                ghostPresentation.ResetPresentationForLobby();
+            }
+
             foreach (NetworkCharacterPresentation presentation in
                 FindObjectsByType<NetworkCharacterPresentation>(
                     FindObjectsInactive.Include,

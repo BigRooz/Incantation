@@ -16,13 +16,17 @@ namespace Incantation.Networking.Ritual
             uint turnSequence,
             uint submissionSequence,
             string recognizedText,
-            double clientCaptureTimestamp)
+            double clientCaptureTimestamp,
+            bool containsIncrementalTokenBatch = false,
+            bool containsCompleteAttempt = false)
         {
             RitualSequence = ritualSequence;
             TurnSequence = turnSequence;
             SubmissionSequence = submissionSequence;
             RecognizedText = recognizedText ?? string.Empty;
             ClientCaptureTimestamp = clientCaptureTimestamp;
+            ContainsIncrementalTokenBatch = containsIncrementalTokenBatch;
+            ContainsCompleteAttempt = containsCompleteAttempt;
         }
 
         public uint RitualSequence;
@@ -30,6 +34,8 @@ namespace Incantation.Networking.Ritual
         public uint SubmissionSequence;
         public string RecognizedText;
         public double ClientCaptureTimestamp;
+        public bool ContainsIncrementalTokenBatch;
+        public bool ContainsCompleteAttempt;
     }
 
     /// <summary>
@@ -43,7 +49,9 @@ namespace Incantation.Networking.Ritual
             uint submissionSequence,
             string playerId,
             string recognizedText,
-            double serverAcceptanceTimestamp)
+            double serverAcceptanceTimestamp,
+            bool containsIncrementalTokenBatch = false,
+            bool containsCompleteAttempt = false)
         {
             RitualSequenceId = ritualSequenceId;
             TurnSequenceId = turnSequenceId;
@@ -51,6 +59,8 @@ namespace Incantation.Networking.Ritual
             PlayerId = playerId ?? string.Empty;
             RecognizedText = recognizedText ?? string.Empty;
             ServerAcceptanceTimestamp = serverAcceptanceTimestamp;
+            ContainsIncrementalTokenBatch = containsIncrementalTokenBatch;
+            ContainsCompleteAttempt = containsCompleteAttempt;
         }
 
         public RitualSequenceId RitualSequenceId { get; }
@@ -59,6 +69,8 @@ namespace Incantation.Networking.Ritual
         public string PlayerId { get; }
         public string RecognizedText { get; }
         public double ServerAcceptanceTimestamp { get; }
+        public bool ContainsIncrementalTokenBatch { get; }
+        public bool ContainsCompleteAttempt { get; }
         public bool HasSubmission => SubmissionSequence > 0;
     }
 }

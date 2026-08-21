@@ -5,26 +5,30 @@ public class BookFeedbackController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private IncantationManager incantationManager;
+    [SerializeField] private BookController bookController;
+    [SerializeField] private BookMenuReturnInteractable bookHighlight;
+
+    [Header("Local Listening Glow")]
+    [Min(0f)]
+    [SerializeField] private float listeningGlowRiseSpeed = 10f;
 
     [Header("Pulse")]
     [Min(1f)]
-    [SerializeField] private float pulseScale = 1.12f;
+    [SerializeField] private float ritualAcceptedPulseScale = 1.18f;
     [Min(0f)]
-    [SerializeField] private float pulseDuration = 0.18f;
-
-    [Header("Shake")]
-    [Min(0f)]
-    [SerializeField] private float shakeStrength = 0.04f;
-    [Min(0f)]
-    [SerializeField] private float shakeDuration = 0.2f;
+    [SerializeField] private float ritualAcceptedPulseDuration = 0.3f;
 
     private Coroutine feedbackCoroutine;
     private Vector3 baseLocalScale;
-    private Vector3 previousShakeOffset;
+    private float listeningGlow;
+    private float targetListeningGlow;
 
     private void Awake()
     {
         baseLocalScale = transform.localScale;
+        if (bookController == null)
+            bookController = GetComponent<BookController>();
+        ResolveBookHighlight();
     }
 
     private void OnEnable()
@@ -32,45 +36,72 @@ public class BookFeedbackController : MonoBehaviour
         SubscribeToIncantationManager();
     }
 
+    private void Update()
+    {
+        if (listeningGlow >= targetListeningGlow)
+            return;
+
+        listeningGlow = Mathf.MoveTowards(
+            listeningGlow,
+            targetListeningGlow,
+            Mathf.Max(0f, listeningGlowRiseSpeed) * Time.unscaledDeltaTime);
+        ApplyListeningGlowRequest();
+    }
+
     private void OnDisable()
     {
         UnsubscribeFromIncantationManager();
+        SetListeningGlow(0f);
         StopFeedback();
+    }
+
+    public void SetListeningGlow(float glow)
+    {
+        targetListeningGlow = Mathf.Clamp01(glow);
+        if (targetListeningGlow >= listeningGlow)
+            return;
+
+        listeningGlow = targetListeningGlow;
+        ApplyListeningGlowRequest();
     }
 
     private void SubscribeToIncantationManager()
     {
         if (incantationManager == null)
+        {
+            SubscribeToBookController();
             return;
+        }
 
-        incantationManager.OnCorrectWord.AddListener(HandleCorrectWord);
-        incantationManager.OnIncorrectWord.AddListener(HandleIncorrectWord);
+        SubscribeToBookController();
     }
 
     private void UnsubscribeFromIncantationManager()
     {
-        if (incantationManager == null)
+        if (bookController != null)
+            bookController.OnRitualAccepted -= HandleRitualAccepted;
+    }
+
+    private void SubscribeToBookController()
+    {
+        if (bookController == null)
             return;
 
-        incantationManager.OnCorrectWord.RemoveListener(HandleCorrectWord);
-        incantationManager.OnIncorrectWord.RemoveListener(HandleIncorrectWord);
+        bookController.OnRitualAccepted -= HandleRitualAccepted;
+        bookController.OnRitualAccepted += HandleRitualAccepted;
     }
 
-    private void HandleCorrectWord()
+    private void HandleRitualAccepted()
     {
         StopFeedback();
-        feedbackCoroutine = StartCoroutine(PulseBook());
+        feedbackCoroutine = StartCoroutine(PulseBook(
+            ritualAcceptedPulseScale,
+            ritualAcceptedPulseDuration));
     }
 
-    private void HandleIncorrectWord()
+    private IEnumerator PulseBook(float scale, float duration)
     {
-        StopFeedback();
-        feedbackCoroutine = StartCoroutine(ShakeBook());
-    }
-
-    private IEnumerator PulseBook()
-    {
-        float safeDuration = Mathf.Max(0f, pulseDuration);
+        float safeDuration = Mathf.Max(0f, duration);
 
         if (safeDuration <= 0f)
         {
@@ -80,7 +111,7 @@ public class BookFeedbackController : MonoBehaviour
         }
 
         Vector3 startScale = baseLocalScale;
-        Vector3 targetScale = baseLocalScale * Mathf.Max(0f, pulseScale);
+        Vector3 targetScale = baseLocalScale * Mathf.Max(0f, scale);
         float halfDuration = safeDuration * 0.5f;
 
         yield return ScaleOverTime(startScale, targetScale, halfDuration);
@@ -113,37 +144,6 @@ public class BookFeedbackController : MonoBehaviour
         transform.localScale = targetScale;
     }
 
-    private IEnumerator ShakeBook()
-    {
-        float safeDuration = Mathf.Max(0f, shakeDuration);
-        float safeStrength = Mathf.Max(0f, shakeStrength);
-
-        if (safeDuration <= 0f || safeStrength <= 0f)
-        {
-            ClearShakeOffset();
-            feedbackCoroutine = null;
-            yield break;
-        }
-
-        float elapsed = 0f;
-
-        while (elapsed < safeDuration)
-        {
-            elapsed += Time.deltaTime;
-
-            Vector3 nextOffset = Random.insideUnitSphere * safeStrength;
-            nextOffset.y *= 0.35f;
-
-            transform.localPosition = transform.localPosition - previousShakeOffset + nextOffset;
-            previousShakeOffset = nextOffset;
-
-            yield return null;
-        }
-
-        ClearShakeOffset();
-        feedbackCoroutine = null;
-    }
-
     private void StopFeedback()
     {
         if (feedbackCoroutine != null)
@@ -153,15 +153,17 @@ public class BookFeedbackController : MonoBehaviour
         }
 
         transform.localScale = baseLocalScale;
-        ClearShakeOffset();
     }
 
-    private void ClearShakeOffset()
+    private void ResolveBookHighlight()
     {
-        if (previousShakeOffset == Vector3.zero)
-            return;
+        if (bookHighlight == null)
+            bookHighlight = GetComponent<BookMenuReturnInteractable>();
+    }
 
-        transform.localPosition -= previousShakeOffset;
-        previousShakeOffset = Vector3.zero;
+    private void ApplyListeningGlowRequest()
+    {
+        ResolveBookHighlight();
+        bookHighlight?.SetVoiceListeningIntensity(listeningGlow);
     }
 }

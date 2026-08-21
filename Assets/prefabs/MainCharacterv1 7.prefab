@@ -3572,6 +3572,7 @@ MonoBehaviour:
     target: {fileID: 1787821428555026012}
   - displayName: Nuts Hair Style
     target: {fileID: 4687434314404310278}
+  appearanceSlot: 1
   currentIndex: 0
 --- !u!114 &1927299400436449936
 MonoBehaviour:
