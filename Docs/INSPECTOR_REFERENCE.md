@@ -56,7 +56,7 @@ Runtime behavior:
 - `SeatManager.TryLobbySit(...)` frees the previous lobby Seat for that same player, keeps the real `localLobbyPlayer` active, moves it to `selectedSeat.playerSpawn.position`, rotates it to `selectedSeat.playerSpawn.rotation`, and occupies the selected Seat. No lobby ghost or duplicate player prefab is created.
 - The selected lobby Seat is stored as normal Seat occupancy: `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` returns the chosen Seat because `SeatManager.TryLobbySit(...)` occupies that Seat with the real local player.
 - `Start Ritual` requires `SeatManager.GetLobbySeatForPlayer(localLobbyPlayer)` to return a selected Seat. Without one, it logs `Cannot start ritual: the local player has not selected a seat.` and leaves menu interaction, text, cameras, lobby state, and the ritual unchanged.
-- With a selected Seat, `Start Ritual` keeps using the real local player already occupying that Seat, reapplies that player root to `selectedSeat.playerSpawn`, immediately calls `bookMenuReturnInteractable.DisableInteraction()`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, calls `cameraTransitionManager.DisableRendering()`, activates the assigned `localPlayerCamera` GameObject, enables that Camera, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
+- With a selected Seat, `Start Ritual` keeps using the real local player already occupying that Seat, changes the local presentation state to `Ritual`, releases any lobby `BookInteraction` or text-entry context back to `Gameplay`, reapplies that player root to `selectedSeat.playerSpawn`, immediately calls `bookMenuReturnInteractable.DisableInteraction()`, disables lobby seat selection through `SeatManager.SetLobbySeatSelectionEnabled(false)`, hides the lobby canvas, restores disabled gameplay input behaviours, calls `cameraTransitionManager.DisableRendering()`, activates the assigned `localPlayerCamera` GameObject, enables that Camera, asks `RitualController` to prefer that selected Seat as the first active ritual Seat, optionally locks/hides the cursor for gameplay, and calls `RitualController.StartRitual()`.
 - `CameraTransitionManager.ActiveCamera`, `EnableRendering()`, and `DisableRendering()` keep menu-camera ownership inside the transition manager. `LobbyController` never searches for or directly identifies `MenuTransitionCamera`.
 - The lobby does not generate incantations, start the hourglass, move the book, duplicate ritual initialization, change elimination logic, or create a separate seating system.
 - `Options` is a placeholder button for this foundation task only.
@@ -1203,14 +1203,16 @@ Add one `SpellHand` child beneath each authored Player that needs the local pres
 - `enableDebugInput`: enables temporary `H` visibility, `E` open/close, `1`/`2`/`3` selection, and `Space` consume controls. Disable when production input owns these calls.
 
 In a network session, `NetworkSpellHand` disables this debug-input flag on every claimed local or
-remote character presentation. The owning network component exclusively handles E and numeric
-selection; Space never mutates the authoritative hand. Offline Editor/Development presentation
-testing may still use the authored debug controls.
+remote character presentation. The owning network component exclusively handles E and gaze
+selection; Space and numeric keys never mutate or select the authoritative runtime hand. Offline
+Editor/Development presentation testing may still use the authored debug controls.
 
 Create card data through `Assets > Create > Incantation > Spell Definition`:
 
 - `stableIdentifier`: enter a durable lowercase identifier such as `petit_fantome`; keep it separate from the asset filename and display name.
-- `displayName`, `spokenIncantation`, `description`: enter designer-approved player-facing content. Do not invent unfinished incantations.
+- `displayName`, `spokenIncantation`, `description`: enter designer-approved player-facing content. `spokenIncantation` is the canonical complete spell phrase. Do not invent unfinished incantations.
+- `acceptedSpokenForms`: optional explicitly approved complete alternatives for deterministic Whisper variations. Unknown text is never fuzzy-matched or discarded.
+- Vade Retro currently approves `VADE RETRO SATANA`, `VEID RETRO`, `VEE DE RECRO`, `VAD ARITORU`, `VEIDERETRO`, `VEID ARRETRO`, `VAAD RETRU`, `VAAD AR RETRO`, and `VAAD RETRO`. Every malformed alternative corresponds to reviewed runtime Whisper evidence. Pactum Sanguis and Lux in Umbra retain only their existing authored alternatives until runtime evidence justifies any additional forms.
 - `rarity`: presentation-only `Common`, `Uncommon`, `Rare`, `Epic`, or `UltraRare`.
 - `cardArtwork`, `audioClip`, `visualPrefab`: optional references. Audio and visual prefabs are stored only and are not played or instantiated.
 - `overrideRarityGlowColor`: disabled uses the default white, green, blue, purple, or bright-red rarity color. Enable it to author a per-definition override.
@@ -1245,8 +1247,9 @@ inventory truth or network mutation.
 
 The `NetworkPlayer` prefab carries one `NetworkSpellHand`.
 
-- `definitionPool`: currently contains the single unique prototype `Ghost` definition. Multiple
-  authoritative instances may share that definition; no no-duplicate rule exists yet.
+- `definitionPool`: contains exactly Vade Retro, Pactum Sanguis, and Lux in Umbra. The first match
+  hand grants one of each in pool order. Later one-card refills select server-side from this pool;
+  no general no-duplicate refill rule exists yet.
 - Every pool entry requires a non-empty `SpellDefinition.stableIdentifier`. Runtime identity uses
   its trimmed lowercase `DefinitionId`; duplicate IDs are ignored.
 - Hand capacity is code-owned at three. Do not add a second Inspector capacity value.
@@ -1255,8 +1258,27 @@ The `NetworkPlayer` prefab carries one `NetworkSpellHand`.
 - The component finds the existing `SpellHandController` through its sibling
   `NetworkCharacterPresentation.CharacterInstance`; no additional card UI or character prefab is
   required.
-- The Book lock reads the existing authoritative active-player ID, not visual distance.
-- No casting, consumption, voice, target, effect, or Timer reference belongs on this component.
+- `gazeMaximumDistance`: start at `5` world units. The center ray checks only the three local
+  `SpellCardView.CardMesh` renderer bounds, so remote hands and unrelated objects cannot select.
+- `gazeDwellSeconds`: `0.15`. A different card must remain under the center gaze for this duration
+  before it replaces the single current selection.
+- `gazeDeselectGraceSeconds`: `0.10`. Looking away clears the selection after this short grace and
+  cancels an active attempt without causing small camera movements to flicker selection.
+- The Book lock reads the correlated accepted `RitualSnapshot.BookArrival`, not active-player
+  assignment or visual distance.
+- The prefab also carries `SpellVoiceCastController`. It finds the existing production
+  `WhisperVoiceRecognizer` at runtime; no second microphone or Whisper component is configured.
+- Production prototype input remains E to raise/lower; gaze through the enabled Camera beneath the
+  owning local character selects zero or one raised card. Selecting a card starts one
+  complete-phrase attempt while eligible. Book arrival or lifecycle loss cancels it.
+- `NetworkSpellHand` owns exact server validation and card consumption. A successful phrase only
+  consumes the card and sets used-this-turn; target, effect, and Timer behavior remain deferred.
+- Successful consumption clears selection but leaves surviving cards raised and keeps the SpellHand
+  context until E or correlated physical Book arrival closes it. `SpellUsedThisTurn` disables gaze
+  casting without using hand closure as enforcement.
+- No manual physical-card TMP text is required. `SpellCardView.SetDefinition()` writes the
+  definition display name, description, and canonical spoken incantation into every authoritative
+  slot, including later refills.
 
 ## Audio
 

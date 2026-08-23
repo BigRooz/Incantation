@@ -65,6 +65,7 @@ public sealed class SpellHandController : MonoBehaviour
     public bool IsVisible => isVisible;
     public bool IsOpen => isOpen;
     public int SelectedIndex => selectedIndex;
+    public float ConsumptionDuration => consumeDuration;
 
     private void Awake()
     {
@@ -133,9 +134,22 @@ public sealed class SpellHandController : MonoBehaviour
     /// </summary>
     public void ApplyAuthoritativeHand(IReadOnlyList<SpellDefinition> slots)
     {
+        ApplyAuthoritativeHand(slots, null);
+    }
+
+    /// <summary>
+    /// Applies private authoritative contents while optionally preserving physical card identity
+    /// from each new slot's previous slot. An already raised hand remains raised.
+    /// </summary>
+    public void ApplyAuthoritativeHand(
+        IReadOnlyList<SpellDefinition> slots,
+        IReadOnlyList<int> previousSlotForNewSlot)
+    {
+        bool preserveRaisedPose = isOpen;
         ClearSelectedCardPresentation();
-        isOpen = false;
         selectedIndex = -1;
+        RemapCardViews(previousSlotForNewSlot);
+        isOpen = preserveRaisedPose;
         isVisible = false;
 
         for (int index = 0; index < CardCount; index++)
@@ -148,12 +162,31 @@ public sealed class SpellHandController : MonoBehaviour
                 continue;
 
             cardViews[index].SetDefinition(definition);
-            SnapCardToTable(index);
             bool occupied = definition != null;
             cardViews[index].SetVisible(occupied);
-            cardStates[index] = occupied
-                ? CardVisualState.OnTable
-                : CardVisualState.Hidden;
+            if (!occupied)
+            {
+                cardStates[index] = CardVisualState.Hidden;
+                continue;
+            }
+
+            if (preserveRaisedPose)
+            {
+                Pose target = GetRaisedPose(index);
+                StartCardAnimation(
+                    index,
+                    target.position,
+                    target.rotation,
+                    authoredScales[index],
+                    animationDuration,
+                    openCurve,
+                    CardVisualState.Raised);
+            }
+            else
+            {
+                SnapCardToTable(index);
+            }
+
             isVisible |= occupied;
         }
     }
@@ -258,11 +291,14 @@ public sealed class SpellHandController : MonoBehaviour
             return;
 
         int previousSelection = selectedIndex;
+        if (previousSelection == index)
+            return;
+
+        ClearSelectedCardPresentation();
         selectedIndex = index;
 
         if (previousSelection >= 0 && previousSelection != index && CanPresentCard(previousSelection))
         {
-            cardViews[previousSelection].SetSelected(false);
             Pose previousTarget = GetRaisedPose(previousSelection);
             StartCardAnimation(previousSelection, previousTarget.position, previousTarget.rotation, authoredScales[previousSelection], animationDuration, openCurve, CardVisualState.Raised);
         }
@@ -270,6 +306,53 @@ public sealed class SpellHandController : MonoBehaviour
         cardViews[index].SetSelected(true);
         Pose selectedPose = GetSelectedPose(index);
         StartCardAnimation(index, selectedPose.position, selectedPose.rotation, authoredScales[index] * selectionScale, animationDuration, openCurve, CardVisualState.Selected);
+    }
+
+    public void ClearSelection()
+    {
+        int previousSelection = selectedIndex;
+        ClearSelectedCardPresentation();
+        selectedIndex = -1;
+        if (isOpen && previousSelection >= 0 && CanPresentCard(previousSelection))
+        {
+            Pose target = GetRaisedPose(previousSelection);
+            StartCardAnimation(
+                previousSelection,
+                target.position,
+                target.rotation,
+                authoredScales[previousSelection],
+                animationDuration,
+                openCurve,
+                CardVisualState.Raised);
+        }
+    }
+
+    public bool TryGetGazeCardIndex(Ray gazeRay, float maximumDistance, out int cardIndex)
+    {
+        cardIndex = -1;
+        if (!isVisible || !isOpen)
+            return false;
+
+        float closestDistance = Mathf.Max(0f, maximumDistance);
+        for (int index = 0; index < CardCount; index++)
+        {
+            if (!CanPresentCard(index) || cardViews[index].CardMesh == null ||
+                !cardViews[index].CardMesh.enabled)
+            {
+                continue;
+            }
+
+            if (!cardViews[index].CardMesh.bounds.IntersectRay(gazeRay, out float distance) ||
+                distance < 0f || distance > closestDistance)
+            {
+                continue;
+            }
+
+            closestDistance = distance;
+            cardIndex = index;
+        }
+
+        return cardIndex >= 0;
     }
 
     /// <summary>Plays a placeholder shrink animation on the selected card, then hides it.</summary>
@@ -284,6 +367,16 @@ public sealed class SpellHandController : MonoBehaviour
         StopCardAnimation(consumedIndex);
         cardStates[consumedIndex] = CardVisualState.Consumed;
         cardAnimations[consumedIndex] = StartCoroutine(ConsumeCardRoutine(consumedIndex));
+    }
+
+    public void ConsumeCardAt(int index)
+    {
+        if (!CanPresentCard(index))
+            return;
+
+        ClearSelectedCardPresentation();
+        selectedIndex = index;
+        ConsumeSelectedCard();
     }
 
     public CardVisualState GetCardState(int index)
@@ -417,8 +510,58 @@ public sealed class SpellHandController : MonoBehaviour
 
     private void ClearSelectedCardPresentation()
     {
-        if (selectedIndex >= 0 && HasCard(selectedIndex))
-            cardViews[selectedIndex].SetSelected(false);
+        for (int index = 0; index < CardCount; index++)
+        {
+            if (HasCard(index))
+                cardViews[index].SetSelected(false);
+        }
+    }
+
+    private void RemapCardViews(IReadOnlyList<int> previousSlotForNewSlot)
+    {
+        if (previousSlotForNewSlot == null)
+            return;
+
+        for (int index = 0; index < CardCount; index++)
+            StopCardAnimation(index);
+
+        SpellCardView[] previousViews = (SpellCardView[])cardViews.Clone();
+        Vector3[] previousScales = (Vector3[])authoredScales.Clone();
+        bool[] assigned = new bool[CardCount];
+        for (int newSlot = 0; newSlot < CardCount; newSlot++)
+        {
+            int previousSlot = newSlot < previousSlotForNewSlot.Count
+                ? previousSlotForNewSlot[newSlot]
+                : -1;
+            if (previousSlot < 0 || previousSlot >= CardCount || assigned[previousSlot])
+                continue;
+
+            cardViews[newSlot] = previousViews[previousSlot];
+            authoredScales[newSlot] = previousScales[previousSlot];
+            assigned[previousSlot] = true;
+        }
+
+        int nextUnused = 0;
+        for (int newSlot = 0; newSlot < CardCount; newSlot++)
+        {
+            int previousSlot = newSlot < previousSlotForNewSlot.Count
+                ? previousSlotForNewSlot[newSlot]
+                : -1;
+            if (previousSlot >= 0 && previousSlot < CardCount &&
+                cardViews[newSlot] == previousViews[previousSlot])
+            {
+                continue;
+            }
+
+            while (nextUnused < CardCount && assigned[nextUnused])
+                nextUnused++;
+            if (nextUnused >= CardCount)
+                break;
+
+            cardViews[newSlot] = previousViews[nextUnused];
+            authoredScales[newSlot] = previousScales[nextUnused];
+            assigned[nextUnused] = true;
+        }
     }
 
     private bool CanPresentCard(int index)

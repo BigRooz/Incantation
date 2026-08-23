@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Incantation.Networking.Spells;
 using System.IO;
 using System.Text;
 using Incantation.Networking;
@@ -757,6 +758,8 @@ public class RitualController : MonoBehaviour
 
     private void StartListening()
     {
+        SpellVoiceCastController.ReleaseMicrophoneForRitual();
+
         if (!ResolveVoiceRecognizer())
             return;
 
@@ -777,6 +780,8 @@ public class RitualController : MonoBehaviour
         }
 
         ConfigureWhisperListeningContext();
+        WhisperVoiceRecognizer whisperRecognizer = ResolveWhisperVoiceRecognizer();
+        whisperRecognizer?.SetCapturePurpose(WhisperCapturePurpose.Ritual);
         LogWhisperTurnLifecycle("WHISPER_TURN_START", "START_LISTENING");
         Debug.Log($"Ritual phrase attempt started with {GetActiveVoiceRecognizerTypeName()} using {voiceValidationMode} validation mode.");
         voiceRecognizer.StartListening();

@@ -107,6 +107,7 @@ public class LobbyController : MonoBehaviour
 
         PrepareSharedBookPresentation();
         CurrentState = LocalGameState.Ritual;
+        LocalInputContextGate.RestoreGameplay();
 
         Seat selectedLobbySeat = GetSelectedLobbySeat();
         ApplySelectedLobbySeatToLocalPlayer(selectedLobbySeat);

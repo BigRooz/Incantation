@@ -436,9 +436,23 @@ presentation; E raises or lowers it until the authoritative physical Book arriva
 that player and turn, which automatically closes and locks it. The Solo Development Build flow is
 runtime validated: cards can rise during Book travel, accepted arrival closes them and releases the
 Spell Hand input context, and ritual voice continues normally. Eliminated players cannot refill or
-interact, and return to lobby clears Match 1 state before Match 2 initialization. Spell phrases,
-consumption, targeting, effects, buffs/debuffs, Timer changes, and casting voice recognition remain
-deferred. Host/client owner-only replication and multiplayer lifecycle validation remain pending.
+interact, and return to lobby clears Match 1 state before Match 2 initialization.
+
+SPELLS-VOICE-003 adds one complete-phrase spell attempt through the existing production Whisper
+recognizer when an authoritative card is selected with the hand raised before Book arrival. The
+server validates the owning connection, current ritual/turn identity, living roster eligibility,
+exact card instance and definition, authored exact phrase/forms, duplicate request sequence,
+unused-this-turn state, and absence of correlated Book arrival. Acceptance removes that instance
+and sets `SpellUsedThisTurn`; rejection retains the card. Book arrival cancels capture or in-flight
+transcription locally and stale results cannot submit. Successful casting currently performs no
+targeting, effect, buff/debuff, Timer change, or spell voice consequence beyond authoritative card
+consumption. Host/client owner-only casting validation remains pending.
+
+SPELLS-CONTENT-004 replaces the playable placeholder pool with Vade Retro, Pactum Sanguis, and Lux
+in Umbra. Their unique definition IDs, display names, canonical complete phrases, concise existing
+effect descriptions, and explicitly authored phrase alternatives are stored on `SpellDefinition`.
+The initial Development hand grants one of each; later refill remains the existing one-card
+server-random rule. The descriptions are future intent only and no spell effect is implemented.
 
 Successful authority waits for the bounded sequential replay, commits the existing success consequence and Book pulse, then advances the turn after the pulse lead. The server remains the only writer of success, phrase growth, participant advancement, and Book movement. Windows keyword recognition remains available through its unchanged separate path.
 

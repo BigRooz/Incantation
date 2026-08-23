@@ -149,6 +149,7 @@ namespace Incantation.Networking
                 return;
             }
 
+            SetLocalMicrophoneCaptureAllowed(characterInstance, networkPlayer.IsOwner);
             characterInstance.transform.SetParent(null, true);
             CharacterInstanceChanged?.Invoke(characterInstance);
         }
@@ -269,6 +270,18 @@ namespace Incantation.Networking
 
             foreach (PlayerMovement playerMovement in character.GetComponentsInChildren<PlayerMovement>(true))
                 playerMovement.enabled = false;
+
+            foreach (VoiceAmplitudeProvider provider in character.GetComponentsInChildren<VoiceAmplitudeProvider>(true))
+                provider.SetMicrophoneCaptureAllowed(false);
+        }
+
+        private static void SetLocalMicrophoneCaptureAllowed(GameObject character, bool allowed)
+        {
+            if (character == null)
+                return;
+
+            foreach (VoiceAmplitudeProvider provider in character.GetComponentsInChildren<VoiceAmplitudeProvider>(true))
+                provider.SetMicrophoneCaptureAllowed(allowed);
         }
     }
 }

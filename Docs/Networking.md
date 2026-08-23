@@ -1150,6 +1150,26 @@ not resolve the turn; the first mismatch publishes an authoritative rejection, r
 progress to zero, and discards the rest of the batch. Full progress enters the existing successful
 turn path once. No token verdict starts, pauses, extends, or resets the timer, and clients cannot
 commit progress.
+
+`SpellVoiceCastController` borrows the existing production `WhisperVoiceRecognizer` only for the
+locally owned raised and selected spell hand before physical Book arrival. It submits one complete,
+deterministically normalized phrase with card-instance, definition, ritual, turn, and monotonic
+request identity to `NetworkSpellHand`. That captured card instance survives presentation-only hand
+refreshes, while a real user selection change or authoritative instance removal cancels it. The
+shared Whisper recognizer routes each completed session only to its recorded Spell or Ritual
+consumer. The server revalidates connection ownership, roster
+eligibility, exact hand membership, unused-this-turn state, current ritual/turn identity, absence
+of correlated Book arrival, exact authored phrase, and duplicate-request protection. Acceptance
+removes exactly that instance and sets `SpellUsedThisTurn`; rejection changes nothing. Arrival or
+other eligibility loss invalidates the recognizer session so stale asynchronous results cannot
+submit. The existing ritual `StartListening` boundary first releases any local spell attempt,
+guaranteeing that ritual recitation retains microphone priority without changing ritual phrase
+validation. Consumption currently has no targeting or gameplay effect.
+
+The initial authoritative definition pool contains exactly Vade Retro, Pactum Sanguis, and Lux in
+Umbra. Match initialization grants one instance of each unique pool entry before ordinary later
+turn refills resume server-side random selection. Definition IDs are respectively `vade_retro`,
+`pactum_sanguis`, and `lux_in_umbra`; clients never choose the granted definition.
 The local Whisper optimization may fast-submit only exact configured vocabulary/alias tokens with
 a complete boundary. It can read the replicated expected word to prioritize and diagnose the
 candidate, but each word still crosses the authenticated transport individually and waits for the

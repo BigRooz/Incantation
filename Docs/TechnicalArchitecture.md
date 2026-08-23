@@ -72,17 +72,43 @@ routing remains independent future DEATH-002 work.
 `NetworkSpellHand` is a narrow server-owned inventory attached to the same persistent player
 identity. Its only lifecycle input is the read-only `NetworkRitualAuthority.Snapshot`: ritual
 sequence starts a fresh match hand, the existing authoritative player-turn sequence owns
-refill/reset idempotence, the roster owns alive eligibility, and `ActivePlayerId` owns the Book
-lock. It never chooses a Seat, moves the Book, changes a Timer, validates voice, eliminates a
-player, or resolves a spell.
+refill/reset idempotence, the roster owns alive eligibility, and the correlated accepted physical
+Book arrival owns the Book lock. It never chooses a Seat, moves the Book, changes a Timer,
+eliminates a player, or resolves an effect.
 
 Each private `SpellCardInstance` carries a monotonically allocated instance ID and normalized
 `SpellDefinition` ID. The owner-only synchronized list contains no Unity object references. The
 owner maps IDs back to the serialized definition pool and sends a three-slot presentation contract
-to `SpellHandController`; empty slots remain hidden and animation stays local. The local spell
+to `SpellHandController`; empty slots remain hidden and animation stays local. An open hand keeps
+its raised pose across authoritative content changes. Surviving instances retain their physical
+views while compacting into new raised slots, and the consumed view stays hidden. The local spell
 input context reserves E during an active living hand, so `NotebookInput` yields instead of also
-toggling. When the active-player ID becomes the local player, the Book lock closes raised cards
-and prevents reopening. Remote character copies have their Spell Hand debug input disabled.
+toggling. Correlated Book arrival closes raised cards, cancels spell capture, releases only the
+Spell Hand context, and prevents reopening. Remote character copies have their Spell Hand debug
+input disabled.
+
+`SpellVoiceCastController` is the local complete-attempt adapter for the existing production
+`WhisperVoiceRecognizer`; it never owns inventory. The enabled Camera under the owning local
+character casts a center-view gaze ray only against that hand's three card-renderer bounds.
+Short dwell and look-away grace select zero or one authoritative slot without mouse-position or
+numeric runtime input. The selected private authoritative card instance remains the attempt
+identity across presentation-only hand refreshes. Real gaze selection of another card, gaze loss,
+or loss of the captured instance cancels the attempt rather than mutating its identity.
+The shared recognizer records an explicit Spell or Ritual capture purpose and delivers the complete
+transcript only through that purpose's event. One complete transcript is normalized without fuzzy matching, and a
+nonce-bearing request crosses the owning `NetworkSpellHand` ServerRpc. `NetworkSpellHand`
+revalidates sender, lifecycle, instance/definition identity, unused-this-turn state, correlated
+Book absence, and the definition's canonical or explicitly accepted phrase before removing that
+exact instance. A targeted result drives the existing consumption animation. Failed requests do
+not mutate the hand, while Book/turn/match invalidation cancels the local recognizer session so an
+in-flight result cannot submit. No spell effect or target is resolved in this milestone.
+The ritual controller's existing listening entry point invokes only the spell controller's local
+release hook before acquiring the same recognizer; this is microphone arbitration, not a second
+recognizer or a change to ritual validation.
+The initial three-entry pool is also the initial-hand ordering contract: match initialization adds
+each unique serialized definition once, while subsequent single-card refills continue through the
+existing server-random grant method. This is a Development content constraint, not a general deck
+or no-duplicate architecture.
 
 `LobbyPlayerStateController` temporarily remains the local lobby transition authority used by the current Living Book flow. It is not a second permanent player model and must be adapted to read/write `NetworkPlayer` in a later lobby-networking task. `NetworkPlayer` does not render UI, select a Seat, move the Book, control a character, or run ritual gameplay.
 
@@ -392,9 +418,15 @@ The project currently supports two validation modes:
 
 Whisper remains available for full-phrase or experimental recognition paths and should not be removed, but it should not be forced as the only validation path.
 
-MainGame Whisper sessions are local input sessions correlated with the authoritative ritual sequence, turn sequence, and active local player. `NetworkRitualAuthority` remains the sole judge. The local recognizer discards canceled or stale inference results before submission, and temporarily suspends/restores the active local character's `VoiceAmplitudeProvider` so two Unity microphone captures do not compete during ritual recording.
+MainGame Whisper sessions are local input sessions correlated with the authoritative ritual sequence, turn sequence, and active local player. `NetworkRitualAuthority` remains the sole judge. The local recognizer discards canceled or stale inference results before submission, dynamically resolves and temporarily suspends/restores the locally owned character's `VoiceAmplitudeProvider`, and refuses to start while any amplitude provider is still recording. `NetworkCharacterPresentation` grants local microphone amplitude capture only to its owning presentation; remote character providers remain available for presentation but cannot open the local microphone.
 
 `WhisperVoiceRecognizer` is one Sandbox-style production path. The scene's single `WhisperManager` preloads first. Each eligible local turn then performs one `MicrophoneRecord.StartRecord()`, observes speech only to find `0.8` seconds of trailing silence, receives one complete `OnRecordStop` `AudioChunk`, and passes that same buffer once to `WhisperManager.GetTextAsync()`. Its read-only `ListeningGlow` value is `1` while that VAD reports speech and otherwise equals the remaining fraction of the same trailing-silence window; it introduces no second timer. It owns no streaming fragments, word-level candidates, or recognition during recording. Only minimal session, ritual, turn, and player identity survive to reject stale asynchronous results.
+
+For spell capture, microphone ownership remains suspended through complete transcript delivery rather
+than returning to `VoiceAmplitudeProvider` as soon as raw recording stops. This makes successful
+spell completion an explicit ownership boundary before a later Book-arrival ritual acquisition;
+the existing cancellation handoff continues to retain ownership atomically. Ritual capture keeps
+its established recording-stop release behavior.
 
 `RitualController` banks the complete transcript through `VoicePhraseNormalizer.TryBankCompleteAttempt` and calls the owning `NetworkPlayer.RequestCompleteWhisperRitualAttempt` exactly once. Banking is an exact dictionary lookup built from `IncantationWordLibrary`: canonical spellings and serialized accepted forms map to canonical uppercase words, while unresolved textual tokens are retained uppercase at the same index. It contains no fuzzy, phonetic, confidence, fragment, syllable, or nearest-word logic. `NetworkRitualAuthority` performs sender, participant, sequence, phase, timer, and phrase guards and evaluates the ordered attempt once with full-phrase rules. No word is accepted locally or over the network while the player is speaking.
 

@@ -10,23 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e3856bbad6624468aef17a541c437d99, type: 3}
-  m_Name: Ghost
-  m_EditorClassIdentifier: 
-  stableIdentifier: vade_retro
-  displayName: Vade Retro
-  spokenIncantation: VADE RETRO
+  m_Name: Lux in Umbra
+  m_EditorClassIdentifier:
+  stableIdentifier: lux_in_umbra
+  displayName: Lux in Umbra
+  spokenIncantation: LUX IN UMBRA
   acceptedSpokenForms:
-  - VADE RETRO SATANA
-  - VEID RETRO
-  - VEE DE RECRO
-  - VAD ARITORU
-  - VEIDERETRO
-  - VEID ARRETRO
-  - VAAD RETRU
-  - VAAD AR RETRO
-  - VAAD RETRO
-  description: Forces a cursed influence away from its current target.
-  rarity: 1
+  - LUX UMBRA
+  description: Reveals a truth hidden beneath the table's darkness.
+  rarity: 2
   cardArtwork: {fileID: 0}
   overrideRarityGlowColor: 0
   rarityGlowColor: {r: 1, g: 1, b: 1, a: 1}

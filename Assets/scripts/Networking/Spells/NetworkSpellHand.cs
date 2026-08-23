@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Incantation.Networking.Ritual;
@@ -10,7 +12,7 @@ namespace Incantation.Networking.Spells
     /// <summary>
     /// Owns one player's private server-authoritative spell hand. It observes the existing
     /// ritual lifecycle and drives only the owning player's existing physical hand presentation.
-    /// Spell validation, targeting, effects, and consumption requests are intentionally absent.
+    /// It validates complete spell requests and consumes cards, but owns no targeting or effects.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkPlayer))]
@@ -26,6 +28,11 @@ namespace Incantation.Networking.Spells
         [Tooltip("Unique SpellDefinition identities available to the server. Duplicate IDs are ignored.")]
         [SerializeField] private SpellDefinition[] definitionPool = Array.Empty<SpellDefinition>();
 
+        [Header("Local Gaze Selection")]
+        [SerializeField, Min(0.1f)] private float gazeMaximumDistance = 5f;
+        [SerializeField, Min(0f)] private float gazeDwellSeconds = 0.15f;
+        [SerializeField, Min(0f)] private float gazeDeselectGraceSeconds = 0.1f;
+
         private readonly SyncList<SpellCardInstance> hand = new(OwnerOnlySettings);
         private readonly SyncVar<uint> ritualSequence = new(0, OwnerOnlySettings);
         private readonly SyncVar<uint> turnSequence = new(0, OwnerOnlySettings);
@@ -35,6 +42,8 @@ namespace Incantation.Networking.Spells
         private readonly Dictionary<string, SpellDefinition> definitionsById =
             new(StringComparer.Ordinal);
         private readonly List<SpellDefinition> grantableDefinitions = new();
+        private readonly SpellCardInstance[] presentedInstances =
+            new SpellCardInstance[MaximumHandSize];
 
         private NetworkPlayer networkPlayer;
         private NetworkCharacterPresentation characterPresentation;
@@ -44,6 +53,13 @@ namespace Incantation.Networking.Spells
         private bool isAliveParticipant;
         private bool isBookLocked;
         private bool isInteractionAvailable;
+        private uint lastProcessedCastRequestSequence;
+        private bool consumptionPresentationPending;
+        private Coroutine consumptionPresentationRoutine;
+        private Camera localGameplayCamera;
+        private int gazeCandidateIndex = -1;
+        private float gazeCandidateStartedAt;
+        private float gazeLostStartedAt = -1f;
 
         public static NetworkSpellHand Local { get; private set; }
         public static bool IsLocalSpellToggleReserved =>
@@ -56,11 +72,81 @@ namespace Incantation.Networking.Spells
         public bool CanSuccessfullyUseSpellThisTurn => !spellUsedThisTurn.Value;
         public bool IsBookLocked => isBookLocked;
         public bool IsInteractionAvailable => isInteractionAvailable;
+        public string PlayerId => networkPlayer != null ? networkPlayer.PlayerId : string.Empty;
         public IReadOnlyList<SpellCardInstance> Hand => hand;
+        public event Action<uint, uint, SpellCastResult> LocalSpellCastResolved;
+        public event Action<SpellCardInstance> LocalSpellCardSelected;
 
         public static int CalculateTurnGrantCount(int currentHandCount)
         {
             return currentHandCount >= 0 && currentHandCount < MaximumHandSize ? 1 : 0;
+        }
+
+        public bool TryGetSelectedCastCard(
+            out SpellCardInstance selectedCard,
+            out SpellDefinition selectedDefinition,
+            out RitualSnapshot snapshot)
+        {
+            snapshot = ritualAuthority != null ? ritualAuthority.Snapshot : default;
+            selectedCard = default;
+            selectedDefinition = null;
+            if (!IsOwner || !isInteractionAvailable || isBookLocked ||
+                spellUsedThisTurn.Value || spellHandPresentation == null ||
+                !spellHandPresentation.IsOpen)
+            {
+                return false;
+            }
+
+            int selectedIndex = spellHandPresentation.SelectedIndex;
+            if (selectedIndex < 0 || selectedIndex >= hand.Count)
+                return false;
+
+            selectedCard = hand[selectedIndex];
+            return definitionsById.TryGetValue(
+                selectedCard.DefinitionId,
+                out selectedDefinition) &&
+                selectedDefinition != null &&
+                !string.IsNullOrWhiteSpace(selectedDefinition.SpokenIncantation);
+        }
+
+        public bool CanSubmitSelectedCast(
+            SpellCardInstance selectedCard,
+            uint expectedRitualSequence,
+            uint expectedTurnSequence)
+        {
+            RitualSnapshot snapshot = ritualAuthority != null
+                ? ritualAuthority.Snapshot
+                : default;
+            return IsOwner && isInteractionAvailable && !isBookLocked &&
+                !spellUsedThisTurn.Value && ContainsCard(selectedCard) &&
+                snapshot.SequenceId.Value == expectedRitualSequence &&
+                snapshot.Turn.SequenceId.Value == expectedTurnSequence;
+        }
+
+        private bool ContainsCard(SpellCardInstance card)
+        {
+            for (int index = 0; index < hand.Count; index++)
+            {
+                if (hand[index].Equals(card))
+                    return true;
+            }
+
+            return false;
+        }
+
+        public bool RequestSpellCast(SpellCastRequest request)
+        {
+            if (!IsOwner || request.RequestSequence == 0)
+                return false;
+
+            if (IsServerInitialized)
+            {
+                ProcessSpellCastRequest(Owner, request);
+                return true;
+            }
+
+            RequestSpellCastServerRpc(request);
+            return true;
         }
 
         private bool ReservesLocalToggleInput
@@ -203,6 +289,14 @@ namespace Incantation.Networking.Spells
 
             if (participantIsAlive)
             {
+                foreach (SpellDefinition definition in grantableDefinitions)
+                {
+                    if (hand.Count >= MaximumHandSize)
+                        break;
+
+                    TryGrantCard(definition);
+                }
+
                 while (hand.Count < MaximumHandSize && TryGrantOneCard())
                 {
                 }
@@ -229,6 +323,14 @@ namespace Incantation.Networking.Spells
 
             SpellDefinition definition = grantableDefinitions[
                 UnityEngine.Random.Range(0, grantableDefinitions.Count)];
+            return TryGrantCard(definition);
+        }
+
+        private bool TryGrantCard(SpellDefinition definition)
+        {
+            if (hand.Count >= MaximumHandSize)
+                return false;
+
             if (definition == null || string.IsNullOrEmpty(definition.DefinitionId))
                 return false;
 
@@ -238,6 +340,238 @@ namespace Incantation.Networking.Spells
 
             hand.Add(new SpellCardInstance(instanceId, definition.DefinitionId));
             return true;
+        }
+
+        [ServerRpc(RequireOwnership = true)]
+        private void RequestSpellCastServerRpc(
+            SpellCastRequest request,
+            NetworkConnection sender = null)
+        {
+            ProcessSpellCastRequest(sender, request);
+        }
+
+        private void ProcessSpellCastRequest(
+            NetworkConnection sender,
+            SpellCastRequest request)
+        {
+            int cardIndex = -1;
+            bool accepted = TryValidateSpellCastRequest(
+                sender,
+                request,
+                out cardIndex,
+                out bool phraseMatched,
+                out string rejectReason);
+            SpellCastResult result = accepted
+                ? SpellCastResult.Accepted
+                : SpellCastResult.Rejected;
+
+            if (Owner != null)
+            {
+                TargetSpellCastResolved(
+                    Owner,
+                    request.RequestSequence,
+                    request.CardInstanceId,
+                    result);
+            }
+
+            if (accepted)
+            {
+                spellUsedThisTurn.Value = true;
+                hand.RemoveAt(cardIndex);
+                IncrementRevision();
+            }
+
+        }
+
+        private bool TryValidateSpellCastRequest(
+            NetworkConnection sender,
+            SpellCastRequest request,
+            out int cardIndex,
+            out bool phraseMatched,
+            out string rejectReason)
+        {
+            cardIndex = -1;
+            phraseMatched = false;
+            rejectReason = string.Empty;
+
+            if (!IsServerInitialized)
+            {
+                rejectReason = "ServerNotInitialized";
+                return false;
+            }
+
+            if (sender == null)
+            {
+                rejectReason = "MissingSender";
+                return false;
+            }
+
+            if (Owner == null)
+            {
+                rejectReason = "MissingOwner";
+                return false;
+            }
+
+            if (sender.ClientId != Owner.ClientId)
+            {
+                rejectReason = "SenderDoesNotOwnHand";
+                return false;
+            }
+
+            if (request.RequestSequence == 0)
+            {
+                rejectReason = "InvalidRequestSequence";
+                return false;
+            }
+
+            if (request.RequestSequence <= lastProcessedCastRequestSequence)
+            {
+                rejectReason = "DuplicateOrOutOfOrderRequest";
+                return false;
+            }
+
+            lastProcessedCastRequestSequence = request.RequestSequence;
+            if (ritualAuthority == null)
+                ResolveRitualAuthority();
+            if (ritualAuthority == null)
+            {
+                rejectReason = "MissingRitualAuthority";
+                return false;
+            }
+
+            RitualSnapshot snapshot = ritualAuthority.Snapshot;
+            if (snapshot.SequenceId.Value == 0)
+            {
+                rejectReason = "RitualInactive";
+                return false;
+            }
+
+            if (snapshot.SequenceId.Value != request.RitualSequence)
+            {
+                rejectReason = "RitualSequenceMismatch";
+                return false;
+            }
+
+            if (snapshot.Turn.SequenceId.Value == 0)
+            {
+                rejectReason = "TurnInactive";
+                return false;
+            }
+
+            if (snapshot.Turn.SequenceId.Value != request.TurnSequence)
+            {
+                rejectReason = "TurnSequenceMismatch";
+                return false;
+            }
+
+            if (snapshot.Phase == RitualPhase.Inactive || snapshot.Phase == RitualPhase.Completed)
+            {
+                rejectReason = "RitualPhaseNotEligible";
+                return false;
+            }
+
+            if (spellUsedThisTurn.Value)
+            {
+                rejectReason = "SpellAlreadyUsedThisTurn";
+                return false;
+            }
+
+            if (!TryFindParticipant(
+                    snapshot.Roster,
+                    PlayerId,
+                    out RitualRosterEntrySnapshot participant))
+            {
+                rejectReason = "ParticipantNotFound";
+                return false;
+            }
+
+            if (!participant.IsActive)
+            {
+                rejectReason = "ParticipantInactive";
+                return false;
+            }
+
+            if (!participant.IsAlive)
+            {
+                rejectReason = "ParticipantDead";
+                return false;
+            }
+
+            if (IsBookArrivalForPlayer(snapshot, PlayerId))
+            {
+                rejectReason = "BookArrived";
+                return false;
+            }
+
+            for (int index = 0; index < hand.Count; index++)
+            {
+                SpellCardInstance candidate = hand[index];
+                if (candidate.InstanceId == request.CardInstanceId &&
+                    string.Equals(
+                        candidate.DefinitionId,
+                        request.DefinitionId,
+                        StringComparison.Ordinal))
+                {
+                    cardIndex = index;
+                    break;
+                }
+            }
+
+            if (cardIndex < 0)
+            {
+                rejectReason = "CardNotInAuthoritativeHand";
+                return false;
+            }
+
+            if (!definitionsById.TryGetValue(
+                    request.DefinitionId,
+                    out SpellDefinition definition) || definition == null)
+            {
+                rejectReason = "DefinitionNotFound";
+                return false;
+            }
+
+            string normalizedPhrase = SpellDefinition.NormalizeSpokenPhrase(
+                request.NormalizedPhrase);
+            if (normalizedPhrase.Length == 0)
+            {
+                rejectReason = "PhraseEmpty";
+                return false;
+            }
+
+            if (normalizedPhrase.Length > 256)
+            {
+                rejectReason = "PhraseTooLong";
+                return false;
+            }
+
+            phraseMatched = definition.AcceptsNormalizedSpokenPhrase(normalizedPhrase);
+            if (!phraseMatched)
+            {
+                rejectReason = "PhraseMismatch";
+                return false;
+            }
+
+            return true;
+        }
+
+        [TargetRpc]
+        private void TargetSpellCastResolved(
+            NetworkConnection connection,
+            uint requestSequence,
+            uint cardInstanceId,
+            SpellCastResult result)
+        {
+            if (!IsOwner)
+                return;
+
+            if (result == SpellCastResult.Accepted)
+                PlayAuthoritativeConsumption(cardInstanceId);
+
+            LocalSpellCastResolved?.Invoke(
+                requestSequence,
+                cardInstanceId,
+                result);
         }
 
         private uint AllocateInstanceId()
@@ -288,16 +622,8 @@ namespace Incantation.Networking.Spells
                     out RitualRosterEntrySnapshot participant) &&
                 participant.IsActive &&
                 participant.IsAlive;
-            RitualBookArrivalSnapshot bookArrival = snapshot.BookArrival;
             isBookLocked = ritualIsActive &&
-                bookArrival.HasArrived &&
-                bookArrival.RitualSequenceId.Value == snapshot.SequenceId.Value &&
-                bookArrival.TurnSequenceId.Value == snapshot.Turn.SequenceId.Value &&
-                bookArrival.TargetSeatId == snapshot.Turn.ActiveSeatId &&
-                string.Equals(
-                    bookArrival.PlayerId,
-                    networkPlayer.PlayerId,
-                    StringComparison.Ordinal);
+                IsBookArrivalForPlayer(snapshot, networkPlayer.PlayerId);
             bool nextInteractionAvailable = IsOwner && isAliveParticipant &&
                 !isBookLocked && hand.Count > 0;
 
@@ -309,6 +635,7 @@ namespace Incantation.Networking.Spells
 
             if (IsOwner && (!isInteractionAvailable || isBookLocked))
             {
+                ClearLocalGazeSelection(true);
                 if (spellHandPresentation != null && spellHandPresentation.IsOpen)
                     spellHandPresentation.CloseHand();
 
@@ -334,6 +661,7 @@ namespace Incantation.Networking.Spells
 
                 if (spellHandPresentation.IsOpen)
                 {
+                    ClearLocalGazeSelection(true);
                     spellHandPresentation.CloseHand();
                     ReleaseSpellHandInputContext();
                 }
@@ -341,18 +669,132 @@ namespace Incantation.Networking.Spells
                 {
                     LocalInputContextGate.SetContext(LocalInputContext.SpellHand);
                     spellHandPresentation.OpenHand();
+                    ResetGazeCandidate();
                 }
             }
 
             if (!isInteractionAvailable || !spellHandPresentation.IsOpen)
                 return;
 
-            if (Input.GetKeyDown(KeyCode.Alpha1))
-                spellHandPresentation.SelectCard(0);
-            else if (Input.GetKeyDown(KeyCode.Alpha2))
-                spellHandPresentation.SelectCard(1);
-            else if (Input.GetKeyDown(KeyCode.Alpha3))
-                spellHandPresentation.SelectCard(2);
+            ProcessLocalGazeSelection();
+        }
+
+        private void SelectLocalCard(int index)
+        {
+            if (index < 0 || index >= hand.Count ||
+                spellHandPresentation.SelectedIndex == index)
+                return;
+
+            spellHandPresentation.SelectCard(index);
+            LocalSpellCardSelected?.Invoke(hand[index]);
+        }
+
+        private void ProcessLocalGazeSelection()
+        {
+            if (spellUsedThisTurn.Value)
+            {
+                ClearLocalGazeSelection(true);
+                return;
+            }
+
+            Camera gazeCamera = ResolveLocalGameplayCamera();
+            if (gazeCamera == null)
+            {
+                ProcessGazeMiss();
+                return;
+            }
+
+            Ray gazeRay = gazeCamera.ViewportPointToRay(
+                new Vector3(0.5f, 0.5f, 0f));
+            if (!spellHandPresentation.TryGetGazeCardIndex(
+                    gazeRay,
+                    gazeMaximumDistance,
+                    out int hitIndex) || hitIndex >= hand.Count)
+            {
+                ProcessGazeMiss();
+                return;
+            }
+
+            gazeLostStartedAt = -1f;
+            if (gazeCandidateIndex != hitIndex)
+            {
+                gazeCandidateIndex = hitIndex;
+                gazeCandidateStartedAt = Time.unscaledTime;
+                return;
+            }
+
+            if (spellHandPresentation.SelectedIndex != hitIndex &&
+                Time.unscaledTime - gazeCandidateStartedAt >= gazeDwellSeconds)
+            {
+                SelectLocalCard(hitIndex);
+            }
+        }
+
+        private void ProcessGazeMiss()
+        {
+            gazeCandidateIndex = -1;
+            gazeCandidateStartedAt = 0f;
+            if (spellHandPresentation == null || spellHandPresentation.SelectedIndex < 0)
+            {
+                gazeLostStartedAt = -1f;
+                return;
+            }
+
+            if (gazeLostStartedAt < 0f)
+            {
+                gazeLostStartedAt = Time.unscaledTime;
+                return;
+            }
+
+            if (Time.unscaledTime - gazeLostStartedAt >= gazeDeselectGraceSeconds)
+                ClearLocalGazeSelection(true);
+        }
+
+        private void ClearLocalGazeSelection(bool notifySelectionChanged)
+        {
+            ResetGazeCandidate();
+            if (spellHandPresentation == null || spellHandPresentation.SelectedIndex < 0)
+                return;
+
+            spellHandPresentation.ClearSelection();
+            if (notifySelectionChanged)
+                LocalSpellCardSelected?.Invoke(default);
+        }
+
+        private void ResetGazeCandidate()
+        {
+            gazeCandidateIndex = -1;
+            gazeCandidateStartedAt = 0f;
+            gazeLostStartedAt = -1f;
+        }
+
+        private Camera ResolveLocalGameplayCamera()
+        {
+            GameObject characterInstance = characterPresentation != null
+                ? characterPresentation.CharacterInstance
+                : null;
+            if (localGameplayCamera != null && characterInstance != null &&
+                localGameplayCamera.enabled &&
+                localGameplayCamera.gameObject.activeInHierarchy &&
+                localGameplayCamera.transform.IsChildOf(characterInstance.transform))
+            {
+                return localGameplayCamera;
+            }
+
+            localGameplayCamera = null;
+            if (characterInstance == null)
+                return null;
+
+            foreach (Camera candidate in characterInstance.GetComponentsInChildren<Camera>(true))
+            {
+                if (!candidate.enabled || !candidate.gameObject.activeInHierarchy)
+                    continue;
+
+                localGameplayCamera = candidate;
+                break;
+            }
+
+            return localGameplayCamera;
         }
 
         private void HandleCharacterInstanceChanged(GameObject characterInstance)
@@ -363,6 +805,8 @@ namespace Incantation.Networking.Spells
 
         private void BindCharacterPresentation(GameObject characterInstance)
         {
+            localGameplayCamera = null;
+            ResetGazeCandidate();
             if (spellHandPresentation != null)
             {
                 spellHandPresentation.SetDebugInputEnabled(false);
@@ -384,18 +828,55 @@ namespace Incantation.Networking.Spells
 
         private void RefreshOwnerPresentation()
         {
-            if (!IsOwner || spellHandPresentation == null)
+            if (!IsOwner || spellHandPresentation == null ||
+                consumptionPresentationPending)
                 return;
 
-            SpellDefinition[] slots = new SpellDefinition[MaximumHandSize];
             int count = Mathf.Min(hand.Count, MaximumHandSize);
+            bool presentationChanged = false;
+            for (int index = 0; index < MaximumHandSize; index++)
+            {
+                SpellCardInstance current = index < count ? hand[index] : default;
+                if (!presentedInstances[index].Equals(current))
+                {
+                    presentationChanged = true;
+                    break;
+                }
+            }
+
+            if (!presentationChanged)
+            {
+                spellHandPresentation.SetInteractionAllowed(isInteractionAvailable);
+                return;
+            }
+
+            SpellDefinition[] slots = new SpellDefinition[MaximumHandSize];
+            int[] previousSlotForNewSlot = new int[MaximumHandSize];
+            Array.Fill(previousSlotForNewSlot, -1);
             for (int index = 0; index < count; index++)
             {
                 SpellCardInstance instance = hand[index];
                 definitionsById.TryGetValue(instance.DefinitionId, out slots[index]);
+                for (int previousIndex = 0;
+                    previousIndex < presentedInstances.Length;
+                    previousIndex++)
+                {
+                    if (presentedInstances[previousIndex].Equals(instance))
+                    {
+                        previousSlotForNewSlot[index] = previousIndex;
+                        break;
+                    }
+                }
             }
 
-            spellHandPresentation.ApplyAuthoritativeHand(slots);
+            for (int index = 0; index < count; index++)
+                presentedInstances[index] = hand[index];
+            for (int index = count; index < MaximumHandSize; index++)
+                presentedInstances[index] = default;
+
+            spellHandPresentation.ApplyAuthoritativeHand(
+                slots,
+                previousSlotForNewSlot);
             spellHandPresentation.SetInteractionAllowed(isInteractionAvailable);
         }
 
@@ -446,6 +927,55 @@ namespace Incantation.Networking.Spells
             return false;
         }
 
+        private static bool IsBookArrivalForPlayer(
+            RitualSnapshot snapshot,
+            string playerId)
+        {
+            RitualBookArrivalSnapshot arrival = snapshot.BookArrival;
+            return arrival.HasArrived &&
+                arrival.RitualSequenceId.Value == snapshot.SequenceId.Value &&
+                arrival.TurnSequenceId.Value == snapshot.Turn.SequenceId.Value &&
+                arrival.TargetSeatId == snapshot.Turn.ActiveSeatId &&
+                string.Equals(arrival.PlayerId, playerId, StringComparison.Ordinal);
+        }
+
+        private void PlayAuthoritativeConsumption(uint cardInstanceId)
+        {
+            if (spellHandPresentation == null)
+                return;
+
+            int presentationIndex = -1;
+            for (int index = 0; index < presentedInstances.Length; index++)
+            {
+                if (presentedInstances[index].InstanceId == cardInstanceId)
+                {
+                    presentationIndex = index;
+                    break;
+                }
+            }
+
+            if (presentationIndex < 0)
+                return;
+
+            if (consumptionPresentationRoutine != null)
+                StopCoroutine(consumptionPresentationRoutine);
+            consumptionPresentationPending = true;
+            spellHandPresentation.ConsumeCardAt(presentationIndex);
+            consumptionPresentationRoutine = StartCoroutine(
+                CompleteConsumptionPresentation(
+                    spellHandPresentation.ConsumptionDuration));
+        }
+
+        private IEnumerator CompleteConsumptionPresentation(float delay)
+        {
+            if (delay > 0f)
+                yield return new WaitForSecondsRealtime(delay);
+
+            consumptionPresentationPending = false;
+            consumptionPresentationRoutine = null;
+            RefreshOwnerPresentation();
+        }
+
         private void HandleHandChanged(
             SyncListOperation operation,
             int index,
@@ -479,8 +1009,18 @@ namespace Incantation.Networking.Spells
 
         private void ClosePresentationAndReleaseInput()
         {
+            if (consumptionPresentationRoutine != null)
+            {
+                StopCoroutine(consumptionPresentationRoutine);
+                consumptionPresentationRoutine = null;
+                consumptionPresentationPending = false;
+            }
+
             if (spellHandPresentation != null && spellHandPresentation.IsOpen)
+            {
+                ClearLocalGazeSelection(true);
                 spellHandPresentation.CloseHand();
+            }
 
             ReleaseSpellHandInputContext();
         }
@@ -494,6 +1034,9 @@ namespace Incantation.Networking.Spells
         protected override void OnValidate()
         {
             base.OnValidate();
+            gazeMaximumDistance = Mathf.Max(0.1f, gazeMaximumDistance);
+            gazeDwellSeconds = Mathf.Max(0f, gazeDwellSeconds);
+            gazeDeselectGraceSeconds = Mathf.Max(0f, gazeDeselectGraceSeconds);
             BuildDefinitionRegistry();
         }
     }

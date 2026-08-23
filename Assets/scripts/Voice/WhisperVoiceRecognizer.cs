@@ -1,10 +1,18 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Incantation.Networking;
 using UnityEngine;
 using Whisper;
 using Whisper.Utils;
 using Debug = UnityEngine.Debug;
+
+public enum WhisperCapturePurpose
+{
+    None,
+    Ritual,
+    Spell
+}
 
 /// <summary>
 /// Sandbox-style production recognizer: preload once, record one complete
@@ -39,6 +47,10 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
     private bool speechObserved;
     private bool voiceActive;
     private bool discardStoppedRecording;
+    private bool microphoneHandoffPending;
+    private bool microphoneOwnershipBlocked;
+    private WhisperCapturePurpose pendingCapturePurpose;
+    private WhisperCapturePurpose sessionCapturePurpose;
     private float recordingStartedAt;
     private float lastVoiceActivityAt;
     private float listeningGlow;
@@ -79,14 +91,18 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
 
     public bool IsListening => isListening;
     public bool IsProcessingRecognition => isTranscribing || hasPendingTranscript ||
-        (startRequestedWhenReady && preloadInProgress);
+        (startRequestedWhenReady && preloadInProgress) || microphoneOwnershipBlocked;
     public bool IsWhisperReady => whisper != null && whisper.IsLoaded;
     public float ListeningGlow => listeningGlow;
 
     public event Action<string> OnPhraseRecognized;
+    public event Action<string> OnSpellPhraseRecognized;
     public event Action<bool> OnVoiceActivityChanged;
     public event Action<float> OnListeningGlowChanged;
     public event Action<string> OnRecognitionStateChanged;
+
+    public void SetCapturePurpose(WhisperCapturePurpose purpose) =>
+        pendingCapturePurpose = purpose;
 
     public WhisperStreamDiagnosticSnapshot DiagnosticSnapshot =>
         new WhisperStreamDiagnosticSnapshot(
@@ -211,6 +227,7 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
         sessionRitualSequence = pendingRitualSequence;
         sessionTurnSequence = pendingTurnSequence;
         sessionPlayerId = pendingPlayerId;
+        sessionCapturePurpose = pendingCapturePurpose;
         deliveredSessionId = 0;
         deliveredRitualSequence = 0;
         deliveredTurnSequence = 0;
@@ -222,7 +239,16 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
         SetVoiceActivity(false);
         SetListeningGlow(0f);
         ResetAttemptDiagnostics();
-        AcquireMicrophoneOwnership();
+        microphoneHandoffPending = false;
+        microphoneOwnershipBlocked = false;
+        if (!AcquireMicrophoneOwnership())
+        {
+            microphoneOwnershipBlocked = true;
+            diagnosticRetryBlock = "AMPLITUDE_PROVIDER_STILL_RECORDING";
+            diagnosticVersion++;
+            SetState("READY_FAILED", "MICROPHONE_OWNERSHIP_CONFLICT");
+            return;
+        }
         EnableVadObservation();
         microphoneRecord.StartRecord();
         isListening = microphoneRecord.IsRecording;
@@ -241,15 +267,29 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
 
     public void CancelListening(string reason)
     {
+        CancelListening(reason, false);
+    }
+
+    public void CancelListeningForHandoff(string reason)
+    {
+        CancelListening(reason, true);
+    }
+
+    private void CancelListening(string reason, bool preserveMicrophoneOwnership)
+    {
         invalidatedThroughSessionId = Mathf.Max(invalidatedThroughSessionId, sessionId);
         startRequestedWhenReady = false;
         discardStoppedRecording = true;
+        microphoneOwnershipBlocked = false;
+        microphoneHandoffPending = preserveMicrophoneOwnership;
         isListening = false;
         SetVoiceActivity(false);
         SetListeningGlow(0f);
         if (microphoneRecord != null && microphoneRecord.IsRecording)
+        {
             microphoneRecord.StopRecord();
-        else
+        }
+        else if (!microphoneHandoffPending)
             ReleaseMicrophoneOwnership();
         SetState(
             IsWhisperReady ? "READY" : "PRELOADING",
@@ -398,7 +438,11 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
 
     private void HandleRecordStop(AudioChunk completeRecording)
     {
-        ReleaseMicrophoneOwnership();
+        bool deferSpellMicrophoneRelease =
+            sessionCapturePurpose == WhisperCapturePurpose.Spell &&
+            !discardStoppedRecording;
+        if (!microphoneHandoffPending && !deferSpellMicrophoneRelease)
+            ReleaseMicrophoneOwnership();
         if (discardStoppedRecording)
         {
             discardStoppedRecording = false;
@@ -468,6 +512,13 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
         if (IsSessionStale(completedSessionId))
             return;
 
+        if (sessionCapturePurpose == WhisperCapturePurpose.Spell &&
+            !microphoneHandoffPending)
+        {
+            ReleaseMicrophoneOwnership();
+        }
+
+
         diagnosticRaw = transcript;
         diagnosticPipeline = "MAIN_THREAD_DELIVERED";
         diagnosticVersion++;
@@ -485,7 +536,10 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
         deliveredPlayerId = sessionPlayerId;
         if (logRecognizedPhrases)
             Debug.Log($"Whisper complete recitation: {transcript}", this);
-        OnPhraseRecognized?.Invoke(transcript);
+        if (sessionCapturePurpose == WhisperCapturePurpose.Spell)
+            OnSpellPhraseRecognized?.Invoke(transcript);
+        else if (sessionCapturePurpose == WhisperCapturePurpose.Ritual)
+            OnPhraseRecognized?.Invoke(transcript);
     }
 
     private bool IsSessionStale(int checkedSessionId) =>
@@ -498,13 +552,49 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
         microphoneRecord.useVad = true;
     }
 
-    private void AcquireMicrophoneOwnership()
+    private bool AcquireMicrophoneOwnership()
     {
-        if (amplitudeProvider == null || !amplitudeProvider.IsRecording)
-            return;
-        suspendedAmplitudeProvider = amplitudeProvider;
-        restoreAmplitudeRecording = true;
-        amplitudeProvider.StopRecording();
+        ResolveLocalAmplitudeProvider();
+        if (amplitudeProvider != null && amplitudeProvider.IsRecording)
+        {
+            suspendedAmplitudeProvider = amplitudeProvider;
+            restoreAmplitudeRecording = true;
+            amplitudeProvider.StopRecording();
+        }
+
+        VoiceAmplitudeProvider[] providers = FindObjectsByType<VoiceAmplitudeProvider>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+        foreach (VoiceAmplitudeProvider provider in providers)
+        {
+            if (!provider.IsRecording)
+                continue;
+
+            Debug.LogError(
+                $"Microphone acquisition blocked because {nameof(VoiceAmplitudeProvider)} " +
+                $"'{provider.gameObject.name}' (Instance {provider.GetInstanceID()}) is still recording.",
+                provider);
+            return false;
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log("ACTIVE_RECORDING_AMPLITUDE_PROVIDERS = 0", this);
+#endif
+        return true;
+    }
+
+    private void ResolveLocalAmplitudeProvider()
+    {
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        NetworkCharacterPresentation presentation = localPlayer != null
+            ? localPlayer.GetComponent<NetworkCharacterPresentation>()
+            : null;
+        GameObject character = presentation != null ? presentation.CharacterInstance : null;
+        VoiceAmplitudeProvider resolvedProvider = character != null
+            ? character.GetComponentInChildren<VoiceAmplitudeProvider>(true)
+            : null;
+        if (resolvedProvider != null)
+            amplitudeProvider = resolvedProvider;
     }
 
     private void ReleaseMicrophoneOwnership()

@@ -37,6 +37,7 @@ public sealed class VoiceAmplitudeProvider : MonoBehaviour
     private string currentDevice;
     private float maximumObservedAmplitude;
     private bool recordingRequested;
+    private bool microphoneCaptureAllowed;
 
     public float CurrentAmplitude { get; private set; }
 
@@ -54,7 +55,7 @@ public sealed class VoiceAmplitudeProvider : MonoBehaviour
     {
         RefreshDevices();
 
-        if (startOnEnable)
+        if (startOnEnable && microphoneCaptureAllowed)
         {
             StartRecording();
         }
@@ -109,6 +110,9 @@ public sealed class VoiceAmplitudeProvider : MonoBehaviour
 
     public void StartRecording()
     {
+        if (!microphoneCaptureAllowed)
+            return;
+
         recordingRequested = true;
 
         if (IsRecording)
@@ -177,6 +181,18 @@ public sealed class VoiceAmplitudeProvider : MonoBehaviour
     {
         recordingRequested = false;
         StopActiveRecording();
+    }
+
+    public void SetMicrophoneCaptureAllowed(bool allowed)
+    {
+        if (microphoneCaptureAllowed == allowed)
+            return;
+
+        microphoneCaptureAllowed = allowed;
+        if (!microphoneCaptureAllowed)
+            StopRecording();
+        else if (startOnEnable && isActiveAndEnabled)
+            StartRecording();
     }
 
     private void StopActiveRecording()
