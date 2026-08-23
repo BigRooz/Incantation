@@ -960,8 +960,47 @@ public class RitualController : MonoBehaviour
         if (resolvedBookController == null)
             return;
 
+        float ritualBookGlow = IsLocalAuthoritativeRitualCaptureActive()
+            ? glow
+            : 0f;
         resolvedBookController.GetComponent<BookFeedbackController>()?
-            .SetListeningGlow(glow);
+            .SetListeningGlow(ritualBookGlow);
+    }
+
+    private bool IsLocalAuthoritativeRitualCaptureActive()
+    {
+        WhisperVoiceRecognizer whisperRecognizer =
+            subscribedWhisperPresentationRecognizer ?? ResolveWhisperVoiceRecognizer();
+        if (whisperRecognizer == null ||
+            !whisperRecognizer.TryGetActiveCaptureContext(
+                out WhisperCapturePurpose purpose,
+                out uint captureRitualSequence,
+                out uint captureTurnSequence,
+                out string capturePlayerId) ||
+            purpose != WhisperCapturePurpose.Ritual)
+        {
+            return false;
+        }
+
+        NetworkRitualAuthority authority = ResolveRitualAuthority();
+        if (authority == null || !authority.IsNetworkSessionActive)
+            return isTurnActive && CurrentActiveSeat != null;
+
+        NetworkPlayer localPlayer = NetworkPlayer.LocalPlayer;
+        if (localPlayer == null || string.IsNullOrEmpty(localPlayer.PlayerId))
+            return false;
+
+        RitualSnapshot snapshot = authority.Snapshot;
+        RitualBookArrivalSnapshot arrival = snapshot.BookArrival;
+        return captureRitualSequence == snapshot.SequenceId.Value &&
+            captureTurnSequence == snapshot.Turn.SequenceId.Value &&
+            string.Equals(capturePlayerId, localPlayer.PlayerId, StringComparison.Ordinal) &&
+            string.Equals(snapshot.ActivePlayerId, localPlayer.PlayerId, StringComparison.Ordinal) &&
+            arrival.HasArrived &&
+            arrival.RitualSequenceId.Value == snapshot.SequenceId.Value &&
+            arrival.TurnSequenceId.Value == snapshot.Turn.SequenceId.Value &&
+            arrival.TargetSeatId == snapshot.Turn.ActiveSeatId &&
+            string.Equals(arrival.PlayerId, localPlayer.PlayerId, StringComparison.Ordinal);
     }
 
     private void HandleWhisperRecognitionStateChanged(string state)

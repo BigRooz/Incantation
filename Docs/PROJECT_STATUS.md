@@ -448,6 +448,17 @@ transcription locally and stale results cannot submit. Successful casting curren
 targeting, effect, buff/debuff, Timer change, or spell voice consequence beyond authoritative card
 consumption. Host/client owner-only casting validation remains pending.
 
+SPELLS-PRESENTATION-021 replaces the accepted card's clipped shrink with a serialized `0.6`-second
+local magical consumption sequence: a brief hold, slight rise and turn, existing-Light intensity
+ramp, then eased scale-to-zero. The exact physical view remains reserved until completion while
+surviving cards stay raised. Correlated Book arrival safely finalizes that view before normal hand
+closure. Server removal and `SpellUsedThisTurn` remain immediate and do not wait for presentation.
+
+SPELLS-CARD-UI-POLISH-024 gives every physical spell card three dedicated non-overlapping text
+bands. Existing IM Fell English and Caveat SDF assets, independent per-role auto-size ranges,
+centered alignment, spacing, and warm parchment/ritual colors establish the hierarchy of title,
+incantation, then description without changing the `SpellDefinition -> SpellCardView` data path.
+
 SPELLS-CONTENT-004 replaces the playable placeholder pool with Vade Retro, Pactum Sanguis, and Lux
 in Umbra. Their unique definition IDs, display names, canonical complete phrases, concise existing
 effect descriptions, and explicitly authored phrase alternatives are stored on `SpellDefinition`.

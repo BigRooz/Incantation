@@ -87,6 +87,13 @@ toggling. Correlated Book arrival closes raised cards, cancels spell capture, re
 Spell Hand context, and prevents reopening. Remote character copies have their Spell Hand debug
 input disabled.
 
+An accepted target result reserves the exact physical view before owner-only hand synchronization
+can remap it. `SpellHandController` performs the local hold/rise/rotation/glow/shrink sequence while
+the authoritative instance has already been removed and `SpellUsedThisTurn` is already true.
+Synchronization resumes on actual animation completion, not an authority delay. If correlated Book
+arrival occurs first, presentation finalizes the reserved consumed view and closes only the
+survivors through the normal Book-arrival path.
+
 `SpellVoiceCastController` is the local complete-attempt adapter for the existing production
 `WhisperVoiceRecognizer`; it never owns inventory. The enabled Camera under the owning local
 character casts a center-view gaze ray only against that hand's three card-renderer bounds.
@@ -434,7 +441,21 @@ The display has one deliberately local input: `RitualController` passes whether 
 
 Authoritative phrase-state application synchronizes phrase words, expected progress, and completion flags without owning transient verdict cleanup. Duplicate or changed timer/snapshot revisions therefore cannot cancel the authoritative verdict replay they accompany. A different ritual turn sequence remains an explicit presentation lifecycle boundary and clears transient replay state even when the next phrase happens to contain identical words; rejected retry cleanup remains owned by the post-`CompleteReplay()` retry sequence.
 
-`BookFeedbackController` consumes the local listening-glow value through `RitualController`, smooths only its rise over roughly `0.1` seconds, and forwards the resulting intensity to the existing `BookMenuReturnInteractable` highlight. That component remains the single owner of the BookModel property block and `BookHoverLight`, combining independent menu-hover and voice-listening requests by maximum intensity. Decay follows the recognizer's exact trailing-silence fraction; releasing either caller cannot disable a highlight still requested by the other. The controller otherwise owns only the existing authoritative success pulse; listening glow never invokes gameplay or judgment.
+`WhisperVoiceRecognizer` publishes one local listening-glow signal for its active microphone session.
+Previously, `RitualController` forwarded that generic signal directly to `BookFeedbackController`, so
+a Spell-purpose capture could illuminate the Book. The forwarding path now requires the recognizer's
+active semantic purpose to be `Ritual`. In a network session it additionally requires the active
+capture identity to match the local `NetworkPlayer`, authoritative ritual/turn, active player, and
+correlated physical Book arrival. Spell capture and ordinary player/voice-chat amplitude therefore
+never reach the Book highlight. Offline ritual presentation retains its existing active-turn path.
+
+After that gate, `BookFeedbackController` smooths only the glow's rise over roughly `0.1` seconds and
+forwards the resulting intensity to the existing `BookMenuReturnInteractable` highlight. That
+component remains the single owner of the BookModel property block and `BookHoverLight`, combining
+independent menu-hover and ritual-voice requests by maximum intensity. Decay follows the recognizer's
+exact trailing-silence fraction; releasing either caller cannot disable a highlight still requested
+by the other. The controller otherwise owns only the existing authoritative success pulse; listening
+glow never invokes gameplay or judgment.
 
 `IncantationTextDisplay` owns sequential authoritative verdict presentation. For FullPhrase authority, `IncantationManager` publishes the complete immutable word-result timeline after reset; the display prepares every accepted/rejected step atomically before starting playback and ignores the redundant per-word presentation events for that verdict. Accepted replay steps accumulate in serialized muted magical green at a `0.11`-second interval and expose ordinary/final magical acknowledgement hooks. Rejection stops at the first failed expected index and holds its stable blood-wine treatment for `0.5` seconds before retry reset. Presentation never performs validation or grants success.
 

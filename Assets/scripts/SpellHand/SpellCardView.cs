@@ -42,6 +42,7 @@ public sealed class SpellCardView : MonoBehaviour
     private bool fadeInComplete;
     private Coroutine lightTransition;
     private Light controlledGlowLight;
+    private bool isConsumptionGlowActive;
 
     public SpellDefinition CurrentDefinition => definition;
     public Renderer CardMesh => cardMesh;
@@ -136,6 +137,7 @@ public sealed class SpellCardView : MonoBehaviour
     public void DisableGlowLightImmediately()
     {
         StopLightTransition();
+        isConsumptionGlowActive = false;
         isSelected = false;
         fadeInComplete = false;
 
@@ -150,6 +152,39 @@ public sealed class SpellCardView : MonoBehaviour
             glowLight.intensity = 0f;
             glowLight.enabled = false;
         }
+    }
+
+    /// <summary>
+    /// Gives card-consumption presentation exclusive control of the existing glow light.
+    /// No material instance is created and selection state is not restored afterward.
+    /// </summary>
+    public void BeginConsumptionGlow()
+    {
+        StopLightTransition();
+        isConsumptionGlowActive = glowLight != null && isActiveAndEnabled && isVisible;
+        isSelected = false;
+        fadeInComplete = false;
+
+        if (!isConsumptionGlowActive)
+            return;
+
+        glowLight.color = definition != null ? definition.GlowColor : glowLight.color;
+        glowLight.range = selectedLightRange;
+        glowLight.enabled = true;
+        glowLight.intensity = selectedLightIntensity;
+    }
+
+    /// <summary>Ramps the existing physical light during magical consumption.</summary>
+    public void SetConsumptionGlowProgress(float normalizedProgress, float intensityMultiplier)
+    {
+        if (!isConsumptionGlowActive || glowLight == null)
+            return;
+
+        float multiplier = Mathf.Max(1f, intensityMultiplier);
+        glowLight.intensity = Mathf.Lerp(
+            selectedLightIntensity,
+            selectedLightIntensity * multiplier,
+            Mathf.Clamp01(normalizedProgress));
     }
 
     private void ApplyDefinition()
@@ -325,7 +360,8 @@ public sealed class SpellCardView : MonoBehaviour
 
     private bool CanIlluminate()
     {
-        return glowLight != null && isActiveAndEnabled && isVisible && isSelected && definition != null;
+        return glowLight != null && isActiveAndEnabled && isVisible &&
+            (isSelected || isConsumptionGlowActive) && definition != null;
     }
 
     private void SynchronizeControlledGlowLight()

@@ -411,13 +411,15 @@ The detailed method-level ownership table and the rationale for every retained b
 - `Assets/Scripts/SpellHand/SpellHandController.cs`
   - Owns exactly three authored card views and their hidden, table, raised, selected, and consumed visual states.
   - Uses only Inspector-assigned table, raised, and inspect poses.
+  - Animates accepted consumption locally with serialized hold, rise, rotation, glow, scale, and easing values; it can finalize a pending consumed view safely for Book arrival.
   - Has no dependency on ritual, book, incantation, timer, seat, spell execution, or networking systems.
 - `Assets/Scripts/SpellHand/SpellCardView.cs`
   - Presents one Inspector-assigned `SpellDefinition` through optional TMP text, Sprite artwork, a physical rarity Light, and Canvas references.
   - Supports runtime presentation reassignment through `SetDefinition(SpellDefinition)`.
+  - Its prefab-authored title, description, and incantation TMP objects occupy independent top, middle, and lower card-plane regions; IM Fell English serves readable book text and Caveat SemiBold distinguishes the spoken incantation.
   - Applies rarity color to its Inspector-assigned `GlowLight`; selection fades from current intensity to the configured selected intensity, while normal deselection and hand close fade to zero.
   - One replaceable transition coroutine prevents overlapping fades during rapid selection changes. Optional post-fade flicker uses deterministic layered sine waves.
-  - Hiding, disabling, consuming, clearing the definition, or losing the Light reference cancels the transition and shuts the Light down immediately.
+  - Consumption temporarily owns the same physical Light and ramps it without material allocation; hiding, disabling, completion, clearing the definition, or losing the Light reference shuts it down immediately.
   - Remains visual-only and contains no spell execution or gameplay behavior.
 - `Assets/Scripts/SpellHand/SpellDefinition.cs` and `SpellRarity.cs`
   - Store stable identity, player-facing text, presentation rarity, and optional artwork, glow, audio, and visual-prefab references.

@@ -306,6 +306,27 @@ public sealed class WhisperVoiceRecognizer : MonoBehaviour,
 
     public void SetAmplitudeProvider(VoiceAmplitudeProvider provider) => amplitudeProvider = provider;
 
+    /// <summary>
+    /// Exposes immutable semantic identity for the recording that currently owns Whisper capture.
+    /// Presentation consumers may use this to distinguish Ritual capture from Spell capture
+    /// without inferring intent from microphone amplitude.
+    /// </summary>
+    public bool TryGetActiveCaptureContext(
+        out WhisperCapturePurpose purpose,
+        out uint ritualSequence,
+        out uint turnSequence,
+        out string playerId)
+    {
+        purpose = sessionCapturePurpose;
+        ritualSequence = sessionRitualSequence;
+        turnSequence = sessionTurnSequence;
+        playerId = sessionPlayerId;
+        return isListening &&
+            microphoneRecord != null &&
+            microphoneRecord.IsRecording &&
+            sessionId > invalidatedThroughSessionId;
+    }
+
     public bool TryGetDeliveredSessionContext(
         out int deliveredId, out uint ritualSequence, out uint turnSequence, out string playerId)
     {

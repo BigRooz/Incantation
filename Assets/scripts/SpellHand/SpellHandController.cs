@@ -38,7 +38,12 @@ public sealed class SpellHandController : MonoBehaviour
     [SerializeField] private AnimationCurve openCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [SerializeField] private AnimationCurve closeCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [SerializeField] private AnimationCurve consumeCurve = AnimationCurve.EaseInOut(0f, 1f, 1f, 0f);
-    [SerializeField, Min(0.01f)] private float consumeDuration = 0.2f;
+    [SerializeField, Range(0.5f, 0.7f)] private float consumeDuration = 0.6f;
+    [SerializeField, Range(0f, 0.3f)] private float consumeHoldFraction = 0.12f;
+    [SerializeField, Min(0f)] private float consumeRiseDistance = 0.08f;
+    [SerializeField] private Vector3 consumeRotationDegrees = new Vector3(0f, 32f, 8f);
+    [SerializeField, Min(1f)] private float consumeGlowMultiplier = 2.25f;
+    [SerializeField] private AnimationCurve consumeMotionCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
     [Header("Initial State")]
     [SerializeField] private bool visibleOnAwake;
@@ -56,6 +61,7 @@ public sealed class SpellHandController : MonoBehaviour
     private readonly Vector3[] tableLocalPositions = new Vector3[CardCount];
     private readonly Quaternion[] tableLocalRotations = new Quaternion[CardCount];
     private readonly bool[] hasCachedTablePose = new bool[CardCount];
+    private readonly bool[] consumptionAnimating = new bool[CardCount];
 
     private bool isVisible;
     private bool isOpen;
@@ -66,6 +72,19 @@ public sealed class SpellHandController : MonoBehaviour
     public bool IsOpen => isOpen;
     public int SelectedIndex => selectedIndex;
     public float ConsumptionDuration => consumeDuration;
+    public bool IsConsumptionAnimating
+    {
+        get
+        {
+            for (int index = 0; index < CardCount; index++)
+            {
+                if (consumptionAnimating[index])
+                    return true;
+            }
+
+            return false;
+        }
+    }
 
     private void Awake()
     {
@@ -114,6 +133,11 @@ public sealed class SpellHandController : MonoBehaviour
         if (Input.GetKeyDown(consumeKey))
             ConsumeSelectedCard();
 #endif
+    }
+
+    private void OnDisable()
+    {
+        CompleteConsumptionImmediately();
     }
 
     public void SetDebugInputEnabled(bool enabled)
@@ -355,7 +379,7 @@ public sealed class SpellHandController : MonoBehaviour
         return cardIndex >= 0;
     }
 
-    /// <summary>Plays a placeholder shrink animation on the selected card, then hides it.</summary>
+    /// <summary>Raises, turns, brightens, and shrinks the selected physical card, then hides it.</summary>
     public void ConsumeSelectedCard()
     {
         if (selectedIndex < 0 || !CanPresentCard(selectedIndex))
@@ -363,9 +387,10 @@ public sealed class SpellHandController : MonoBehaviour
 
         int consumedIndex = selectedIndex;
         selectedIndex = -1;
-        cardViews[consumedIndex].DisableGlowLightImmediately();
         StopCardAnimation(consumedIndex);
         cardStates[consumedIndex] = CardVisualState.Consumed;
+        consumptionAnimating[consumedIndex] = true;
+        cardViews[consumedIndex].BeginConsumptionGlow();
         cardAnimations[consumedIndex] = StartCoroutine(ConsumeCardRoutine(consumedIndex));
     }
 
@@ -377,6 +402,22 @@ public sealed class SpellHandController : MonoBehaviour
         ClearSelectedCardPresentation();
         selectedIndex = index;
         ConsumeSelectedCard();
+    }
+
+    /// <summary>
+    /// Safely finalizes any reserved consumed view, for example when Book arrival closes the hand.
+    /// Surviving cards are not moved or hidden by this method.
+    /// </summary>
+    public void CompleteConsumptionImmediately()
+    {
+        for (int index = 0; index < CardCount; index++)
+        {
+            if (!consumptionAnimating[index])
+                continue;
+
+            StopCardAnimation(index);
+            FinishConsumption(index);
+        }
     }
 
     public CardVisualState GetCardState(int index)
@@ -481,22 +522,46 @@ public sealed class SpellHandController : MonoBehaviour
     private IEnumerator ConsumeCardRoutine(int index)
     {
         Transform cardTransform = cardViews[index].transform;
+        Vector3 startPosition = cardTransform.position;
+        Quaternion startRotation = cardTransform.rotation;
         Vector3 startScale = cardTransform.localScale;
+        Vector3 targetPosition = startPosition + cardTransform.up * consumeRiseDistance;
+        Quaternion targetRotation = startRotation * Quaternion.Euler(consumeRotationDegrees);
         float elapsed = 0f;
 
         while (elapsed < consumeDuration)
         {
             elapsed += Time.unscaledDeltaTime;
             float progress = Mathf.Clamp01(elapsed / consumeDuration);
-            float scaleAmount = consumeCurve != null ? consumeCurve.Evaluate(progress) : 1f - progress;
+            float motionProgress = consumeMotionCurve != null
+                ? consumeMotionCurve.Evaluate(progress)
+                : progress;
+            float shrinkProgress = Mathf.InverseLerp(consumeHoldFraction, 1f, progress);
+            float scaleAmount = consumeCurve != null
+                ? consumeCurve.Evaluate(shrinkProgress)
+                : 1f - shrinkProgress;
+            cardTransform.SetPositionAndRotation(
+                Vector3.LerpUnclamped(startPosition, targetPosition, motionProgress),
+                Quaternion.SlerpUnclamped(startRotation, targetRotation, motionProgress));
             cardTransform.localScale = startScale * Mathf.Max(0f, scaleAmount);
+            cardViews[index].SetConsumptionGlowProgress(progress, consumeGlowMultiplier);
             yield return null;
         }
 
-        cardTransform.localScale = Vector3.zero;
-        cardViews[index].SetVisible(false);
-        cardStates[index] = CardVisualState.Consumed;
+        FinishConsumption(index);
         cardAnimations[index] = null;
+    }
+
+    private void FinishConsumption(int index)
+    {
+        if (!HasCard(index))
+            return;
+
+        consumptionAnimating[index] = false;
+        cardViews[index].transform.localScale = Vector3.zero;
+        cardViews[index].SetVisible(false);
+        cardViews[index].DisableGlowLightImmediately();
+        cardStates[index] = CardVisualState.Consumed;
     }
 
     private void StopCardAnimation(int index)
@@ -586,7 +651,10 @@ public sealed class SpellHandController : MonoBehaviour
         EnsureExactArraySize(ref cardSlots);
         EnsureExactArraySize(ref raisedPoses);
         animationDuration = Mathf.Max(0.01f, animationDuration);
-        consumeDuration = Mathf.Max(0.01f, consumeDuration);
+        consumeDuration = Mathf.Clamp(consumeDuration, 0.5f, 0.7f);
+        consumeHoldFraction = Mathf.Clamp(consumeHoldFraction, 0f, 0.3f);
+        consumeRiseDistance = Mathf.Max(0f, consumeRiseDistance);
+        consumeGlowMultiplier = Mathf.Max(1f, consumeGlowMultiplier);
         selectionScale = Mathf.Max(0.01f, selectionScale);
     }
 

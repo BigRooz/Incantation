@@ -961,15 +961,16 @@ namespace Incantation.Networking.Spells
                 StopCoroutine(consumptionPresentationRoutine);
             consumptionPresentationPending = true;
             spellHandPresentation.ConsumeCardAt(presentationIndex);
-            consumptionPresentationRoutine = StartCoroutine(
-                CompleteConsumptionPresentation(
-                    spellHandPresentation.ConsumptionDuration));
+            consumptionPresentationRoutine = StartCoroutine(CompleteConsumptionPresentation());
         }
 
-        private IEnumerator CompleteConsumptionPresentation(float delay)
+        private IEnumerator CompleteConsumptionPresentation()
         {
-            if (delay > 0f)
-                yield return new WaitForSecondsRealtime(delay);
+            while (spellHandPresentation != null &&
+                spellHandPresentation.IsConsumptionAnimating)
+            {
+                yield return null;
+            }
 
             consumptionPresentationPending = false;
             consumptionPresentationRoutine = null;
@@ -1015,6 +1016,8 @@ namespace Incantation.Networking.Spells
                 consumptionPresentationRoutine = null;
                 consumptionPresentationPending = false;
             }
+
+            spellHandPresentation?.CompleteConsumptionImmediately();
 
             if (spellHandPresentation != null && spellHandPresentation.IsOpen)
             {

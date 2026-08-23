@@ -25,6 +25,7 @@ MonoBehaviour:
   - VAAD RETRU
   - VAAD AR RETRO
   - VAAD RETRO
+  - VAD RETRO
   description: Forces a cursed influence away from its current target.
   rarity: 1
   cardArtwork: {fileID: 0}

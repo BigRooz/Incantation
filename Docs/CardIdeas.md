@@ -59,7 +59,8 @@ The first playable three-spell pool is exactly:
 
 - `Vade Retro` (`vade_retro`): `VADE RETRO`. Forces a cursed influence away from its current
   target. Accepted authored alternatives: `VADE RETRO SATANA`, `VEID RETRO`, `VEE DE RECRO`,
-  `VAD ARITORU`, `VEIDERETRO`, `VEID ARRETRO`, `VAAD RETRU`, `VAAD AR RETRO`, and `VAAD RETRO`.
+  `VAD ARITORU`, `VEIDERETRO`, `VEID ARRETRO`, `VAAD RETRU`, `VAAD AR RETRO`, `VAAD RETRO`, and
+  `VAD RETRO`.
   Every malformed alternative is a deliberate exact alias from an observed Development Build
   Whisper transcript, not generic fuzzy matching.
 - `Pactum Sanguis` (`pactum_sanguis`): `PACTUM SANGUIS`. Marks a blood-bound bargain for a future

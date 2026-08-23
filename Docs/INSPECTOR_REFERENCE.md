@@ -770,7 +770,7 @@ Notes:
 
 ## BookFeedbackController
 
-- The listening glow is local and read-only. `RitualController` relays `WhisperVoiceRecognizer.ListeningGlow`; `BookFeedbackController` forwards it to the existing `BookMenuReturnInteractable` highlight and never starts/stops recording, transcribes, validates, submits, or advances gameplay.
+- The listening glow is local and read-only. `RitualController` relays `WhisperVoiceRecognizer.ListeningGlow` to the Book only while the active capture purpose is `Ritual`. In a network session, the capture identity must also match the local authoritative active player and correlated physical Book arrival. Spell capture and generic player amplitude are forced to zero on this Book-only path. `BookFeedbackController` forwards the gated value to the existing `BookMenuReturnInteractable` highlight and never starts/stops recording, transcribes, validates, submits, or advances gameplay.
 - `listeningGlowRiseSpeed`: `10`. Smooths a zero-to-full rise over roughly `0.1` seconds; decay is not delayed and follows the recognizer value directly. `Prototype tuning`.
 - The hover component automatically combines menu-hover and voice-listening intensity and remains the sole owner of the BookModel property block and `BookHoverLight`; no duplicate listening material settings are required.
 
@@ -1197,8 +1197,12 @@ Add one `SpellHand` child beneath each authored Player that needs the local pres
 - `fanAngle`: `6` degrees between adjacent cards. `Prototype tuning`.
 - `selectionOffset`: `(0, 0, 0.08)` in inspect/raised-pose local space. Confirm the sign points toward the seated player's camera for the authored pose orientation. `Prototype tuning`.
 - `selectionScale`: `1.08`. `Prototype tuning`.
-- `openCurve`, `closeCurve`, `consumeCurve`: author smooth Inspector curves; defaults are ease-in/ease-out.
-- `consumeDuration`: `0.2` seconds. `Prototype tuning`.
+- `openCurve`, `closeCurve`, `consumeCurve`, `consumeMotionCurve`: author smooth Inspector curves; defaults are ease-in/ease-out.
+- `consumeDuration`: `0.6` seconds, constrained to the approved `0.5`–`0.7` second range. `Prototype tuning`.
+- `consumeHoldFraction`: `0.12`; keeps the accepted card readable briefly before shrink begins.
+- `consumeRiseDistance`: `0.08` world units. `Prototype tuning`.
+- `consumeRotationDegrees`: `(0, 32, 8)` for a restrained magical turn rather than a large flight.
+- `consumeGlowMultiplier`: `2.25`; ramps the existing card Light without instantiating a material.
 - `visibleOnAwake`, `openOnAwake`: leave disabled for lobby-first setup; invoke the public presentation methods explicitly later.
 - `enableDebugInput`: enables temporary `H` visibility, `E` open/close, `1`/`2`/`3` selection, and `Space` consume controls. Disable when production input owns these calls.
 
@@ -1212,7 +1216,7 @@ Create card data through `Assets > Create > Incantation > Spell Definition`:
 - `stableIdentifier`: enter a durable lowercase identifier such as `petit_fantome`; keep it separate from the asset filename and display name.
 - `displayName`, `spokenIncantation`, `description`: enter designer-approved player-facing content. `spokenIncantation` is the canonical complete spell phrase. Do not invent unfinished incantations.
 - `acceptedSpokenForms`: optional explicitly approved complete alternatives for deterministic Whisper variations. Unknown text is never fuzzy-matched or discarded.
-- Vade Retro currently approves `VADE RETRO SATANA`, `VEID RETRO`, `VEE DE RECRO`, `VAD ARITORU`, `VEIDERETRO`, `VEID ARRETRO`, `VAAD RETRU`, `VAAD AR RETRO`, and `VAAD RETRO`. Every malformed alternative corresponds to reviewed runtime Whisper evidence. Pactum Sanguis and Lux in Umbra retain only their existing authored alternatives until runtime evidence justifies any additional forms.
+- Vade Retro currently approves `VADE RETRO SATANA`, `VEID RETRO`, `VEE DE RECRO`, `VAD ARITORU`, `VEIDERETRO`, `VEID ARRETRO`, `VAAD RETRU`, `VAAD AR RETRO`, `VAAD RETRO`, and `VAD RETRO`. Every malformed alternative corresponds to reviewed runtime Whisper evidence. Pactum Sanguis and Lux in Umbra retain only their existing authored alternatives until runtime evidence justifies any additional forms.
 - `rarity`: presentation-only `Common`, `Uncommon`, `Rare`, `Epic`, or `UltraRare`.
 - `cardArtwork`, `audioClip`, `visualPrefab`: optional references. Audio and visual prefabs are stored only and are not played or instantiated.
 - `overrideRarityGlowColor`: disabled uses the default white, green, blue, purple, or bright-red rarity color. Enable it to author a per-definition override.
@@ -1221,6 +1225,19 @@ On each `SpellCardView`:
 
 - `definition`: assign a `SpellDefinition` directly for Inspector testing. Future hand management may call `SetDefinition(SpellDefinition)` without changing this view.
 - Assign the card mesh Renderer and name/description/incantation TMP components where available.
+- The three authored text planes use separate non-overlapping card-local bands. Relative to each
+  card's existing text center, title is `+0.22`, description is centered, and incantation is
+  `-0.22` along the card plane. At the authored `0.02` text scale, title and incantation use
+  `20 x 4.5` RectTransforms and description uses `20 x 9`, leaving `0.085` world units of clear
+  space between adjacent regions.
+- Title uses the existing IM Fell English Regular SDF asset, centered middle alignment, warm ivory,
+  bold styling, and independent `28`–`40` auto-sizing.
+- Description uses IM Fell English Regular, centered middle alignment, muted parchment ink,
+  four-point line spacing, and independent `18`–`24` auto-sizing for two-to-four short lines.
+- Incantation uses the existing Caveat SemiBold SDF asset, centered middle alignment, aged magical
+  gold, slight character spacing, and independent `24`–`34` auto-sizing.
+- Keep these regions and styles consistent across all three physical views. Runtime wording remains
+  entirely supplied by `SpellDefinition`; the prefab text is only an authoring preview.
 - Assign either `artworkImage` for Canvas UI artwork or `artworkRenderer` for a SpriteRenderer target. Both are optional and safely hide when the definition has no artwork.
 - `glowLight`: assign a real Unity Light parented to or positioned with the physical card. Leave the Light disabled in the authored setup; `SpellCardView` controls it.
 - `selectedLightIntensity`: author the selected-card illumination strength for the scene and render pipeline.
@@ -1276,6 +1293,9 @@ The `NetworkPlayer` prefab carries one `NetworkSpellHand`.
 - Successful consumption clears selection but leaves surviving cards raised and keeps the SpellHand
   context until E or correlated physical Book arrival closes it. `SpellUsedThisTurn` disables gaze
   casting without using hand closure as enforcement.
+- The accepted physical view is reserved while it holds, rises, turns, brightens, and shrinks. Hand
+  synchronization compacts surviving instances only after that presentation finishes. Book arrival
+  finalizes the reserved view immediately before closing the survivors, so it cannot reappear.
 - No manual physical-card TMP text is required. `SpellCardView.SetDefinition()` writes the
   definition display name, description, and canonical spoken incantation into every authoritative
   slot, including later refills.
